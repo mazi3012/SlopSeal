@@ -291,7 +291,7 @@ Verification requires line 1 to be a genesis entry with `seq = 0` and the all-ze
 
 ## 12. L2 and the sub-agent question
 
-`semantic/` exposes `SemanticBackend`. The Needle adapter calls needle-rs. L2 is built only if the M1 gate passes; before then the package contains the interface and a stub.
+`semantic/` holds the spike (`spike.py`) and the outcome. **Outcome: the M1 gate failed** (match-allow 0.40 against a minimum of 0.80; `docs/needle_spike.csv`). L2 is not integrated, so `SemanticBackend` has no implementation in v1. Re-opening L2 needs a new pre-registration with a different decision rule, not a re-tuning of this one.
 
 Open Decision 1 asks whether a headless CLI can invoke a Kiro sub-agent. The design does not depend on the answer: the interface is the same whether the backend is a local model, a Kiro sub-agent, or a remote API. If no sub-agent path exists, the PRD wording becomes "separate process with separate context", which is already true for the Needle backend.
 
