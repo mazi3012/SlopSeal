@@ -265,7 +265,7 @@ def write_csv(results: list[CaseResult], threshold: float, path: Path) -> None:
 
 def load_engine(model: Path) -> Any:
     try:
-        import needle_rs  # type: ignore[import-untyped]
+        import needle_rs
     except ImportError as exc:
         raise SpikeError("needle-rs is not installed: pip install 'slopseal[needle]'") from exc
     return needle_rs.V3Engine.load(str(model))

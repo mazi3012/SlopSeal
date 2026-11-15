@@ -93,6 +93,11 @@ strict = true
 warn_unreachable = true
 files = ["src/slopseal"]
 
+# The optional needle extra may or may not be installed. Missing stubs are not an error either way.
+[[tool.mypy.overrides]]
+module = ["needle_rs"]
+ignore_missing_imports = true
+
 # ---- pytest ----
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]
