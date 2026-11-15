@@ -76,14 +76,14 @@ Each request reveals that the developer is considering a given package. That is 
 - Live mode trusts TLS to the registry and OSV. Only offline mode gives signed inputs.
 - The deterministic intent check proves the declared API exists. It does not prove the package fits the task. Only L2 addresses purpose, and it is gated.
 - A new malicious package with a unique name, no typosquat distance, and clean metadata can pass L1. Age and install-script checks reduce this risk and do not remove it.
-- Seven ecosystems are named in scope. Only pip and npm are covered by the fixture corpus and the demo.
+- Only pip and npm are in v1. The other package managers named in the original scope are on the post-hackathon roadmap (Open Decision 13). The fixture corpus and the demo cover pip and npm.
 
 ## 7. Open items
 
 | Item | Owner decision | Due |
 |------|----------------|-----|
 | Signing algorithm, key location, and who signs | Open Decision 6 | **Resolved** (section 5a and section 6) |
-| Quarantine time bound and install rate limit | Open Decision 7 | M2 |
+| Quarantine time bound and install rate limit | Open Decision 7 | **Resolved** (Phase 5): 900-second window, N = 10 installs per minute |
 
 ## 5a. CI behavior for QUARANTINE (Open Decision 3, resolved)
 

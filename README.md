@@ -103,9 +103,9 @@ pytest
 
 Contributors and agents: read `CONTRIBUTING.md` and `AGENTS.md` first.
 
-## Roadmap
+## Post-Hackathon Roadmap
 
-In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. After v1: live registry proxy, replay, SARIF output, local dashboard, MCP server, Windows support, and a semantic layer if a new pre-registered experiment passes.
+In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. Post-hackathon roadmap: replay (R-5.7.3), live registry proxy, SARIF output, local dashboard, MCP server, Windows support, other package managers (yarn, pnpm, cargo, gem, go get), and a semantic layer if a new pre-registered experiment passes.
 
 ## Limitations
 

@@ -4,7 +4,7 @@ SlopSeal is a security tool, so reports about its own weaknesses matter most.
 
 ## Supported versions
 
-SlopSeal is pre-1.0. Only the latest commit on `main` is supported.
+SlopSeal 1.0.0 is the Kiroween 2026 release (`v1.0.0-kiroween`). Only the latest commit on `main` is supported.
 
 ## Reporting a vulnerability
 

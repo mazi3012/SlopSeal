@@ -33,7 +33,7 @@ SlopSeal is a dependency trust firewall for AI coding agents. Before a package i
 
 ## Scope
 
-In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, JSONL audit with signed seals, replay, policy diff (CLI), offline snapshot, property suite. Not in v1: registry proxy, SARIF, dashboard, MCP server, Windows. Do not add them without a PRD change.
+In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, JSONL audit with signed seals, policy diff (CLI), offline snapshot, property suite. Not in v1: registry proxy, SARIF, dashboard, MCP server, Windows, replay (post-hackathon roadmap). Do not add them without a PRD change.
 
 ## Current phase
 
