@@ -30,7 +30,9 @@
 
 **P-TY-2 (near-name is WARN only).** For any package, the near-name check (2.11) produces WARN or no result. It never produces HARD_BLOCK, regardless of age.
 
-**P-TY-3 (near-name coverage).** For any top-N name and any single-character substitution by a keyboard-adjacent key, the near-name check fires.
+**P-TY-3 (near-name coverage).** For any top-N name and any single-character substitution by a keyboard-adjacent key, the near-name check (R-2.11) fires.
+
+**P-TY-4 (keyboard clause is subsumed by Levenshtein).** Mathematically, a keyboard-adjacent substitution is a single edit, so its Levenshtein distance is 1. Therefore the keyboard clause of R-2.11 (keyboard distance ≤ 1) is always implied by the Levenshtein clause (distance ≤ 3). The clause is retained in R-2.11 as explicit documentation of the keyboard-adjacency threat. It changes no verdict under the current rule. Any future change that adds coverage through the keyboard clause must use a different metric, such as a weighted keyboard distance, and must add a property that distinguishes it from Levenshtein. The test `test_r_2_11_keyboard_clause_is_subsumed_by_levenshtein` enforces this statement.
 
 ## 3. Quarantine state machine
 
