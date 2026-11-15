@@ -52,7 +52,7 @@ Both were restored afterward.
 
 The agent that wants a package is the party with an interest in installing it. It should not
 judge its own request. SlopSeal therefore never calls the agent's LLM. Every check is
-deterministic code that reads a signed, offline registry snapshot. The verdict depends only on
+deterministic code that reads a checksummed, offline registry snapshot. The verdict depends only on
 the policy, the snapshot, and the inputs. Given the same inputs, it returns the same verdict.
 
 The layers are:

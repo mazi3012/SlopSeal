@@ -49,7 +49,7 @@ Each module has one responsibility and a requirement list. Dependency direction 
 | 3 | `audit/` | JSONL log, seals. Replay is on the roadmap. | R-5.7.1, R-5.7.2 |
 | 2 | `core/` | L1 checks 2.1–2.11, one file per check | R-2.1..2.11 |
 | 2 | `policy/` | Load and validate policy, diff two policies | R-1.4, R-5.7.4 |
-| 1 | `fixtures/` | Snapshot loader and signature verification | R-P-2 |
+| 1 | `fixtures/` | Snapshot loader and checksum verification | R-P-2 |
 | 0 | `types` (in `verdict.py` until it grows) | Frozen dataclasses and enums shared by all layers | none |
 
 `core/` never imports `semantic/`. `semantic/` never imports `core/`. Both are composed by `verdict`.
@@ -84,8 +84,8 @@ Implementations:
 
 | Interface | Live | Offline (`SLOPSEAL_OFFLINE_SNAPSHOT=1`) | Test |
 |-----------|------|------------------------------------------|------|
-| `RegistryClient` | PyPI and npm over `urllib.request` | Signed snapshot | In-memory fake |
-| `AdvisoryClient` | OSV.dev over `urllib.request` | Signed OSV snapshot | In-memory fake |
+| `RegistryClient` | PyPI and npm over `urllib.request` | Checksummed snapshot | In-memory fake |
+| `AdvisoryClient` | OSV.dev over `urllib.request` | Checksummed OSV snapshot | In-memory fake |
 | `Clock` | System clock | Pinned to snapshot date | Fixed clock |
 | `SemanticBackend` | Needle via needle-rs | Same (local) | Stub with fixed scores |
 
@@ -303,7 +303,7 @@ Prompt-injection posture: package descriptions and README text are untrusted. Th
 |-----------|---------|------|---------------|
 | Check returns BLOCK or HARD_BLOCK | BLOCK | 1 | `DependencyViolation` JSON on stderr |
 | Registry or advisories unknown | BLOCK | 1 | `DependencyViolation` with `check="registry_unknown"` |
-| Snapshot signature or hash fails | BLOCK | 1 | `DependencyViolation` with `check="snapshot_integrity"` |
+| Snapshot checksum fails | BLOCK | 1 | `DependencyViolation` with `check="snapshot_integrity"` |
 | Unexpected exception | BLOCK | 1 | `DependencyViolation` with `check="internal_error"`; detail in log only |
 | Policy missing or invalid | POLICY_ERROR | 78 | Plain message on stderr naming the file and the first error |
 | Quarantine | QUARANTINE | 75 | Payload JSON on stdout (so agents can parse it), summary on stderr |

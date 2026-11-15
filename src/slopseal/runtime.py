@@ -1,7 +1,8 @@
 """Shared runtime setup: the CLI, the PATH shim, and the verify API build the same context here.
 
 Environment (see .env.example):
-  SLOPSEAL_OFFLINE_SNAPSHOT=1  use the signed offline snapshot and pin verdict time to its as_of
+  SLOPSEAL_OFFLINE_SNAPSHOT=1  use the checksummed offline snapshot and pin verdict time
+                               to its as_of
   SLOPSEAL_SNAPSHOT_DIR        snapshot directory (default: src/slopseal/fixtures)
   SLOPSEAL_STATE_DIR           state directory (default: .slopseal)
   SLOPSEAL_POLICY_PATH         trust policy (default: .kiro/steering/dependency-trust.md)

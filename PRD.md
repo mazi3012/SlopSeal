@@ -23,7 +23,7 @@
 | 4 | Fixture corpus | 20 packages in Phase 1 (5 slopsquat, 5 typosquat, 5 legit-new, 5 legit-old). The corpus expands in Phase 5 and freezes at M3. The write-up states the final count. |
 | 5 | Platforms | Linux and macOS only. Confirmed. |
 | 6 | Schedule | Phase-based, with four dated milestones (M1–M4). Spec work began Nov 15, so that is the start date. Submission is Dec 3. Dec 4 is the emergency buffer. See Schedule. |
-| — | Top-N source and snapshot date (Open Decision 4) | Top 5,000 packages per ecosystem, ranked by public download counts. The snapshot date is the date the signed snapshot is first built, in Phase 1 (Nov 18, 2026). The date and the ranking source are written into snapshot metadata. |
+| — | Top-N source and snapshot date (Open Decision 4) | Top 5,000 packages per ecosystem, ranked by public download counts. The snapshot date is the date the checksummed snapshot is first built, in Phase 1 (Nov 18, 2026). The date and the ranking source are written into snapshot metadata. |
 | — | Kiroween write-up format (Open Decision 11) | A detailed write-up explaining Kiro use is mandatory (see Decision Source below). The demo video must be hosted at a URL from YouTube, Facebook, Vimeo, or Youku. |
 
 **Decision source for Kiroween write-up:** The official rules page on Devpost returned HTTP 403, so it could not be read directly. A third-party guide that quotes the rules states the write-up is mandatory. Devpost's help center states the video hosting rule. Monitor the submission page from Phase 0. Verify the form by M3 (Nov 30) at the latest. If the form opens late or has fields the write-up does not cover, M3 is the last point to adapt.
@@ -59,7 +59,7 @@ The arsonist does not inspect the fire. SlopSeal never uses the calling agent's 
 | Quarantine | Deterministic API-surface trigger, state machine, exit 75 payload, one retry, escalation artifact |
 | L2 semantic verifier | **Not in v1.** M1 gate failed (`docs/needle_spike.csv`). Roadmap. |
 | Audit | JSONL log, signed verdict seals, policy diff (CLI output). Replay is on the post-hackathon roadmap. |
-| Offline mode | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with signed snapshot |
+| Offline mode | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with checksummed snapshot |
 | Kiro layer | Steering, specs, hooks, pre-commit guard, property suite |
 
 ### Roadmap (not in v1)
@@ -193,7 +193,7 @@ If no intent is supplied, steps 3 and 4 are skipped. The verdict is ALLOW when n
 | `.kiro/steering/tech.md` | Tech and conventions | Stack, commands, dependency rules, commit conventions |
 | `.kiro/steering/structure.md` | Repository rules | Layout, import direction, spec-first order, files agents must not change |
 | `.kiro/steering/llm-backend.md` | LLM backend config | Engine for the semantic layer (needle by default, if the gate passes) |
-| `.kiro/steering/demo-fixtures.md` | Offline fixture config | Which signed snapshot the demo and benchmarks use |
+| `.kiro/steering/demo-fixtures.md` | Offline fixture config | Which checksummed snapshot the demo and benchmarks use |
 
 ### Narrative
 SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust policy is a steering file. Its sub-agent is a spec. Its enforcement is a hook. Its fail-closed guarantee is a property.
@@ -275,14 +275,14 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 | Environment variable | `SLOPSEAL_OFFLINE_SNAPSHOT=1` |
 
 **Contents:**
-- Signed registry metadata snapshot
-- Signed OSV advisories snapshot
+- Checksummed registry metadata snapshot
+- Checksummed OSV advisories snapshot
 - Signed top-N list (top 5,000 per ecosystem, with ranking source and date in metadata)
 - Fixture corpus, 20 packages in Phase 1: 5 slopsquat, 5 typosquat, 5 legit-new, 5 legit-old. Includes `csv-parser-pro` (absent from the registry snapshot) and `csv-parser` (exports `parse` and `parse_file`, not `csv.reader`).
 - Expanded to 100 packages in Phase 5. The count frozen at M3 is final.
 
 **Guarantees:**
-- Signed and verified at load time. A tampered snapshot fails closed.
+- Checksums verified at load time against `manifest.json`. A tampered snapshot fails closed.
 - Deterministic benchmark runs under 100 ms against the snapshot, reproducible on any machine.
 - QUARANTINE demo outcome identical across takes.
 - Snapshot path referenced from `.kiro/steering/demo-fixtures.md`.
@@ -458,7 +458,7 @@ Same as primary, with these changes:
 | Interception, replay, and policy diff share Phase 5 | If Phase 5 slips, policy diff and replay move to the roadmap, then the PATH shim. |
 | Hardening compressed into Phase 5 | Phase 5 is L2 integration or hardening, and it also expands the corpus. Freeze at M3. Cut scope before freeze, not after. |
 | Devpost form changes late or adds fields | Monitor the submission page from Phase 0. Verify by M3 at the latest. |
-| Live registry or OSV latency ruins a take | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with signed fixtures. Benchmarks and demo are reproducible. |
+| Live registry or OSV latency ruins a take | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with checksummed fixtures. Benchmarks and demo are reproducible. |
 | Agent hangs in QUARANTINE | Explicit state machine: exit 75, one retry, escalation artifact, bounded time. Property-tested. |
 | Policy edit silently breaks fail-closed | Property suite runs on every policy change. Failing edits are rejected by the pre-commit guard. |
 | Kiro spec or hook format changes | `.kiro/` files are plain Markdown and JSON. Kiro version pinned in README. |
@@ -471,7 +471,7 @@ Same as primary, with these changes:
 
 ### Technical
 - Blocks 100% of slopsquat and typosquat packages in the fixture corpus. The write-up states the final corpus size.
-- Deterministic checks complete in under 100 ms against the signed snapshot.
+- Deterministic checks complete in under 100 ms against the checksummed snapshot.
 - L2 intent check completes in under 500 ms on device, if L2 ships.
 - PBT suite: at least 500 generated cases per run, zero fail-closed violations.
 - QUARANTINE state machine: every generated path terminates in a defined exit code within the 900-second bound in the policy (Open Decision 7, resolved).
@@ -515,7 +515,7 @@ src/slopseal/
   quarantine/ (state_machine, payload, escalation, api_surface)
   audit/ (log, seal)
   policy/ (loader, diff)
-  fixtures/ (registry_snapshot.json, osv_snapshot.json, topn_snapshot.json, signature.sig)
+  fixtures/ (registry_snapshot.json, osv_snapshot.json, topn_snapshot.json, manifest.json)
 
 src/tests/
   unit/

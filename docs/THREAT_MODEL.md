@@ -27,11 +27,11 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 
 ## 3. Trust boundaries
 
-1. Registry and OSV responses are **untrusted input**. In offline mode they are replaced by the signed snapshot.
+1. Registry and OSV responses are **untrusted input**. In offline mode they are replaced by the checksummed snapshot.
 2. Package metadata (name, description, README, install scripts) is **untrusted input**, including anything passed to L2.
 3. The intent declaration is **untrusted input** written by the agent.
 4. The policy file is **trusted only after the property suite passes** on it.
-5. The snapshot is **trusted only after signature and hash verification**.
+5. The snapshot is **trusted only after its checksums match `manifest.json`**.
 
 ## 4. Threats and mitigations
 
@@ -41,7 +41,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T2 | Near-miss name of a popular package | Near-name WARN, typosquat HARD_BLOCK on new packages | R-2.2, R-2.11 |
 | T3 | Known-vulnerable or known-malicious version | OSV advisory and malware lookups | R-2.6, R-2.7 |
 | T4 | Registry or OSV is down, slow, or returns partial data | Unknown is an explicit value; unknown means BLOCK | R-P-1, P-FC-2 |
-| T5 | Network attacker alters registry responses | Offline signed snapshot; live mode is documented as lower assurance | R-P-2 |
+| T5 | Network attacker alters registry responses | Offline checksummed snapshot; live mode is documented as lower assurance | R-P-2 |
 | T6 | Agent weakens the policy to let an install through | Property suite on every policy change; pre-commit rejects failure; policy hash in every seal | R-PBT-2, P-FC-8 |
 | T7 | Agent tunes its intent to pass the API check | Check compares to the package's own exports; every retry intent is logged; escalation shows the diff | R-Q-1, design section 9 |
 | T8 | Prompt injection through package description or README into L2 | L2 gets data fields only, is advisory, can only move ALLOW to QUARANTINE | R-3.7, P-FC-5 |
@@ -69,7 +69,7 @@ Each request reveals that the developer is considering a given package. That is 
 
 ## 6. Accepted limits for v1
 
-- **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
+- **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** HMAC was rejected because the seal key is per machine, so a committed snapshot could not be checked by anyone else. Ed25519 would need a dependency. Snapshot files are checked against `manifest.json`. Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
 - **Seals are symmetric (HMAC-SHA256, key in `.slopseal/secret.key`).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
 
 - The shim can be bypassed by calling the real binary by absolute path. It protects agents and developers who go through PATH, and the Kiro hook covers agent shell calls. It does not stop a determined local user.

@@ -28,7 +28,7 @@ For each install, `verify_install(package, version, intent?)` runs in order:
 4. **Intent check.** If the agent declares the API it expects, SlopSeal compares it with the package's real exports. A mismatch returns QUARANTINE with one bounded retry, then escalation to a person.
 5. **Seal.** The decision goes to an append-only, hash-chained audit log with an HMAC-SHA256 seal on each line.
 
-SlopSeal never uses the calling agent's LLM. The verdict depends only on the policy and the signed offline snapshot.
+SlopSeal never uses the calling agent's LLM. The verdict depends only on the policy and the checksummed offline snapshot.
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -52,7 +52,7 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip` and `npm
 
 ## Demo
 
-The demo runs the deterministic path against the signed offline snapshot in a temporary state directory. It needs Python 3.11 or newer.
+The demo runs the deterministic path against the checksummed offline snapshot in a temporary state directory. It needs Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/mazi3012/SlopSeal.git

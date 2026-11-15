@@ -63,4 +63,4 @@ A change is ready when lint, mypy, and pytest all pass. Run them before reportin
 
 ## Environment
 
-Variables are documented in `.env.example`. `SLOPSEAL_OFFLINE_SNAPSHOT=1` makes all checks run against the signed snapshot with no network.
+Variables are documented in `.env.example`. `SLOPSEAL_OFFLINE_SNAPSHOT=1` makes all checks run against the checksummed snapshot with no network.

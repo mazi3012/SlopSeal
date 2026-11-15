@@ -21,7 +21,7 @@ src/
     quarantine/      state_machine.py, payload.py, escalation.py, api_surface.py
     audit/           log.py, seal.py
     policy/          loader.py, diff.py
-    fixtures/        signed snapshot files
+    fixtures/        checksummed snapshot files
   tests/
     unit/            one file per module or check
     properties/      strategies.py and test_*.py named after property ids
@@ -62,7 +62,7 @@ If a request conflicts with a requirement or property, stop and flag it. Do not 
 
 - `.kiro/specs/seal/properties.md` (the invariant contract)
 - `.kiro/steering/dependency-trust.md` (the live policy; edits are gated by the property suite)
-- `src/slopseal/fixtures/` (signed; regenerate with `scripts/build_snapshot.py`, never hand-edit)
+- `src/slopseal/fixtures/` (checksummed; regenerate with `scripts/build_snapshot.py`, never hand-edit)
 - `LICENSE`
 - Anything under `.git/`
 

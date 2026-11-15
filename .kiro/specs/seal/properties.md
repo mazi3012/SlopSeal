@@ -56,7 +56,7 @@
 
 ## 5. Snapshot integrity
 
-**P-SN-1 (tamper detection).** For any single-byte change to the snapshot file, signature verification fails and the verdict is BLOCK.
+**P-SN-1 (tamper detection).** For any single-byte change to the snapshot file, checksum verification fails and the verdict is BLOCK.
 
 **P-SN-2 (determinism).** For any package and snapshot, two runs produce byte-identical verdicts and payloads.
 

@@ -72,7 +72,7 @@
 
 **R-3.7 (L2 is advisory).** The system shall not return HARD_BLOCK based on L2 output.
 
-**R-P-2 (policy integrity).** The system shall verify the signature of the offline snapshot at load time. A snapshot that fails verification shall cause BLOCK.
+**R-P-2 (snapshot integrity).** The system shall verify the SHA-256 checksum of each offline snapshot file against `manifest.json` at load time. A snapshot that fails verification shall cause BLOCK.
 
 **R-4.7 (rate limit).** When an agent makes more than `max_installs_per_minute` install attempts in a rolling 60-second window, the system shall BLOCK each further attempt until the window clears. Every attempt counts, including blocked ones. `--allow-unsafe` does not bypass this check.
 
