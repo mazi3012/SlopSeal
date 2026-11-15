@@ -77,6 +77,10 @@ Keep PRs small. A reviewer should be able to check one in under 15 minutes.
 - **No secrets** in code, tests, fixtures, logs, or commit messages.
 - **New dependencies** need a stated reason and an entry in `docs/adr/`.
 
+## Credential checks
+
+Credential checks must be value-level, not keyword-level. This is a security product; its docs discuss credentials as prose. Run `scripts/check_credentials.sh` before pushing. Its keyword output is informational only.
+
 ## Code style
 
 Enforced by ruff and mypy. Details in `.kiro/steering/tech.md`.
