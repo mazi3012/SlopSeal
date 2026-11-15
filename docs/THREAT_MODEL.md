@@ -69,6 +69,8 @@ Each request reveals that the developer is considering a given package. That is 
 
 ## 6. Accepted limits for v1
 
+- **Seals and snapshot signatures are symmetric (HMAC-SHA256).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
+
 - The shim can be bypassed by calling the real binary by absolute path. It protects agents and developers who go through PATH, and the Kiro hook covers agent shell calls. It does not stop a determined local user.
 - Live mode trusts TLS to the registry and OSV. Only offline mode gives signed inputs.
 - The deterministic intent check proves the declared API exists. It does not prove the package fits the task. Only L2 addresses purpose, and it is gated.

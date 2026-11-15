@@ -54,6 +54,8 @@ Each module has one responsibility and a requirement list. Dependency direction 
 
 `core/` never imports `semantic/`. `semantic/` never imports `core/`. Both are composed by `verdict`.
 
+**Note on `semantic/`.** The Python binding for Needle 3 is unresolved as of Phase 0. Phase 5 begins with a half-day binding spike. Fallback: install `needle-rs` from source. The choice is recorded in an ADR. Until then the package holds only the `SemanticBackend` interface and a stub.
+
 ## 4. Interfaces
 
 These are the seams. Tests and offline mode replace implementations behind them.
@@ -261,7 +263,7 @@ Verification requires line 1 to be a genesis entry with `seq = 0` and the all-ze
 
 **Hash chain.** `line_hash = sha256(prev_hash || canonical_json(line_without_line_hash))`, where `prev_hash` is the previous line's `line_hash`. The chain detects an edited line, a deleted or inserted line in the middle, and a reorder. It cannot detect removal of the last lines, because nothing after them refers back. `audit verify` prints the head `seq` and `line_hash` so a release can record them outside the log. The chain is a design choice beyond the PRD's "immutable" wording. It costs about ten lines and makes "immutable" checkable.
 
-**Seals.** A seal is a signature over `canonical_json({package, version, checks_run, verdict, timestamp, policy_hash})` (R-5.7.2), stored next to the log line it covers. A seal shows who produced a verdict and that the sealed fields are unchanged. It says nothing about line order.
+**Seals.** A seal is an HMAC-SHA256 over `canonical_json({package, version, checks_run, verdict, timestamp, policy_hash})` (R-5.7.2), stored next to the log line it covers. A seal shows that a holder of the key produced the verdict and that the sealed fields are unchanged. It says nothing about line order. v1 seals are HMAC-SHA256 (symmetric, integrity-only); public verifiability via Ed25519 is a roadmap item (ADR 0002).
 
 **Hash chain = ordering integrity, seals = provenance, both ship in Phase 4, neither substitutes for the other.** A chain without seals can be rebuilt end to end by anyone who can write the file. Seals without a chain can be dropped, duplicated, or reordered without detection.
 

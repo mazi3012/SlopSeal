@@ -25,9 +25,14 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-# Needle 3 adapter for the optional L2 layer. Empty until the M1 gate passes;
-# the package that provides the bindings is chosen then and recorded in an ADR.
+# Needle 3 adapter for the optional L2 layer. Empty until the M1 gate passes.
+# TODO(Phase 5): the Python binding for Needle 3 is unresolved as of Phase 0. Phase 5 begins
+# with a half-day binding spike. Fallback: install needle-rs from source. Record the choice in an ADR.
 needle = []
+# Ed25519 seal signing (public verifiability). Roadmap, not v1. See docs/adr/0002-stdlib-first.md.
+# TODO(roadmap): fill with the chosen Ed25519 library when the roadmap item is scheduled.
+# Adding a dependency here requires its own ADR.
+sign = []
 dev = [
     "pytest>=8.0",
     "hypothesis>=6.100",

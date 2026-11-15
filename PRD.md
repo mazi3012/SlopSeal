@@ -292,7 +292,7 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 | ID | Capability | Purpose |
 |----|------------|---------|
 | 5.7.1 | Immutable install log (JSONL) | Forensics, compliance. Includes L2 confidence values when L2 is enabled. |
-| 5.7.2 | Signed verdict seals | Signature over {package, version, checks_run, verdict, timestamp, policy_hash}. Key scheme is Open Decision 6. |
+| 5.7.2 | Signed verdict seals | HMAC-SHA256 over {package, version, checks_run, verdict, timestamp, policy_hash} (symmetric, integrity-only in v1). Public verifiability via Ed25519 is a roadmap item. |
 | 5.7.3 | Replay | Re-run checks against a historical install |
 | 5.7.4 | Policy diff (CLI output) | Print the steering changes between two installs |
 
