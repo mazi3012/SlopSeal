@@ -113,6 +113,16 @@ _NPM_REFUSED = frozenset({"--registry", "--userconfig", "--workspace", "-w", "--
 
 _PIP_INSTALL = frozenset({"install"})
 _NPM_INSTALL = frozenset({"install", "i", "add"})
+# npm verbs that download a package and run it (R-1.6). `npm exec` and `npm x` are aliases.
+_NPM_EXEC_VERBS = frozenset({"exec", "x"})
+# npm verbs that run a create-<name> package when given an initializer (R-1.6).
+_NPM_CREATE_VERBS = frozenset({"init", "create"})
+# Exec-style options. -p/--package names a package to pin. -c/--call runs a shell string.
+_EXEC_FLAGS = frozenset({"-y", "--yes", "-q", "--quiet", "--silent"})
+_EXEC_VALUE_FLAGS = frozenset({"-p", "--package"})
+_EXEC_REFUSED = frozenset(
+    {"-c", "--call", "--shell", "--registry", "--userconfig", "-w", "--workspace", "--workspaces"}
+)
 
 
 @dataclass(frozen=True)
@@ -205,12 +215,82 @@ def parse_pip(args: list[str]) -> Parsed:
     return Install("pypi", tuple(specs))
 
 
+def parse_exec(args: list[str]) -> Parsed:
+    """npx, npm exec, and npm x: the named package is downloaded and run (R-1.6).
+
+    The package must be pinned exactly. Options come before the first positional word or
+    before `--`. Once the package word is read, the rest are arguments to the package's
+    command and are not verified. A bare command name is accepted only when `-p` pins a
+    package of that name.
+    """
+    pinned_flags: list[str] = []
+    index = 0
+    while index < len(args):
+        word = args[index]
+        if word == "--":
+            index += 1
+            break
+        if not word.startswith("-"):
+            break
+        index += 1
+        flag, _, inline = word.partition("=")
+        if flag in _EXEC_REFUSED:
+            return Blocked(
+                f"exec option {flag} runs unverified code or changes its source; refused"
+            )
+        if flag in _EXEC_VALUE_FLAGS:
+            if inline:
+                pinned_flags.append(inline)
+            elif index < len(args):
+                pinned_flags.append(args[index])
+                index += 1
+            else:
+                return Blocked(f"exec option {flag} has no package; refused")
+            continue
+        if flag in _EXEC_FLAGS:
+            continue
+        return Blocked(f"exec option {flag} is not understood by SlopSeal; refused")
+
+    rest = args[index:]
+    if not rest:
+        return Blocked("exec names no package; refused")
+    target = rest[0]
+
+    specs: list[tuple[str, str]] = []
+    for raw in pinned_flags:
+        if _looks_local_npm(raw) or raw.startswith(_NPM_SOURCE_PREFIXES):
+            return Blocked(f"'{raw}' is a local path, URL, or repository; refused")
+        pinned = _NPM_EXACT.match(raw)
+        if pinned is None:
+            return Blocked(f"'{raw}' is not pinned; use name@x.y.z so the verified version runs")
+        specs.append((pinned.group("name"), pinned.group("version")))
+
+    if _looks_local_npm(target) or target.startswith(_NPM_SOURCE_PREFIXES):
+        return Blocked(f"'{target}' is a local path, URL, or repository; refused")
+    target_pin = _NPM_EXACT.match(target)
+    if target_pin is not None:
+        specs.append((target_pin.group("name"), target_pin.group("version")))
+    elif pinned_flags and target in {name for name, _ in specs}:
+        # `npx -p a@1.0.0 a`: the command is a bin of a package that is already pinned.
+        pass
+    else:
+        return Blocked(f"'{target}' is not pinned; use name@x.y.z so the verified version runs")
+    return Install("npm", tuple(specs))
+
+
 def parse_npm(args: list[str]) -> Parsed:
     if not args:
         return Passthrough()
     verb = args[0]
     if verb in _NPM_UNVERIFIED_VERBS:
         return Blocked(f"npm {verb} installs packages SlopSeal cannot name; refused")
+    if verb in _NPM_EXEC_VERBS:
+        return parse_exec(args[1:])
+    if verb in _NPM_CREATE_VERBS:
+        # `npm init` alone writes package.json. `npm init <name>` runs create-<name> unverified.
+        if any(not word.startswith("-") for word in args[1:]):
+            return Blocked(f"npm {verb} with an initializer runs an unverified package; refused")
+        return Passthrough()
     if verb not in _NPM_INSTALL:
         return Passthrough()
 
@@ -259,4 +339,6 @@ def parse(tool: str, args: list[str]) -> Parsed:
         return parse_pip(args)
     if tool == "npm":
         return parse_npm(args)
+    if tool == "npx":
+        return parse_exec(args)
     return Passthrough()

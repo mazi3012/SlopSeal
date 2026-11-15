@@ -47,7 +47,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T8 | Prompt injection through package description or README into L2 | L2 gets data fields only, is advisory, can only move ALLOW to QUARANTINE | R-3.7, P-FC-5 |
 | T9 | Snapshot is tampered with | Static SHA-256 checksum manifest checked at load. Detects corruption and accidental edits only; a repo writer can change data and manifest together (see section 6) | R-P-2, P-SN-1 |
 | T10 | Audit log is edited or truncated | Hash chain across lines; seals signed | R-5.7.1, R-5.7.2, P-AU-1, P-AU-2 |
-| T11 | Install bypasses the shim | Shim is advisory by design; the Kiro hook and agent steering add a second trigger. Documented limit | R-1.1 |
+| T11 | Install bypasses the shim | The shim covers `pip`, `npm`, and `npx`. `npx`, `npm exec`, `npm x`, and `npm init <initializer>` must name an exact `name@x.y.z`, or they are refused (R-1.6). The shim is advisory: a call to the real binary by absolute path, or to a tool not shimmed (yarn, pnpm, cargo, gem, go get), bypasses it. The Kiro hook is a second trigger. Documented limit | R-1.1, R-1.6 |
 | T12 | Quarantine retry used to probe the check repeatedly | Retry budget 1, then escalation; rate limit on installs per minute | R-Q-5, R-Q-6, R-4.7 |
 | T13 | Unexpected crash returns success | Failclosed wrapper turns any exception into BLOCK | design section 6 |
 | T14 | `--allow-unsafe` used silently | Requires a non-empty reason and writes an audit line before proceeding | R-1.5 |
@@ -69,6 +69,7 @@ Each request reveals that the developer is considering a given package. That is 
 
 ## 6. Accepted limits for v1
 
+- **Tools outside the shim.** `yarn`, `pnpm` (including `pnpm dlx`), `cargo`, `gem`, and `go get` are not shimmed in v1. A command that runs them is not verified.
 - **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
 - **Seals are symmetric (HMAC-SHA256, key in `.slopseal/secret.key`).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
 
