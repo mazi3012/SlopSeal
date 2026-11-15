@@ -79,10 +79,47 @@ expect 0 "retry with expected_api parse is allowed" \
     slopseal check csv-parser --ecosystem pypi --version 1.2.0 \
         --expected-api parse --purpose "parse CSV" --quarantine-id "$qid"
 
-echo "== Beat 4: the audit log is intact"
+echo "== Beat 4: pip and npm run through the PATH shim (stub real tools record what runs)"
+shim_dir="$work/shims"
+stub_dir="$work/real"
+mkdir -p "$stub_dir"
+for tool in pip npm; do
+    printf '#!/bin/sh\necho "%s $*" >>"%s/ran.log"\n' "$tool" "$work" >"$stub_dir/$tool"
+    chmod 755 "$stub_dir/$tool"
+done
+python3 -m slopseal.intercept.shims "$shim_dir" >/dev/null
+export PATH="$shim_dir:$stub_dir:$PATH"
+
+expect 1 "pip install csv-parser-pro==0.1.0 is blocked by the shim" \
+    pip install csv-parser-pro==0.1.0
+assert_json err "d['check'] == 'existence' and d['package'] == 'csv-parser-pro'" \
+    "the shim reports the existence violation"
+
+expect 0 "pip install tinyfmt-kit==0.4.0 is allowed by the shim" \
+    pip install tinyfmt-kit==0.4.0
+if grep -qx "pip install tinyfmt-kit==0.4.0" "$work/ran.log" \
+    && ! grep -q "csv-parser-pro" "$work/ran.log"; then
+    echo "PASS  the real pip ran for the allowed install only"
+else
+    echo "FAIL  ran.log does not show exactly the allowed install"
+    cat "$work/ran.log" >&2 || true
+    failures=$((failures + 1))
+fi
+
+expect 1 "npm install react-codeshift@1.0.0 is blocked by the shim" \
+    npm install react-codeshift@1.0.0
+assert_json err "d['package'] == 'react-codeshift'" \
+    "the shim names the blocked npm package"
+
+expect 1 "an unpinned pip install is refused without running pip" \
+    pip install tinyfmt-kit
+assert_json err "d['check'] == 'shim'" \
+    "the shim refuses the unpinned install before verification"
+
+echo "== Beat 5: the audit log is intact"
 expect 0 "audit chain and seals verify" slopseal audit verify
 
-echo "== Beat 5: tampering with the audit log is detected"
+echo "== Beat 6: tampering with the audit log is detected"
 cp "$state_dir/audit.jsonl" "$work/tampered.jsonl"
 python3 - "$work/tampered.jsonl" <<'PYEOF'
 import pathlib, sys
@@ -94,7 +131,7 @@ p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PYEOF
 expect 1 "a flipped verdict fails verification" slopseal audit verify --log "$work/tampered.jsonl"
 
-echo "== Beat 6: a weakened policy is rejected by the policy guard"
+echo "== Beat 7: a weakened policy is rejected by the policy guard"
 weakened="$work/dependency-trust.md"
 sed 's/typosquat_max_distance = 2/typosquat_max_distance = 1/' \
     .kiro/steering/dependency-trust.md >"$weakened"
