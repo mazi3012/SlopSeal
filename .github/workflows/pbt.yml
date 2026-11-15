@@ -1,0 +1,38 @@
+name: pbt
+
+# Runs the property suite when the trust policy, the specs, or the code change.
+# A failure here means a fail-closed property was violated. Do not weaken the test.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".kiro/steering/dependency-trust.md"
+      - ".kiro/specs/seal/properties.md"
+      - "src/**"
+  pull_request:
+    paths:
+      - ".kiro/steering/dependency-trust.md"
+      - ".kiro/specs/seal/properties.md"
+      - "src/**"
+
+permissions:
+  contents: read
+
+jobs:
+  properties:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Property suite
+        env:
+          SLOPSEAL_PBT_EXAMPLES: "500"
+        run: |
+          # TODO(Phase 1): remove the `|| [ $? -eq 5 ]` tolerance as soon as the first
+          # property test lands. Exit 5 (no tests collected) is only acceptable while empty.
+          pytest src/tests/properties -m property || [ $? -eq 5 ]
