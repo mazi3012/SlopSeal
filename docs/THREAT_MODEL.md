@@ -45,7 +45,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T6 | Agent weakens the policy to let an install through | Property suite on every policy change; pre-commit rejects failure; policy hash in every seal | R-PBT-2, P-FC-8 |
 | T7 | Agent tunes its intent to pass the API check | Check compares to the package's own exports; every retry intent is logged; escalation shows the diff | R-Q-1, design section 9 |
 | T8 | Prompt injection through package description or README into L2 | L2 gets data fields only, is advisory, can only move ALLOW to QUARANTINE | R-3.7, P-FC-5 |
-| T9 | Snapshot is tampered with | Signature over manifest and per-file hashes | R-P-2, P-SN-1 |
+| T9 | Snapshot is tampered with | Static SHA-256 checksum manifest checked at load. Detects corruption and accidental edits only; a repo writer can change data and manifest together (see section 6) | R-P-2, P-SN-1 |
 | T10 | Audit log is edited or truncated | Hash chain across lines; seals signed | R-5.7.1, R-5.7.2, P-AU-1, P-AU-2 |
 | T11 | Install bypasses the shim | Shim is advisory by design; the Kiro hook and agent steering add a second trigger. Documented limit | R-1.1 |
 | T12 | Quarantine retry used to probe the check repeatedly | Retry budget 1, then escalation; rate limit on installs per minute | R-Q-5, R-Q-6, R-4.7 |
@@ -69,7 +69,8 @@ Each request reveals that the developer is considering a given package. That is 
 
 ## 6. Accepted limits for v1
 
-- **Seals and snapshot signatures are symmetric (HMAC-SHA256).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
+- **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
+- **Seals are symmetric (HMAC-SHA256, key in `.slopseal/secret.key`).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
 
 - The shim can be bypassed by calling the real binary by absolute path. It protects agents and developers who go through PATH, and the Kiro hook covers agent shell calls. It does not stop a determined local user.
 - Live mode trusts TLS to the registry and OSV. Only offline mode gives signed inputs.
@@ -81,5 +82,9 @@ Each request reveals that the developer is considering a given package. That is 
 
 | Item | Owner decision | Due |
 |------|----------------|-----|
-| Signing algorithm, key location, and who signs | Open Decision 6 | End of Phase 2 |
+| Signing algorithm, key location, and who signs | Open Decision 6 | **Resolved** (section 5a and section 6) |
 | Quarantine time bound and install rate limit | Open Decision 7 | M2 |
+
+## 5a. CI behavior for QUARANTINE (Open Decision 3, resolved)
+
+Exit 75 means QUARANTINE: retryable with a refined intent, or waiting for a human. It is not a pass. CI runners treat any non-zero exit as a failure, so a pipeline that installs a quarantined package fails by default. That is the intended result. A pipeline that should pause for manual approval must opt in explicitly, by mapping exit 75 to a pause step in its own configuration. No default in SlopSeal turns 75 into success.

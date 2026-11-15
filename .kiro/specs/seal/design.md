@@ -73,10 +73,9 @@ class AdvisoryClient(Protocol):                         # OSV
 class SemanticBackend(Protocol):                        # L2
     def score(self, intent: Intent, record: RegistryRecord) -> SemanticScore: ...
 
-class Signer(Protocol):
-    def sign(self, payload: bytes) -> bytes: ...
-class Verifier(Protocol):
-    def verify(self, payload: bytes, signature: bytes) -> bool: ...
+class SealKey(Protocol):                                # HMAC-SHA256, Open Decision 6 (resolved)
+    def seal(self, payload: bytes) -> str: ...          # hex digest
+    def verify(self, payload: bytes, digest: str) -> bool: ...   # constant-time compare
 ```
 
 `RegistryUnknown` and `AdvisoryUnknown` are explicit values, not exceptions and not `None`. A function that receives one must return BLOCK (P-FC-2). This makes "unknown" a case the type checker forces every caller to handle.
@@ -202,12 +201,11 @@ A snapshot is a directory under `src/slopseal/fixtures/`:
 | `registry_snapshot.json` | Registry records keyed by ecosystem and name, including exported symbols |
 | `osv_snapshot.json` | Advisories keyed by ecosystem, name, and version |
 | `topn_snapshot.json` | Top 5,000 names per ecosystem, with ranking source and date |
-| `manifest.json` | File list, sha256 of each file, snapshot id, build date |
-| `signature.sig` | Signature over `manifest.json` bytes |
+| `manifest.json` | File list, sha256 of each file, snapshot id, `as_of` date (the pinned clock in offline mode) |
 
-Loading verifies the signature over `manifest.json`, then every file hash. Any mismatch is an error and the pipeline returns BLOCK (P-SN-1). `csv-parser-pro` must be absent from `registry_snapshot.json`, and `csv-parser` must list exports `parse` and `parse_file` and not `csv.reader`. `scripts/build_snapshot.py` is the only supported way to produce a snapshot.
+**Resolved (Open Decision 6): snapshot integrity is a static SHA-256 checksum manifest committed to the repo for v1.** Loading recomputes the sha256 of every file listed in `manifest.json` and compares it. Any mismatch, missing file, or unlisted file is an error, and the pipeline returns BLOCK (P-SN-1). The manifest detects corruption and accidental edits. It does not stop a person who can write to the repo, who can edit a data file and the manifest together. That limit is in `THREAT_MODEL.md`. `csv-parser-pro` must be absent from `registry_snapshot.json`, and `csv-parser` must list exports `parse` and `parse_file` and not `csv.reader`. `scripts/build_snapshot.py` is the only supported way to produce a snapshot.
 
-The signature scheme is Open Decision 6, due at the end of Phase 2. The code depends only on `Signer` and `Verifier`.
+`scripts/build_snapshot.py` regenerates `manifest.json` from the data files. It never edits the data files.
 
 ## 9. Quarantine state machine
 
@@ -234,6 +232,7 @@ State is stored as one JSON file per quarantine id under the SlopSeal state dire
 - **Time bound:** every state file carries an `expires_at`. After expiry the state is treated as ESCALATED. The bound value is Open Decision 7.
 - **Retry re-checks:** a retry runs the API-surface check again on the new intent (P-SM-3). It never reuses a stored result.
 - **Package pinning:** a retry for a different package or version than the quarantined one is a new quarantine, not a retry.
+- **CI behavior (resolved, Open Decision 3).** Exit 75 is kept for QUARANTINE and is not remapped. Pipelines fail on 75 unless the job is configured to pause for approval (see `THREAT_MODEL.md`, section 5a).
 - **Escalation artifact:** `pending_approval/<quarantine_id>.json`, containing the payload, the original and retry intents, and the policy hash. A human approves it with `slopseal escalate <id>` (command surface defined in Phase 3).
 - **Corrupt or missing state file:** treated as a new quarantine, never as ALLOWED.
 
@@ -262,6 +261,8 @@ bypass?{reason}, prev_hash, line_hash
 Verification requires line 1 to be a genesis entry with `seq = 0` and the all-zero `prev_hash`. A log with no genesis, a second genesis, or a genesis in any other position is a chain break. The writer creates the file with `O_CREAT | O_EXCL` and the genesis in one step, so two processes cannot start two chains. Every later append takes an exclusive `flock` while it reads the last line and writes the next, so parallel installs cannot fork the chain.
 
 **Hash chain.** `line_hash = sha256(prev_hash || canonical_json(line_without_line_hash))`, where `prev_hash` is the previous line's `line_hash`. The chain detects an edited line, a deleted or inserted line in the middle, and a reorder. It cannot detect removal of the last lines, because nothing after them refers back. `audit verify` prints the head `seq` and `line_hash` so a release can record them outside the log. The chain is a design choice beyond the PRD's "immutable" wording. It costs about ten lines and makes "immutable" checkable.
+
+**Key lifecycle (resolved, Open Decision 6).** The CLI generates the seal key on first use: 32 bytes from `os.urandom`, written to `.slopseal/secret.key` with mode `0600`, created with `O_CREAT | O_EXCL` so two processes cannot race to write different keys. `.slopseal/` is git-ignored. The key is never printed, logged, or put in a payload. If the key file is missing and cannot be created, the command exits 78 and does not issue any seal. A verdict that cannot be sealed or logged is not returned as ALLOW.
 
 **Seals.** A seal is an HMAC-SHA256 over `canonical_json({package, version, checks_run, verdict, timestamp, policy_hash})` (R-5.7.2), stored next to the log line it covers. A seal shows that a holder of the key produced the verdict and that the sealed fields are unchanged. It says nothing about line order. v1 seals are HMAC-SHA256 (symmetric, integrity-only); public verifiability via Ed25519 is a roadmap item (ADR 0002).
 
