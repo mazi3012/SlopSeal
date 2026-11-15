@@ -3,9 +3,10 @@
 Reads the hook payload (JSON) from stdin and searches every string in it for an install
 command. When one is found, the hook returns `permissionDecision: ask`, so the user decides.
 
-Verification is not wired yet. The `verify_install` entry point arrives in Phase 4, so the
-hook cannot yet give a verdict. Asking is the fail-closed stand-in. An unreadable payload
-also asks, because the hook cannot prove the command is safe.
+This hook does not verify the install. Verification runs in the PATH shim
+(`src/slopseal/intercept/path_shim.py`), which checks each pinned package before the real tool
+runs. The hook is a second layer that asks the user before any install command runs. An
+unreadable payload also asks, because the hook cannot prove the command is safe.
 
 Exit code is always 0. The decision is in the JSON on stdout.
 """

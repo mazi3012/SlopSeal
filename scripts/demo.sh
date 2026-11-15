@@ -4,13 +4,26 @@
 # Runs against the signed offline snapshot in a throwaway state directory. Every beat asserts
 # the exit code and the key fields of the output, so a regression fails the script.
 #
-# This is the Phase 3 gate: the path must run cleanly against the offline snapshot.
-# Requires the package installed: pip install -e ".[dev]".
+# Beats 1-3 use the CLI. Beat 4 runs pip and npm through the PATH shim with stub real tools,
+# so nothing is installed. Beats 5-7 check the audit log and the policy floors.
+#
+# Run from a checkout with the venv active:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -e ".[dev]"
+#   bash scripts/demo.sh
+# Exit 0 means every beat passed. Any failed beat exits 1 and prints the failing assertion.
 
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
+
+# Preflight: the beats need the slopseal command and the package importable from python3.
+if ! command -v slopseal >/dev/null 2>&1 || ! python3 -c "import slopseal" >/dev/null 2>&1; then
+    echo "demo: slopseal is not installed for this python3." >&2
+    echo "demo: activate the venv and run: pip install -e \".[dev]\"" >&2
+    exit 78
+fi
 
 export SLOPSEAL_OFFLINE_SNAPSHOT=1
 state_dir="$(mktemp -d)"
