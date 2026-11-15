@@ -2,7 +2,7 @@
 
 **Product:** SlopSeal
 **Product version (target):** 1.0.0
-**Document version:** 1.5.1
+**Document version:** 1.6.0
 **Status:** Final for spec writing. Gating decisions resolved. Schedule is phase-based. The day-level plan lives in `docs/PLAN.md`.
 **License:** MIT
 **Hackathon:** Kiroween 2026
@@ -18,7 +18,7 @@
 | # | Decision | Resolution |
 |---|----------|------------|
 | 1 | Typosquat rule (2.2) | HARD_BLOCK uses AND. A separate WARN-level check (2.11) uses OR across three signals. The OR-only version blocked every package under 30 days old regardless of name, which is a blanket ban, not fail-closed. |
-| 2 | v1 scope cuts | Cut from v1: dashboard (5.7.6), registry proxy (1.2), SARIF output (5.7.5). These move to the roadmap. Replay, policy diff (CLI output only), JSONL log, signed seals, PATH shim, and `verify_install` stay in v1. |
+| 2 | v1 scope cuts | Cut from v1: dashboard (5.7.6), registry proxy (1.2), SARIF output (5.7.5). These move to the roadmap. Policy diff (CLI output only), JSONL log, signed seals, PATH shim, and `verify_install` stay in v1. Replay (5.7.3) moved to the post-hackathon roadmap at feature freeze. |
 | 3 | Semantic gate and quarantine trigger | The Needle 3 gate is numeric and evaluated at Milestone M1 (Nov 26). The deterministic quarantine trigger is an API-surface mismatch, and the exit 75 payload is revised (see Quarantine). If the gate fails, v1 ships deterministic-only. |
 | 4 | Fixture corpus | 20 packages in Phase 1 (5 slopsquat, 5 typosquat, 5 legit-new, 5 legit-old). The corpus expands in Phase 5 and freezes at M3. The write-up states the final count. |
 | 5 | Platforms | Linux and macOS only. Confirmed. |
@@ -28,7 +28,7 @@
 
 **Decision source for Kiroween write-up:** The official rules page on Devpost returned HTTP 403, so it could not be read directly. A third-party guide that quotes the rules states the write-up is mandatory. Devpost's help center states the video hosting rule. Monitor the submission page from Phase 0. Verify the form by M3 (Nov 30) at the latest. If the form opens late or has fields the write-up does not cover, M3 is the last point to adapt.
 
-**Still open, resolved during implementation:** Open Decisions 1, 2, 3, 6, 7, 8, 9, and 10. None of them gate spec writing.
+**Resolved during implementation:** Open Decisions 1, 2, 3, 6, 7, 8, 9, 10, and 13 (see the table below). Open Decision 11 stays a pre-submission check. None of them gate spec writing.
 
 ---
 
@@ -58,7 +58,7 @@ The arsonist does not inspect the fire. SlopSeal never uses the calling agent's 
 | L1 deterministic checks | 2.1–2.11 |
 | Quarantine | Deterministic API-surface trigger, state machine, exit 75 payload, one retry, escalation artifact |
 | L2 semantic verifier | **Not in v1.** M1 gate failed (`docs/needle_spike.csv`). Roadmap. |
-| Audit | JSONL log, signed verdict seals, replay, policy diff (CLI output) |
+| Audit | JSONL log, signed verdict seals, policy diff (CLI output). Replay is on the post-hackathon roadmap. |
 | Offline mode | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with signed snapshot |
 | Kiro layer | Steering, specs, hooks, pre-commit guard, property suite |
 
@@ -72,7 +72,7 @@ The arsonist does not inspect the fire. SlopSeal never uses the calling agent's 
 
 ### Ecosystem risk
 
-Seven ecosystems are listed in v1, but the fixture corpus starts with pip and npm packages. The demo uses pip and npm only. Other ecosystems ship only if the snapshot format and checks cover them by M2 (Nov 27). See Risks.
+Seven ecosystems are named in the original scope. Only pip and npm are in v1. The demo uses pip and npm only. Other ecosystems are on the post-hackathon roadmap (Open Decision 13, resolved). See Risks.
 
 ---
 
@@ -206,7 +206,7 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 
 | ID | Capability | Detail |
 |----|------------|--------|
-| 1.1 | Shell-level interception | PATH shim wrapping pip, npm, yarn, pnpm, cargo, gem, go get |
+| 1.1 | Shell-level interception | PATH shim wrapping pip and npm. Other package managers are on the roadmap. |
 | 1.3 | Programmatic API | `verify_install(package, version, intent?)` |
 | 1.4 | Fail-closed default | Unknown policy or unreachable registry → BLOCK |
 | 1.5 | Bypass with audit | `--allow-unsafe` logs the bypass and the stated reason |
@@ -221,7 +221,7 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 | 4.4 | QUARANTINE | Verdict resolution steps 3 or 4 | Install paused; state machine below applies |
 | 4.5 | Typed error to agent | Any block or quarantine | `DependencyViolation {check, package, reason, remedy}` |
 | 4.6 | Remedy suggestions | Typosquat or slopsquat | Propose the real package the slopsquat mimicked |
-| 4.7 | Rate limiting | Agent exceeds N installs per minute | Block further installs until the window resets. N is Open Decision 7. |
+| 4.7 | Rate limiting | Agent exceeds N installs per minute | Block further installs until the window resets. N = 10 per minute (`max_installs_per_minute`, Open Decision 7, resolved). |
 
 ### Quarantine State Machine
 
@@ -264,7 +264,7 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 2. **Human escalation.** When the retry fails, SlopSeal writes a pending approval artifact and exits 75 with `retry_budget_remaining: 0`. Exit 75 is non-zero, so CI jobs fail unless configured to accept it. Whether escalation keeps exit 75 or uses a separate code is Open Decision 3.
 3. **Abandon.** The agent proceeds with an alternative. The audit log records the abandonment with the original intent.
 
-**Guarantee:** Every path terminates in a defined exit code within a bounded time. The bound is Open Decision 7. The property suite tests this guarantee.
+**Guarantee:** Every path terminates in a defined exit code within a bounded time. The bound is 900 seconds (`max_seconds`, Open Decision 7, resolved). The property suite tests this guarantee.
 
 **Known limitation:** The deterministic trigger checks that the declared API exists, not that it fits the purpose. A retry that declares a real exported API passes even if the package is wrong for the task. P2 (silent semantic mismatch) is covered fully only if L2 ships. The write-up states this limit.
 
@@ -293,7 +293,7 @@ SlopSeal is not built with Kiro. SlopSeal is constituted by Kiro. Its trust poli
 |----|------------|---------|
 | 5.7.1 | Immutable install log (JSONL) | Forensics, compliance. Includes L2 confidence values when L2 is enabled. |
 | 5.7.2 | Signed verdict seals | HMAC-SHA256 over {package, version, checks_run, verdict, timestamp, policy_hash} (symmetric, integrity-only in v1). Public verifiability via Ed25519 is a roadmap item. |
-| 5.7.3 | Replay | Re-run checks against a historical install |
+| 5.7.3 | Replay (post-hackathon roadmap, not in v1) | Re-run checks against a historical install |
 | 5.7.4 | Policy diff (CLI output) | Print the steering changes between two installs |
 
 ### Roadmap items (not v1)
@@ -343,20 +343,20 @@ These are the only decisions that gate spec writing. All are resolved above.
 | 5 | Platforms | Resolved. Linux and macOS. |
 | 12 | Schedule | Resolved. Phase-based plan with milestones M1–M4 (see Schedule). |
 
-These resolve during implementation. Each has a deadline, stated as a phase exit or milestone.
+Every entry in this table is resolved or moved to the roadmap.
 
-| # | Decision | Resolve by |
-|---|----------|------------|
-| 1 | Headless invocation of a Kiro sub-agent. If infeasible, L2 calls Needle directly and the spec wording changes to "separate process with separate context." | End of Phase 1 (Nov 22) |
-| 2 | Intent trust: how L2 resists an agent that rewrites its intent on retry. Options: score against package metadata only, or log every retry diff. | Start of Phase 1 (before PBT generators need it) |
-| 3 | **Resolved.** Exit 75 is kept for QUARANTINE. Pipelines fail on 75 unless they opt in to a manual-approval pause (THREAT_MODEL section 5a). | Resolved in Phase 3 |
-| 6 | **Resolved.** Seals use HMAC-SHA256. The CLI generates `.slopseal/secret.key` (mode 0600) on first run. Snapshot integrity is a static SHA-256 checksum manifest committed to the repo. Limits are in THREAT_MODEL sections 5a and 6. | Resolved in Phase 3 |
-| 7 | Rate limit N (4.7) and the numeric time bound for the quarantine state machine. | M2 (Nov 27) |
-| 8 | Confirm the git pre-commit hook rejects failing policy edits. | Mid Phase 2 (Nov 23) |
-| 9 | Exact data sent to OSV.dev and registries in live mode. Documented in `docs/THREAT_MODEL.md`. | M2 (Nov 27) |
-| 10 | **Resolved: gate failed.** Needle 3 did not meet the numeric gate on the pre-registered set (match-allow 0.40 against a minimum of 0.80). L2 is roadmap. Evidence: `docs/needle_spike.csv`. | Resolved in Phase 4 |
-| 11 | Kiroween write-up format. Resolved with a caveat. Monitor the Devpost submission page from Phase 0. | Verify by M3 (Nov 30) at the latest |
-| 13 | Ecosystems beyond pip and npm: keep in v1 or move to roadmap. Ship only what the corpus and checks cover. | M2 (Nov 27) |
+| # | Decision | Status |
+|---|----------|--------|
+| 1 | Headless invocation of a Kiro sub-agent. | **Resolved: moved to roadmap.** L2 is not in v1, so no sub-agent path is used. The design keeps the wording "separate process with separate context." |
+| 2 | Intent trust: how L2 resists an agent that rewrites its intent on retry. | **Resolved: moved to roadmap.** It applies only to L2, which is not in v1. |
+| 3 | Exit 75 for QUARANTINE. | **Resolved.** Exit 75 is kept (THREAT_MODEL section 5a). |
+| 6 | Seal key scheme and snapshot integrity. | **Resolved.** HMAC-SHA256 seals. Snapshot checksum manifest (THREAT_MODEL sections 5a and 6). |
+| 7 | Rate limit N (4.7) and the quarantine time bound. | **Resolved (Phase 5).** N = 10 installs per minute (`max_installs_per_minute`). Quarantine window 900 seconds (`max_seconds`). |
+| 8 | Git pre-commit hook rejects failing policy edits. | **Resolved.** `.pre-commit-config.yaml` runs `scripts/policy_checks.sh` when the policy, loader, floors, or property suite change. The hook uses the venv's tools, so commit with the venv active. Verified with `pre-commit run policy-checks --all-files`. |
+| 9 | Exact data sent to OSV.dev and registries in live mode. | **Resolved.** Documented in `docs/THREAT_MODEL.md`. Offline mode sends nothing. |
+| 10 | Needle 3 gate. | **Resolved: gate failed.** L2 is not in v1 and is on the roadmap. Evidence: `docs/needle_spike.csv`. |
+| 11 | Kiroween write-up format. | **Resolved with a caveat.** The write-up is `docs/WRITEUP.md`. The live Devpost form still needs a check before submission (`docs/SUBMISSION_CHECKLIST.md`). |
+| 13 | Ecosystems beyond pip and npm. | **Resolved: moved to roadmap.** v1 ships pip and npm only. |
 
 ---
 
@@ -399,7 +399,7 @@ The schedule has eight phases and four dated milestones. Phases have exit criter
 | 2. Kiro layer | Nov 23–24 | `dependency-trust.md`, both hooks, and the pre-commit guard in place. A policy edit that weakens fail-closed is rejected. Open Decisions 3, 6, and 8 resolved. |
 | 3. Quarantine and Needle spike | Nov 25–26 | Deterministic quarantine passes its tests. Needle spike run on the labeled set and gate result committed at M1. |
 | 4. Fallback checkpoint | Nov 27 | M2 met. Fallback scope is shippable. |
-| 5. Primary path | Nov 28–29 | Interception (PATH shim, `verify_install`), replay, and policy diff done. L2 wired if the gate passed, or hardening if it failed. Corpus expanded toward 100. |
+| 5. Primary path | Nov 28–29 | Interception (PATH shim, `verify_install`) and policy diff done. L2 not wired, because the gate failed. Corpus kept at 23 fixture records for v1. |
 | 6. Freeze and release | Nov 30–Dec 2 | M3 met at the start of the phase. Demo recorded, README and Kiro write-up drafted, Devpost form drafted, candidate tag `v1.0.0-kiroween`. Bug fixes only. |
 | 7. Submission | Dec 3 | M4 met. Dec 4 held as buffer. |
 
@@ -474,7 +474,7 @@ Same as primary, with these changes:
 - Deterministic checks complete in under 100 ms against the signed snapshot.
 - L2 intent check completes in under 500 ms on device, if L2 ships.
 - PBT suite: at least 500 generated cases per run, zero fail-closed violations.
-- QUARANTINE state machine: every generated path terminates in a defined exit code within the bound set by Open Decision 7.
+- QUARANTINE state machine: every generated path terminates in a defined exit code within the 900-second bound in the policy (Open Decision 7, resolved).
 
 ### Submission Requirements
 - Public repository with MIT license.
@@ -513,7 +513,7 @@ src/slopseal/
   core/ (existence, typosquat, slopsquat, age, install_script, osv, allowlist, license, maintainer, near_name, failclosed)
   semantic/ (needle_backend, intent, confidence)      # only if M1 gate passes
   quarantine/ (state_machine, payload, escalation, api_surface)
-  audit/ (log, seal, replay)
+  audit/ (log, seal)
   policy/ (loader, diff)
   fixtures/ (registry_snapshot.json, osv_snapshot.json, topn_snapshot.json, signature.sig)
 
@@ -566,6 +566,6 @@ CHANGELOG.md
 
 ---
 
-**Document version:** 1.5.1
+**Document version:** 1.6.0
 **Created:** November 15, 2026
 **Status:** Final for spec writing. The day-level plan is in `docs/PLAN.md`.

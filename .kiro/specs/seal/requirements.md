@@ -16,6 +16,10 @@
 
 **R-V-4 (warnings).** When an ALLOW verdict has one or more WARN-level checks fired, the system shall attach the warnings to the ALLOW result.
 
+**R-4.1 (HARD_BLOCK).** When any hard-block check fails, the system shall return BLOCK, exit with code 1, and write a typed `DependencyViolation` object to stderr.
+
+**R-4.4 (QUARANTINE).** When the verdict is QUARANTINE, the system shall pause the install, exit with code 75, and apply the quarantine rules R-Q-1 to R-Q-7.
+
 ## 2. Deterministic core (L1)
 
 **R-2.1 (existence).** When a package name does not exist in the registry snapshot, the system shall return HARD_BLOCK with check `existence`.
@@ -70,9 +74,11 @@
 
 **R-P-2 (policy integrity).** The system shall verify the signature of the offline snapshot at load time. A snapshot that fails verification shall cause BLOCK.
 
+**R-4.7 (rate limit).** When an agent makes more than `max_installs_per_minute` install attempts in a rolling 60-second window, the system shall BLOCK each further attempt until the window clears. Every attempt counts, including blocked ones. `--allow-unsafe` does not bypass this check.
+
 ## 5. Interception and API
 
-**R-1.1 (PATH shim).** The system shall intercept `pip`, `npm`, `yarn`, `pnpm`, `cargo`, `gem`, and `go get` invocations through a PATH shim.
+**R-1.1 (PATH shim).** The system shall intercept `pip` and `npm` invocations through a PATH shim. Other package managers are on the post-hackathon roadmap.
 
 **R-1.3 (verify_install).** The system shall expose `verify_install(package, version, intent?)`, which returns the same verdict and exit code as the shim.
 
@@ -84,7 +90,7 @@
 
 **R-5.7.2 (seals).** The system shall sign each verdict seal over {package, version, checks_run, verdict, timestamp, policy_hash}.
 
-**R-5.7.3 (replay).** The system shall re-run the checks for a historical install using the snapshot and policy recorded with it.
+**R-5.7.3 (replay).** Post-hackathon roadmap, not in v1. The system shall re-run the checks for a historical install using the snapshot and policy recorded with it.
 
 **R-5.7.4 (policy diff).** The system shall print the steering changes between two installs as CLI output.
 

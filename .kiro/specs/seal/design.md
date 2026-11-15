@@ -46,7 +46,7 @@ Each module has one responsibility and a requirement list. Dependency direction 
 | 4 | `verdict` | Orchestrate the pipeline; produce `Decision`; failclosed wrapper | R-V-1..4 |
 | 3 | `quarantine/` | State machine, payload, escalation artifact, API-surface check | R-Q-1..7 |
 | 3 | `semantic/` | L2 backend interface and Needle adapter (gated at M1) | R-3.1..3.8 |
-| 3 | `audit/` | JSONL log, seals, replay | R-5.7.1..3 |
+| 3 | `audit/` | JSONL log, seals. Replay is on the roadmap. | R-5.7.1, R-5.7.2 |
 | 2 | `core/` | L1 checks 2.1–2.11, one file per check | R-2.1..2.11 |
 | 2 | `policy/` | Load and validate policy, diff two policies | R-1.4, R-5.7.4 |
 | 1 | `fixtures/` | Snapshot loader and signature verification | R-P-2 |
@@ -177,7 +177,7 @@ deny = []
 
 [quarantine]
 retry_budget = 1
-max_seconds = 0          # set by Open Decision 7
+max_seconds = 900         # Open Decision 7, resolved in Phase 5
 
 [semantic]
 enabled = false
@@ -229,7 +229,7 @@ State is stored as one JSON file per quarantine id under the SlopSeal state dire
 ```
 
 - **Terminal states:** ALLOWED, ESCALATED, ABANDONED. The machine has no state with no outgoing path to a terminal state (P-SM-1).
-- **Time bound:** every state file carries an `expires_at`. After expiry the state is treated as ESCALATED. The bound value is Open Decision 7.
+- **Time bound:** every state file carries an `expires_at`. After expiry the state is treated as ESCALATED. The bound is 900 seconds (`max_seconds`, Open Decision 7, resolved).
 - **Retry re-checks:** a retry runs the API-surface check again on the new intent (P-SM-3). It never reuses a stored result.
 - **Package pinning:** a retry for a different package or version than the quarantined one is a new quarantine, not a retry.
 - **CI behavior (resolved, Open Decision 3).** Exit 75 is kept for QUARANTINE and is not remapped. Pipelines fail on 75 unless the job is configured to pause for approval (see `THREAT_MODEL.md`, section 5a).
@@ -278,7 +278,7 @@ Verification requires line 1 to be a genesis entry with `seq = 0` and the all-ze
 
 **L2 confidence** is written to the log only. It never appears in the quarantine payload (P-SM-5).
 
-**Replay:** `replay(seq)` loads the log line, the recorded snapshot id and policy hash, re-runs the pipeline against them, and reports whether the outcome matches (P-AU-3). If the snapshot or policy is no longer available, replay reports that and does not guess.
+**Replay (post-hackathon roadmap, not in v1):** `replay(seq)` loads the log line, the recorded snapshot id and policy hash, re-runs the pipeline against them, and reports whether the outcome matches (P-AU-3). If the snapshot or policy is no longer available, replay reports that and does not guess.
 
 **`--allow-unsafe`:** writes a log line with `bypass.reason` before the install proceeds. An empty reason is rejected (R-1.5).
 
@@ -320,10 +320,10 @@ Prompt-injection posture: package descriptions and README text are untrusted. Th
 
 ## 15. Open items that affect this design
 
-| Item | Affects | Decide by |
+| Item | Affects | Status |
 |------|---------|-----------|
-| Key scheme (Open Decision 6) | Section 8, section 10 | End of Phase 2 |
-| Quarantine time bound and rate limit (Open Decision 7) | Section 7, section 9 | M2 |
-| Exit 75 vs separate code in CI (Open Decision 3) | Section 9, section 13 | End of Phase 2 |
-| Sub-agent invocation (Open Decision 1) | Section 12 | End of Phase 1 |
-| Ecosystems beyond pip and npm (Open Decision 13) | Section 11, `core/` | M2 |
+| Key scheme (Open Decision 6) | Section 8, section 10 | Resolved (Phase 3): HMAC-SHA256 |
+| Quarantine time bound and rate limit (Open Decision 7) | Section 7, section 9 | Resolved (Phase 5): 900 s window, N = 10 per minute |
+| Exit 75 vs separate code in CI (Open Decision 3) | Section 9, section 13 | Resolved (Phase 3): exit 75 kept |
+| Sub-agent invocation (Open Decision 1) | Section 12 | Resolved: no sub-agent path in v1; roadmap |
+| Ecosystems beyond pip and npm (Open Decision 13) | Section 11, `core/` | Resolved: pip and npm only in v1; roadmap |

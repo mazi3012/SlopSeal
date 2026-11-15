@@ -52,7 +52,7 @@
 
 **P-AU-2 (seal verifies).** For any verdict seal, the signature verifies against the signing key and the sealed fields. Changing any sealed field makes verification fail.
 
-**P-AU-3 (replay reproduces).** For any historical install record, replaying with the recorded snapshot and policy hash produces the same verdict and exit code.
+**P-AU-3 (replay reproduces; post-hackathon roadmap, not in v1).** For any historical install record, replaying with the recorded snapshot and policy hash produces the same verdict and exit code.
 
 ## 5. Snapshot integrity
 

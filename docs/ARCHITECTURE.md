@@ -22,7 +22,7 @@ This file is an index. The design lives in `.kiro/specs/seal/design.md` so there
 
 ## Shape in one paragraph
 
-One function, `verify_install`, turns a package, a policy, and a snapshot (or live registry) into a `Decision`. Callers (PATH shim, CLI, Kiro hook) only map that decision to an exit code. Checks are pure functions behind small Protocols, so offline mode, tests, and replay swap the I/O without touching logic. Anything unknown or unexpected becomes BLOCK in one wrapper.
+One function, `verify_install`, turns a package, a policy, and a snapshot (or live registry) into a `Decision`. Callers (PATH shim, CLI, Kiro hook) only map that decision to an exit code. Checks are pure functions behind small Protocols, so offline mode and tests swap the I/O without touching logic. Anything unknown or unexpected becomes BLOCK in one wrapper.
 
 ## Keeping this current
 

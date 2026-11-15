@@ -25,7 +25,7 @@ the live form before pasting. If the form asks for something not listed here, ch
 | Field | Value |
 |-------|-------|
 | Repository | https://github.com/mazi3012/SlopSeal |
-| Release (candidate tag) | https://github.com/mazi3012/SlopSeal/releases/tag/v1.0.0-kiroween (create at freeze; see section 6) |
+| Release tag | https://github.com/mazi3012/SlopSeal/tree/v1.0.0-kiroween (exists, pushed Nov 15, 2026, points at 030b773) |
 | Demo video | `VIDEO_URL_PLACEHOLDER` (replace with the YouTube, Vimeo, Facebook, or Youku URL) |
 | Kiro write-up | https://github.com/mazi3012/SlopSeal/blob/main/docs/WRITEUP.md |
 | Product requirements | https://github.com/mazi3012/SlopSeal/blob/main/PRD.md |
@@ -63,7 +63,7 @@ The demo runs offline against a signed fixture snapshot. The last line should re
 - [ ] CI is green on `main` (`lint, types, tests` and `properties`).
 - [ ] `bash scripts/demo.sh` passes on a fresh clone of `main`.
 - [ ] `scripts/check_credentials.sh origin/main..HEAD` passes on the release branch.
-- [ ] Candidate tag `v1.0.0-kiroween` created on the frozen commit (Dec 2 per the plan). Final tag at submission, if the release changes.
+- [x] Tag `v1.0.0-kiroween` exists on origin (030b773, Nov 15, 2026). The docs cleanup merges after it. Re-point the tag only with your approval, and only before submission.
 - [ ] Form fields checked against the live Devpost page, not only this file.
 
 ## 7. Known limits to state in the form (already in the write-up)
