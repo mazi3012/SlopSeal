@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "SlopSeal: policy guard and property suite on steering change",
+      "trigger": "PostFileSave",
+      "matcher": "dependency-trust\\.md$",
+      "action": {
+        "type": "command",
+        "command": "bash SlopSeal/scripts/policy_checks.sh"
+      }
+    }
+  ]
+}

@@ -1,10 +1,9 @@
 # Install once with: pre-commit install
 # Local hooks use the tools from `pip install -e ".[dev]"`, so versions match CI.
 #
-# The policy guard is added in Phase 2, with the policy file itself. When
-# dependency-trust.md changes it runs `slopseal policy check` (same extraction
-# function as the loader, design.md section 7) and then the property suite.
-# See PRD.md, Open Decision 8.
+# The policy guard (policy-checks below) runs when the trust policy or its floors
+# change. It calls src/slopseal/policy/loader.py, the only implementation of the fence
+# rule, then runs the property suite. See PRD.md, Open Decision 8.
 repos:
   - repo: local
     hooks:
@@ -24,3 +23,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+      # Policy guard: runs when the trust policy, its loader, its floors, or the property
+      # suite change. Rejects a weakening edit (R-PBT-2). Same script as the Kiro hook.
+      - id: policy-checks
+        name: policy guard and property suite
+        entry: bash scripts/policy_checks.sh
+        language: system
+        pass_filenames: false
+        always_run: false
+        files: '^(\.kiro/steering/dependency-trust\.md|\.kiro/specs/seal/properties\.md|src/slopseal/policy/.*\.py|src/tests/properties/.*\.py|scripts/policy_.*)$'

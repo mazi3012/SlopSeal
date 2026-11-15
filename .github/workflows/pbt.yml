@@ -33,6 +33,7 @@ jobs:
         env:
           SLOPSEAL_PBT_EXAMPLES: "500"
         run: |
-          # TODO(Phase 1): remove the `|| [ $? -eq 5 ]` tolerance as soon as the first
-          # property test lands. Exit 5 (no tests collected) is only acceptable while empty.
-          pytest src/tests/properties -m property || [ $? -eq 5 ]
+          # Runs every test in the property suite. No marker filter: the tests do not carry
+          # the `property` marker, so `-m property` selected zero tests and exit 5 was silently
+          # tolerated. Exit 5 is no longer tolerated.
+          pytest src/tests/properties -q

@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "SlopSeal: confirm package installs",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "command",
+        "command": "python SlopSeal/scripts/hooks/on_install.py"
+      }
+    }
+  ]
+}

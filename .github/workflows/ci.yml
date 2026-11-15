@@ -45,7 +45,4 @@ jobs:
           [ "$code" -eq 1 ]
       - name: Tests
         run: |
-          # TODO(Phase 1): remove the `|| [ $? -eq 5 ]` tolerance as soon as the first test
-          # lands. pytest exits 5 when no tests are collected, which is only acceptable while
-          # src/tests is empty. Leaving it in would let a broken collection pass silently.
-          pytest || [ $? -eq 5 ]
+          pytest -q
