@@ -11,6 +11,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - Registry adapter with explicit unknown values; live mode is a fail-closed stub.
 - End-to-end demo script (`scripts/demo.sh`), run in CI.
 
+### Changed
+- Needle 3 spike (M1 gate) run against a pre-registered labelled set. The gate failed (match-allow 0.40, mismatch-allow 0.00). L2 is not in v1. Evidence: `docs/needle_spike.csv`.
+
 ### Fixed
 - The first audit event on an empty log was dropped. Genesis and the first event are now written in one locked write.
 - The CI property job matched zero tests. It now runs the whole suite.

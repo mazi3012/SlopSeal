@@ -25,7 +25,7 @@ Do not change a value to make a test pass. If a value needs to change, change th
 - **Licenses.** `allow` and `deny` are SPDX identifiers for check 2.9. An empty `allow` list accepts any license that is not denied.
 - **Maintainers.** `min_account_age_days` is the age below which the newest maintainer account is a finding (check 2.10).
 - **Quarantine.** `retry_budget` is the number of automated retries after a quarantine. The PRD sets it to 1. `max_seconds` is the window a quarantine stays open before it counts as escalated. It is 900 seconds (provisional, PRD Open Decision 7).
-- **Semantic (L2).** Disabled until the M1 gate passes. `confidence_threshold` is set before the spike runs and is never tuned against its results.
+- **Semantic (L2).** Not in v1: the M1 gate failed (`docs/needle_spike.csv`). It stays disabled. `confidence_threshold` is 0.5, pre-registered before the spike runs. It is the midpoint between the model card's figures for a wrong call (0.26) and a correct one (0.93). It is never tuned against the spike results.
 
 ```toml slopseal-policy
 schema_version = 1
@@ -68,5 +68,5 @@ max_seconds = 900
 
 [semantic]
 enabled = false
-confidence_threshold = 0.0
+confidence_threshold = 0.5
 ```

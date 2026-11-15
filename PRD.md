@@ -57,7 +57,7 @@ The arsonist does not inspect the fire. SlopSeal never uses the calling agent's 
 | Interception | PATH shim (1.1), `verify_install` API (1.3) |
 | L1 deterministic checks | 2.1–2.11 |
 | Quarantine | Deterministic API-surface trigger, state machine, exit 75 payload, one retry, escalation artifact |
-| L2 semantic verifier | Needle 3 via needle-rs, only if the M1 gate passes (3.1–3.7) |
+| L2 semantic verifier | **Not in v1.** M1 gate failed (`docs/needle_spike.csv`). Roadmap. |
 | Audit | JSONL log, signed verdict seals, replay, policy diff (CLI output) |
 | Offline mode | `SLOPSEAL_OFFLINE_SNAPSHOT=1` with signed snapshot |
 | Kiro layer | Steering, specs, hooks, pre-commit guard, property suite |
@@ -354,7 +354,7 @@ These resolve during implementation. Each has a deadline, stated as a phase exit
 | 7 | Rate limit N (4.7) and the numeric time bound for the quarantine state machine. | M2 (Nov 27) |
 | 8 | Confirm the git pre-commit hook rejects failing policy edits. | Mid Phase 2 (Nov 23) |
 | 9 | Exact data sent to OSV.dev and registries in live mode. Documented in `docs/THREAT_MODEL.md`. | M2 (Nov 27) |
-| 10 | Needle 3 fit. Numeric gate (see L2). | M1 (Nov 26) |
+| 10 | **Resolved: gate failed.** Needle 3 did not meet the numeric gate on the pre-registered set (match-allow 0.40 against a minimum of 0.80). L2 is roadmap. Evidence: `docs/needle_spike.csv`. | Resolved in Phase 4 |
 | 11 | Kiroween write-up format. Resolved with a caveat. Monitor the Devpost submission page from Phase 0. | Verify by M3 (Nov 30) at the latest |
 | 13 | Ecosystems beyond pip and npm: keep in v1 or move to roadmap. Ship only what the corpus and checks cover. | M2 (Nov 27) |
 
@@ -367,7 +367,7 @@ Kiroween 2026 allows one main category per project. SlopSeal enters **Frankenste
 | Part | Source technology |
 |------|-------------------|
 | Deterministic checks (L1) and quarantine | Registry, OSV.dev, snapshot data, and a state machine |
-| Semantic intent check (L2, gated) | Needle 3 on-device model via needle-rs |
+| Semantic intent check (L2, roadmap: M1 gate failed) | Needle 3 on-device model via needle-rs (not in v1) |
 | Policy engine and orchestration | Kiro steering, specs, and hooks |
 | Verification of the policy itself | Property-based testing on every policy change |
 

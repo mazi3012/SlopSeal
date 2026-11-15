@@ -6,7 +6,7 @@ SlopSeal is a dependency trust firewall for AI coding agents. Before a package i
 
 Built for Kiroween 2026 (Frankenstein category). License: MIT.
 
-> **Status:** Pre-alpha. The deterministic core, the policy guard, the quarantine state machine, the audit log, and the CLI are built and tested. The semantic layer (L2) is gated and not built. Live registry access is not built, so live mode blocks every check. Nothing here is ready for production use.
+> **Status:** Pre-alpha. The deterministic core, the policy guard, the quarantine state machine, the audit log, and the CLI are built and tested. The semantic layer (L2) was tested against the Needle 3 model and failed its pre-registered gate, so it is not in v1. Live registry access is not built, so live mode blocks every check. Nothing here is ready for production use.
 
 ## The problem
 

@@ -25,10 +25,9 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-# Needle 3 adapter for the optional L2 layer. Empty until the M1 gate passes.
-# TODO(Phase 5): the Python binding for Needle 3 is unresolved as of Phase 0. Phase 5 begins
-# with a half-day binding spike. Fallback: install needle-rs from source. Record the choice in an ADR.
-needle = []
+# Needle 3 runtime for the optional L2 layer. Chosen in docs/adr/0003. Pinned to the version the
+# spike ran against. Installing this extra is optional; the default install never imports it.
+needle = ["needle-rs==0.3.1"]
 # Ed25519 seal signing (public verifiability). Roadmap, not v1. See docs/adr/0002-stdlib-first.md.
 # TODO(roadmap): fill with the chosen Ed25519 library when the roadmap item is scheduled.
 # Adding a dependency here requires its own ADR.
@@ -93,6 +92,11 @@ python_version = "3.11"
 strict = true
 warn_unreachable = true
 files = ["src/slopseal"]
+
+# The optional needle extra may or may not be installed. Missing stubs are not an error either way.
+[[tool.mypy.overrides]]
+module = ["needle_rs"]
+ignore_missing_imports = true
 
 # ---- pytest ----
 [tool.pytest.ini_options]

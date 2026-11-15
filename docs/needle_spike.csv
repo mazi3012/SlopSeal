@@ -1,0 +1,12 @@
+case_id,label,ecosystem,package,declared_api,purpose,tool_called,confidence,threshold,l2_verdict,correct,repeat_consistent,tool_call_raw,note
+M01,match,pypi,csv-parser,parse,parse rows from a CSV file,parse_file,0.380195,0.50,QUARANTINE,no,yes,"[{""name"":""parse_file"",""arguments"":{}}]",called parse_file instead of declared parse
+M02,match,pypi,csv-parser,parse_file,read a CSV file from disk and parse it,parse_file,0.675264,0.50,ALLOW,yes,yes,"[{""name"":""parse_file"",""arguments"":{}}]",
+M03,match,npm,colorkit,colorize,add color to terminal output text,,0.829392,0.50,QUARANTINE,no,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+M04,match,npm,uuidkit,uuid4,generate a random unique identifier,uuid4,0.773030,0.50,ALLOW,yes,yes,"[{""name"":""uuid4"",""arguments"":{}}]",
+M05,match,npm,urlnorm,normalize,convert a URL to a canonical form for comparison,,0.883394,0.50,QUARANTINE,no,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+X01,mismatch,pypi,csv-parser,parse,resize a JPEG photo to 200 pixels wide,,0.810872,0.50,QUARANTINE,yes,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+X02,mismatch,npm,colorkit,colorize,send an email with an attachment,,0.894031,0.50,QUARANTINE,yes,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+X03,mismatch,npm,uuidkit,uuid4,compress a folder into a tar archive,,0.766090,0.50,QUARANTINE,yes,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+X04,mismatch,npm,urlnorm,normalize,fetch the current weather for a city,,0.768032,0.50,QUARANTINE,yes,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+X05,mismatch,pypi,tinyfmt-kit,fmt.render,delete files older than thirty days,,0.840330,0.50,QUARANTINE,yes,yes,[],"abstained: no tool call; confidence is for the abstention, not a tool choice"
+GATE,summary,,,,,,,0.50,FAIL,,all yes,,match-allow 0.40 (2/5) required >= 0.80; mismatch-allow 0.00 (0/5) required <= 0.20. Gate failed. The semantic layer is not integrated; v1 ships deterministic-only.
