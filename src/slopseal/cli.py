@@ -6,6 +6,7 @@ Subcommands:
   abandon <id>             close an open or escalated quarantine without installing.
   audit verify             check the audit log chain and seals. Exit 0, 1, or 78.
   policy check [PATH]      validate the trust policy and its floors. Exit 0, 1, or 78.
+  policy diff OLD NEW      list the policy fields that differ. Exit 0 or 78.
 
 Output contract (design section 13):
   stdout  QUARANTINE payload JSON only (agents parse it)
@@ -25,38 +26,32 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from slopseal import runtime
 from slopseal.audit.log import AuditLog
 from slopseal.audit.seal import SealKeyError, load_or_create_key
-from slopseal.core.types import CheckResult, Ecosystem, Level
-from slopseal.fixtures.loader import SnapshotIntegrityError, load_snapshot
+from slopseal.core.types import CheckResult, Level
+from slopseal.fixtures.loader import SnapshotIntegrityError
+from slopseal.policy.diff import diff_policies
 from slopseal.policy.invariants import enforce_floors
-from slopseal.policy.loader import Policy, PolicyError, load_policy
+from slopseal.policy.loader import PolicyError, load_policy
 from slopseal.quarantine.state_machine import (
     QState,
     QuarantineStore,
     effective_state,
-    new_quarantine_id,
 )
-from slopseal.registry.source import LiveSource, OfflineSource, RegistrySource
+from slopseal.runtime import ECOSYSTEMS, build_context
 from slopseal.verdict import Context, Decision, InstallRequest, Intent, Outcome, verify_install
 
 EXIT_ALLOW = 0
 EXIT_BLOCK = 1
 EXIT_QUARANTINE = 75
 EXIT_POLICY = 78
-
-DEFAULT_STATE_DIR = ".slopseal"
-DEFAULT_POLICY = ".kiro/steering/dependency-trust.md"
-FIXTURES = Path(__file__).resolve().parent / "fixtures"
-ECOSYSTEMS = {eco.value: eco for eco in Ecosystem}
 
 
 class CliError(Exception):
@@ -67,47 +62,14 @@ class CliError(Exception):
         self.code = code
 
 
-def _env_flag(name: str) -> bool:
-    return os.environ.get(name, "0") == "1"
-
-
-def _build_source(state_dir: Path) -> tuple[RegistrySource, datetime]:
-    if _env_flag("SLOPSEAL_OFFLINE_SNAPSHOT"):
-        directory = Path(os.environ.get("SLOPSEAL_SNAPSHOT_DIR", str(FIXTURES)))
-        snapshot = load_snapshot(directory)  # SnapshotIntegrityError is handled by the caller
-        return OfflineSource(snapshot), snapshot.as_of
-    return LiveSource(), datetime.now(UTC)
-
-
-def _state_dir() -> Path:
-    return Path(os.environ.get("SLOPSEAL_STATE_DIR", DEFAULT_STATE_DIR))
-
-
-def _policy_path() -> Path:
-    return Path(os.environ.get("SLOPSEAL_POLICY_PATH", DEFAULT_POLICY))
-
-
-def _context(source: RegistrySource, now: datetime, state_dir: Path) -> Context:
-    policy: Policy = _load_policy_or_exit()
+def _load_context() -> Context:
+    """Build the verdict context. Setup failures map to exit 78: no verdict is issued."""
     try:
-        key = load_or_create_key(state_dir)
-    except SealKeyError as exc:
-        raise CliError(f"slopseal: {exc}; no verdict was issued") from exc
-    return Context(
-        policy=policy,
-        source=source,
-        store=QuarantineStore(state_dir),
-        log=AuditLog(state_dir / "audit.jsonl", key),
-        now=now,
-        new_id=lambda: new_quarantine_id(os.urandom(13)),
-    )
-
-
-def _load_policy_or_exit() -> Policy:
-    try:
-        return load_policy(str(_policy_path()))
+        return build_context()
     except PolicyError as exc:
         raise CliError(f"slopseal: policy error: {exc}") from exc
+    except SealKeyError as exc:
+        raise CliError(f"slopseal: {exc}; no verdict was issued") from exc
 
 
 def _violation_json(violation: CheckResult, package: str) -> dict[str, Any]:
@@ -143,9 +105,7 @@ def _emit_decision(decision: Decision) -> int:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
-    state_dir = _state_dir()
-    source, now = _build_source(state_dir)
-    context = _context(source, now, state_dir)
+    context = _load_context()
 
     if args.allow_unsafe and not (args.bypass_reason or "").strip():
         print(
@@ -182,12 +142,12 @@ def _store(state_dir: Path) -> QuarantineStore:
 
 
 def cmd_escalate(args: argparse.Namespace) -> int:
-    state_dir = _state_dir()
+    state_dir = runtime.state_dir()
     store = _store(state_dir)
     state = store.load(args.quarantine_id)
     if state is None:
         raise CliError(f"no quarantine {args.quarantine_id}", EXIT_BLOCK)
-    status = effective_state(state, _now())
+    status = effective_state(state, runtime.now())
     if status != QState.ESCALATED:
         raise CliError(
             f"quarantine is {status}; only an escalated quarantine can be approved", EXIT_BLOCK
@@ -205,7 +165,7 @@ def cmd_escalate(args: argparse.Namespace) -> int:
     key = load_or_create_key(state_dir)
     AuditLog(state_dir / "audit.jsonl", key).append(
         "approval",
-        ts=_now(),
+        ts=runtime.now(),
         fields={
             "package": state.package,
             "version": state.version,
@@ -224,12 +184,12 @@ def cmd_escalate(args: argparse.Namespace) -> int:
 
 
 def cmd_abandon(args: argparse.Namespace) -> int:
-    state_dir = _state_dir()
+    state_dir = runtime.state_dir()
     store = _store(state_dir)
     state = store.load(args.quarantine_id)
     if state is None:
         raise CliError(f"no quarantine {args.quarantine_id}", EXIT_BLOCK)
-    status = effective_state(state, _now())
+    status = effective_state(state, runtime.now())
     if status not in (QState.OPEN, QState.ESCALATED):
         raise CliError(f"quarantine is {status}; nothing to abandon", EXIT_BLOCK)
     reason = (args.reason or "agent proceeded with an alternative").strip()
@@ -237,7 +197,7 @@ def cmd_abandon(args: argparse.Namespace) -> int:
     key = load_or_create_key(state_dir)
     AuditLog(state_dir / "audit.jsonl", key).append(
         "abandon",
-        ts=_now(),
+        ts=runtime.now(),
         fields={
             "package": state.package,
             "version": state.version,
@@ -266,7 +226,7 @@ def _mark_artifact(store: QuarantineStore, quarantine_id: str, status: str, reas
 
 
 def cmd_audit_verify(args: argparse.Namespace) -> int:
-    state_dir = _state_dir()
+    state_dir = runtime.state_dir()
     log_path = Path(args.log) if args.log else state_dir / "audit.jsonl"
     key_path = state_dir / "secret.key"
     if not log_path.exists():
@@ -286,7 +246,7 @@ def cmd_audit_verify(args: argparse.Namespace) -> int:
 
 
 def cmd_policy_check(args: argparse.Namespace) -> int:
-    path = args.path or str(_policy_path())
+    path = args.path or str(runtime.policy_path())
     try:
         policy = load_policy(path)
     except PolicyError as exc:
@@ -301,13 +261,21 @@ def cmd_policy_check(args: argparse.Namespace) -> int:
     return EXIT_ALLOW
 
 
-def _now() -> datetime:
-    """Offline mode pins the clock to the snapshot's as_of, so runs are reproducible.
-    Live mode uses the system clock."""
-    if _env_flag("SLOPSEAL_OFFLINE_SNAPSHOT"):
-        snapshot_dir = Path(os.environ.get("SLOPSEAL_SNAPSHOT_DIR", str(FIXTURES)))
-        return load_snapshot(snapshot_dir).as_of
-    return datetime.now(UTC)
+def cmd_policy_diff(args: argparse.Namespace) -> int:
+    """Print the policy fields that differ between two files. Exit 0, or 78 if either fails."""
+    try:
+        old = load_policy(args.old)
+        new = load_policy(args.new)
+    except PolicyError as exc:
+        print(f"slopseal: policy error: {exc}", file=sys.stderr)
+        return EXIT_POLICY
+    print(f"policy_hash: {old.policy_hash} -> {new.policy_hash}")
+    changes = diff_policies(old, new)
+    if not changes:
+        print("no policy field changed")
+    for change in changes:
+        print(f"changed {change.field}: {change.old!r} -> {change.new!r}")
+    return EXIT_ALLOW
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -354,6 +322,12 @@ def build_parser() -> argparse.ArgumentParser:
     policy_check = policy_sub.add_parser("check", help="validate the policy and its floors")
     policy_check.add_argument("path", nargs="?", default=None)
     policy_check.set_defaults(handler=cmd_policy_check)
+    policy_diff = policy_sub.add_parser(
+        "diff", help="show the policy fields that differ between two policy files"
+    )
+    policy_diff.add_argument("old")
+    policy_diff.add_argument("new")
+    policy_diff.set_defaults(handler=cmd_policy_diff)
     return parser
 
 

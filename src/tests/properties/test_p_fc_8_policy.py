@@ -79,6 +79,7 @@ def valid_values() -> dict[str, dict[str, object]]:
         },
         "licenses": {"allow": [], "deny": []},
         "maintainers": {"min_account_age_days": 90},
+        "limits": {"max_installs_per_minute": 10},
         "quarantine": {"retry_budget": 1, "max_seconds": 900},
         "semantic": {"enabled": False, "confidence_threshold": 0.0},
     }
@@ -106,6 +107,7 @@ def policy_with(overrides: dict[str, object]) -> Policy:
         "license_allow": (),
         "license_deny": (),
         "maintainer_min_account_age_days": 90,
+        "max_installs_per_minute": 10,
         "retry_budget": 1,
         "max_seconds": 900,
         "semantic_enabled": False,
@@ -222,6 +224,7 @@ def test_r_1_4_unsupported_schema_version_is_a_policy_error(version: int) -> Non
             "levels",
             "licenses",
             "maintainers",
+            "limits",
             "quarantine",
             "semantic",
         ]
