@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 authors = [{ name = "SlopSeal contributors" }]
 keywords = ["supply-chain-security", "slopsquatting", "ai-agents", "kiro", "dependency-firewall"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
