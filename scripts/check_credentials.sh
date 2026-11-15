@@ -41,7 +41,8 @@ if [ "$status" -eq 0 ]; then
 fi
 
 echo "== keyword scan (informational only, prose will match; does not affect exit code)"
-keyword_hits=$(added_lines | grep -iE 'api[_-]?key|token|secret|bearer' | grep -viE 'example|placeholder|your-|xxx' | wc -l | tr -d ' ')
+# Informational only: a pipeline with no matches must not fail the run (pipefail is set).
+keyword_hits=$(added_lines | grep -iE 'api[_-]?key|token|secret|bearer' | grep -viE 'example|placeholder|your-|xxx' | wc -l | tr -d ' ' || true)
 echo "informational: $keyword_hits keyword line(s). Review by hand only if a value-level match appears above."
 
 exit "$status"
