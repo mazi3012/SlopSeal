@@ -36,10 +36,12 @@ FLOORS: tuple[Floor, ...] = (
     Floor("levenshtein_max", minimum=3),
     Floor("jaro_winkler_min", maximum=0.92),
     Floor("keyboard_distance_max", minimum=1),
+    # Check 2.3: slopsquat signatures match within distance 1. A larger tolerance matches more.
+    Floor("slopsquat_max_distance", minimum=1),
     # Quarantine: the PRD sets one automated retry. A larger budget lengthens quarantine.
     Floor("retry_budget", minimum=0, maximum=1),
-    # Quarantine time bound is Open Decision 7. Until it is set, only non-negativity holds.
-    Floor("max_seconds", minimum=0),
+    # P-SM-1: every quarantine terminates in bounded time, so the window must be positive.
+    Floor("max_seconds", minimum=1),
 )
 
 

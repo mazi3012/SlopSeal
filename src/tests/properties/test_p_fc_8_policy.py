@@ -70,7 +70,16 @@ def valid_values() -> dict[str, dict[str, object]]:
             "keyboard_distance_max": 1,
         },
         "lists": {"allow": [], "deny": []},
-        "quarantine": {"retry_budget": 1, "max_seconds": 0},
+        "slopsquat": {"max_distance": 1, "signatures": [["react-codeshift", "react-codemod"]]},
+        "levels": {
+            "install_scripts": "block",
+            "license": "block",
+            "license_undeclared": "warn",
+            "maintainer": "warn",
+        },
+        "licenses": {"allow": [], "deny": []},
+        "maintainers": {"min_account_age_days": 90},
+        "quarantine": {"retry_budget": 1, "max_seconds": 900},
         "semantic": {"enabled": False, "confidence_threshold": 0.0},
     }
 
@@ -88,8 +97,17 @@ def policy_with(overrides: dict[str, object]) -> Policy:
         "keyboard_distance_max": 1,
         "allow": (),
         "deny": (),
+        "slopsquat_max_distance": 1,
+        "slopsquat_signatures": (("react-codeshift", "react-codemod"),),
+        "level_install_scripts": "block",
+        "level_license": "block",
+        "level_license_undeclared": "warn",
+        "level_maintainer": "warn",
+        "license_allow": (),
+        "license_deny": (),
+        "maintainer_min_account_age_days": 90,
         "retry_budget": 1,
-        "max_seconds": 0,
+        "max_seconds": 900,
         "semantic_enabled": False,
         "confidence_threshold": 0.0,
         "policy_hash": "0" * 64,
@@ -194,7 +212,21 @@ def test_r_1_4_unsupported_schema_version_is_a_policy_error(version: int) -> Non
         parse_policy(render(values))
 
 
-@given(section=st.sampled_from(["thresholds", "near_name", "lists", "quarantine", "semantic"]))
+@given(
+    section=st.sampled_from(
+        [
+            "thresholds",
+            "near_name",
+            "lists",
+            "slopsquat",
+            "levels",
+            "licenses",
+            "maintainers",
+            "quarantine",
+            "semantic",
+        ]
+    )
+)
 def test_r_1_4_missing_section_is_a_policy_error(section: str) -> None:
     values = valid_values()
     del values[section]
@@ -205,7 +237,19 @@ def test_r_1_4_missing_section_is_a_policy_error(section: str) -> None:
 @given(data=st.data())
 def test_r_1_4_missing_key_is_a_policy_error(data: st.DataObject) -> None:
     values = valid_values()
-    section = data.draw(st.sampled_from(["thresholds", "near_name", "quarantine", "semantic"]))
+    section = data.draw(
+        st.sampled_from(
+            [
+                "thresholds",
+                "near_name",
+                "slopsquat",
+                "levels",
+                "maintainers",
+                "quarantine",
+                "semantic",
+            ]
+        )
+    )
     key = data.draw(st.sampled_from(sorted(values[section])))  # type: ignore[arg-type]
     table = dict(values[section])  # type: ignore[arg-type]
     del table[key]
