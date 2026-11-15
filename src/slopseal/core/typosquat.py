@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
+from slopseal.core.age import age_days
 from slopseal.core.distance import levenshtein
 from slopseal.core.names import normalize_name
 from slopseal.core.types import (
@@ -32,7 +33,6 @@ from slopseal.core.types import (
 )
 
 CHECK_ID = "typosquat"
-_SECONDS_PER_DAY = 86_400.0
 
 
 def check_typosquat(
@@ -70,19 +70,19 @@ def check_typosquat(
         key=lambda pair: (pair[1], pair[0]),
     )
     # A negative age means the publish time is ahead of `now` (clock skew). It counts as young.
-    age_days = (now - result.first_published).total_seconds() / _SECONDS_PER_DAY
+    age = age_days(now, result.first_published)
 
-    if distance <= max_distance and age_days < max_age_days:
+    if distance <= max_distance and age < max_age_days:
         return CheckResult(
             CHECK_ID,
             Level.HARD_BLOCK,
             f"'{result.name}' is {distance} edit(s) from popular package '{nearest}' "
-            f"and was published {age_days:.1f} days ago",
+            f"and was published {age:.1f} days ago",
             remedy=f"Did you mean {nearest}?",
             evidence=(
                 ("distance", distance),
                 ("matched", nearest),
-                ("age_days", round(age_days, 2)),
+                ("age_days", round(age, 2)),
             ),
         )
     return CheckResult(CHECK_ID, Level.PASS, "no young package within typosquat distance")
