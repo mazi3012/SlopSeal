@@ -1,0 +1,26 @@
+# Install once with: pre-commit install
+# Local hooks use the tools from `pip install -e ".[dev]"`, so versions match CI.
+#
+# The policy guard is added in Phase 2, with the policy file itself. When
+# dependency-trust.md changes it runs `slopseal policy check` (same extraction
+# function as the loader, design.md section 7) and then the property suite.
+# See PRD.md, Open Decision 8.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format --check
+        entry: ruff format --check
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: mypy src/slopseal
+        language: system
+        types: [python]
+        pass_filenames: false

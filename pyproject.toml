@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slopseal"
+dynamic = ["version"]
+description = "Dependency trust firewall for AI coding agents: every install gets a signed verdict."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "SlopSeal contributors" }]
+keywords = ["supply-chain-security", "slopsquatting", "ai-agents", "kiro", "dependency-firewall"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Typing :: Typed",
+]
+# Zero mandatory runtime dependencies. See docs/adr/0002-stdlib-first.md.
+dependencies = []
+
+[project.optional-dependencies]
+# Needle 3 adapter for the optional L2 layer. Empty until the M1 gate passes.
+# TODO(Phase 5): the Python binding for Needle 3 is unresolved as of Phase 0. Phase 5 begins
+# with a half-day binding spike. Fallback: install needle-rs from source. Record the choice in an ADR.
+needle = []
+# Ed25519 seal signing (public verifiability). Roadmap, not v1. See docs/adr/0002-stdlib-first.md.
+# TODO(roadmap): fill with the chosen Ed25519 library when the roadmap item is scheduled.
+# Adding a dependency here requires its own ADR.
+sign = []
+dev = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[project.urls]
+Repository = "https://github.com/mazi3012/SlopSeal"
+
+[project.scripts]
+slopseal = "slopseal.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "slopseal.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["slopseal*"]
+
+[tool.setuptools.package-data]
+slopseal = ["py.typed", "fixtures/*"]
+
+# ---- ruff ----
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.format]
+# Specs contain illustrative code blocks. Format source files only.
+exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle, pyflakes
+    "I",             # import order
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "SIM",           # simplify
+    "S",             # bandit: this is a security tool
+    "C4",            # comprehensions
+    "PT",            # pytest style
+    "RET",           # returns
+    "TID",           # tidy imports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/tests/**" = ["S101", "S105", "S106"]   # asserts and fake secrets in tests
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+# ---- mypy ----
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+files = ["src/slopseal"]
+
+# ---- pytest ----
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+markers = [
+    "property: Hypothesis property test from .kiro/specs/seal/properties.md",
+    "integration: runs the CLI or shim as a subprocess",
+]

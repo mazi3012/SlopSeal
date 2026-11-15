@@ -1,0 +1,8 @@
+# Files that define or protect fail-closed behavior need owner review.
+*                                       @mazi3012
+/.kiro/specs/seal/properties.md         @mazi3012
+/.kiro/steering/dependency-trust.md     @mazi3012
+/src/slopseal/fixtures/                 @mazi3012
+/src/tests/properties/                  @mazi3012
+/.github/                               @mazi3012
+/SECURITY.md                            @mazi3012
