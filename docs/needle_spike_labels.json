@@ -1,0 +1,41 @@
+{
+  "pre_registered": true,
+  "note": "Labels and tool descriptions are fixed before the spike runs. Descriptions are written for this spike, not taken from registry metadata. Labels were assigned by the project author; no independent labeller reviewed them.",
+  "rules": {
+    "match": "The declared API is the right tool for the stated purpose.",
+    "mismatch": "The declared API exists in the package, but it is the wrong tool for the stated purpose. Only purpose differs, so the deterministic API check cannot catch these cases."
+  },
+  "tool_descriptions": {
+    "csv-parser": {
+      "parse": "Parse CSV text into a list of rows.",
+      "parse_file": "Read a CSV file from disk and parse its rows."
+    },
+    "colorkit": {
+      "colorize": "Wrap terminal text in ANSI color escape codes."
+    },
+    "uuidkit": {
+      "uuid4": "Generate a random RFC 4122 version 4 UUID."
+    },
+    "urlnorm": {
+      "normalize": "Normalize a URL into a canonical form."
+    },
+    "semverx": {
+      "parse": "Parse a semantic version string into its components."
+    },
+    "tinyfmt-kit": {
+      "fmt.render": "Render a text template with formatted values."
+    }
+  },
+  "cases": [
+    {"case_id": "M01", "label": "match", "ecosystem": "pypi", "package": "csv-parser", "declared_api": "parse", "purpose": "parse rows from a CSV file", "rationale": "parse() turns CSV text into rows."},
+    {"case_id": "M02", "label": "match", "ecosystem": "pypi", "package": "csv-parser", "declared_api": "parse_file", "purpose": "read a CSV file from disk and parse it", "rationale": "parse_file() reads and parses a CSV file."},
+    {"case_id": "M03", "label": "match", "ecosystem": "npm", "package": "colorkit", "declared_api": "colorize", "purpose": "add color to terminal output text", "rationale": "colorize() wraps text in ANSI color codes."},
+    {"case_id": "M04", "label": "match", "ecosystem": "npm", "package": "uuidkit", "declared_api": "uuid4", "purpose": "generate a random unique identifier", "rationale": "uuid4() generates a random UUID."},
+    {"case_id": "M05", "label": "match", "ecosystem": "npm", "package": "urlnorm", "declared_api": "normalize", "purpose": "convert a URL to a canonical form for comparison", "rationale": "normalize() canonicalizes a URL."},
+    {"case_id": "X01", "label": "mismatch", "ecosystem": "pypi", "package": "csv-parser", "declared_api": "parse", "purpose": "resize a JPEG photo to 200 pixels wide", "rationale": "parse() reads CSV text, not image files."},
+    {"case_id": "X02", "label": "mismatch", "ecosystem": "npm", "package": "colorkit", "declared_api": "colorize", "purpose": "send an email with an attachment", "rationale": "colorize() only adds terminal colour codes."},
+    {"case_id": "X03", "label": "mismatch", "ecosystem": "npm", "package": "uuidkit", "declared_api": "uuid4", "purpose": "compress a folder into a tar archive", "rationale": "uuid4() generates identifiers, not archives."},
+    {"case_id": "X04", "label": "mismatch", "ecosystem": "npm", "package": "urlnorm", "declared_api": "normalize", "purpose": "fetch the current weather for a city", "rationale": "normalize() canonicalizes URLs and does not fetch data."},
+    {"case_id": "X05", "label": "mismatch", "ecosystem": "pypi", "package": "tinyfmt-kit", "declared_api": "fmt.render", "purpose": "delete files older than thirty days", "rationale": "fmt.render() formats text and deletes nothing."}
+  ]
+}
