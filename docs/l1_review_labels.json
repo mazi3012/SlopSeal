@@ -1,0 +1,33 @@
+{
+  "_comment": "Pre-registered labels for the L1 threshold review (Phase 5). Written before any verdict was run on the 23 fixture packages. Classes come from fixture metadata: typosquat = misspelling of a popular package; legit-old = first published 2016 or earlier with several maintainers; slopsquat = new single-maintainer package with a 3-day-old account, or a package with a malicious install script; legit-new = published at least 20 days before the snapshot with an established maintainer. Expected: slopsquat and typosquat BLOCK (PRD success metric: 100%); legit-new and legit-old ALLOW (any BLOCK or QUARANTINE is a false positive).",
+  "snapshot_as_of": "2026-11-15",
+  "labels": {
+    "pypi": {
+      "reqeusts": "typosquat",
+      "nunpy": "typosquat",
+      "flsk": "typosquat",
+      "pandsa": "typosquat",
+      "djnago": "typosquat",
+      "flask-pydantic-core": "slopsquat",
+      "requests-httpx-bridge": "slopsquat",
+      "pandas-numpy-utils": "slopsquat",
+      "datamint-core": "legit-new",
+      "hexgrid-tools": "legit-new",
+      "tinyfmt-kit": "legit-new",
+      "csv": "legit-old",
+      "csv-parser": "legit-old",
+      "pathlib-compat": "legit-old",
+      "semverx": "legit-old",
+      "urlnorm-py": "legit-old"
+    },
+    "npm": {
+      "react-codeshift": "slopsquat",
+      "jsonparser-pro": "slopsquat",
+      "orbit-lint-plugin": "legit-new",
+      "pyrope-ui": "legit-new",
+      "colorkit": "legit-old",
+      "uuidkit": "legit-old",
+      "urlnorm": "legit-old"
+    }
+  }
+}

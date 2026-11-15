@@ -24,6 +24,7 @@ Do not change a value to make a test pass. If a value needs to change, change th
 - **Levels.** Each level is `warn` or `block`. `install_scripts` is check 2.5. `license` is check 2.9 for a license that is denied or not allowed. `license_undeclared` is check 2.9 when no license is declared. `maintainer` is check 2.10.
 - **Licenses.** `allow` and `deny` are SPDX identifiers for check 2.9. An empty `allow` list accepts any license that is not denied.
 - **Maintainers.** `min_account_age_days` is the age below which the newest maintainer account is a finding (check 2.10).
+- **Limits.** `max_installs_per_minute` is the rate limit (PRD 4.7). Install attempts beyond it in a rolling 60-second window are BLOCKED before any check runs. Every attempt counts, including blocked ones, so a blocked agent cannot reset the window by retrying. The value 10 is a default chosen for v1 (PRD Open Decision 7 covers the rate limit N).
 - **Quarantine.** `retry_budget` is the number of automated retries after a quarantine. The PRD sets it to 1. `max_seconds` is the window a quarantine stays open before it counts as escalated. It is 900 seconds (provisional, PRD Open Decision 7).
 - **Semantic (L2).** Not in v1: the M1 gate failed (`docs/needle_spike.csv`). It stays disabled. `confidence_threshold` is 0.5, pre-registered before the spike runs. It is the midpoint between the model card's figures for a wrong call (0.26) and a correct one (0.93). It is never tuned against the spike results.
 
@@ -61,6 +62,9 @@ deny = []
 
 [maintainers]
 min_account_age_days = 90
+
+[limits]
+max_installs_per_minute = 10
 
 [quarantine]
 retry_budget = 1

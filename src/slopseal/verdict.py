@@ -49,6 +49,7 @@ from slopseal.quarantine.payload import (
     build_escalation_artifact,
     build_payload,
 )
+from slopseal.quarantine.rate_limit import RateLimiter
 from slopseal.quarantine.state_machine import (
     QState,
     QuarantineState,
@@ -123,6 +124,7 @@ class Context:
     log: AuditLog
     now: datetime
     new_id: Callable[[], str]
+    limiter: RateLimiter | None = None
 
 
 def verify_install(request: InstallRequest, ctx: Context) -> Decision:
@@ -157,6 +159,27 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
     name = request.package
     source = ctx.source
     snapshot_id = source.snapshot_id
+
+    # Step 1: rate limit (PRD 4.7). Every attempt counts. The limit is not bypassable.
+    if ctx.limiter is not None:
+        rate = ctx.limiter.attempt()
+        if not rate.allowed:
+            rate_version = request.version or source.latest_version(eco, name) or ""
+            violation = CheckResult("rate_limit", Level.BLOCK, rate.reason)
+            return _record(
+                request,
+                ctx,
+                Decision(
+                    outcome=Outcome.BLOCK,
+                    ecosystem=eco.value,
+                    package=name,
+                    version=rate_version,
+                    reason=rate.reason,
+                    violation=violation,
+                    policy_hash=ctx.policy.policy_hash,
+                    snapshot_id=snapshot_id,
+                ),
+            )
 
     version = request.version or source.latest_version(eco, name)
     if version is None:
@@ -680,6 +703,8 @@ def _record(request: InstallRequest, ctx: Context, decision: Decision) -> Decisi
         fields["intent"] = request.intent.to_json()
     if decision.quarantine_id is not None:
         fields["quarantine_id"] = decision.quarantine_id
+    if decision.violation is not None:
+        fields["blocked_by"] = decision.violation.check
     if decision.bypassed:
         fields["bypass"] = {"reason": decision.extra.get("bypass_reason", "")}
     ctx.log.append("verdict", ts=ctx.now, fields=fields)

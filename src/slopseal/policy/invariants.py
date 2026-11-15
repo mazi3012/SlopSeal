@@ -40,6 +40,8 @@ FLOORS: tuple[Floor, ...] = (
     Floor("slopsquat_max_distance", minimum=1),
     # Quarantine: the PRD sets one automated retry. A larger budget lengthens quarantine.
     Floor("retry_budget", minimum=0, maximum=1),
+    # Rate limit (PRD 4.7): at least one install per window. Zero would block every install.
+    Floor("max_installs_per_minute", minimum=1),
     # P-SM-1: every quarantine terminates in bounded time, so the window must be positive.
     Floor("max_seconds", minimum=1),
 )

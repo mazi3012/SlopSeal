@@ -53,6 +53,7 @@ class Policy:
     license_allow: tuple[str, ...]
     license_deny: tuple[str, ...]
     maintainer_min_account_age_days: int
+    max_installs_per_minute: int
     retry_budget: int
     max_seconds: int
     semantic_enabled: bool
@@ -85,6 +86,7 @@ _SCHEMA: dict[str, dict[str, type]] = {
     },
     "licenses": {"allow": list, "deny": list},
     "maintainers": {"min_account_age_days": int},
+    "limits": {"max_installs_per_minute": int},
     "quarantine": {"retry_budget": int, "max_seconds": int},
     "semantic": {"enabled": bool, "confidence_threshold": float},
 }
@@ -198,6 +200,7 @@ def parse_policy(text: str) -> Policy:
     lv = sections["levels"]
     lic = sections["licenses"]
     mt = sections["maintainers"]
+    lim = sections["limits"]
     q = sections["quarantine"]
     sem = sections["semantic"]
 
@@ -221,6 +224,7 @@ def parse_policy(text: str) -> Policy:
         license_allow=_strings("licenses.allow", lic["allow"]),
         license_deny=_strings("licenses.deny", lic["deny"]),
         maintainer_min_account_age_days=mt["min_account_age_days"],
+        max_installs_per_minute=lim["max_installs_per_minute"],
         retry_budget=q["retry_budget"],
         max_seconds=q["max_seconds"],
         semantic_enabled=sem["enabled"],
