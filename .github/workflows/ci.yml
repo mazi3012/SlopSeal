@@ -35,14 +35,10 @@ jobs:
           ruff format --check .
       - name: Types
         run: mypy src/slopseal
-      - name: Console script exists
-        run: |
-          # The entry point is reserved in Phase 0. The stub exits 1, so this asserts
-          # the command is installed (a missing command exits 127) and still fails closed.
-          # TODO(Phase 1): replace with a real smoke test, for example `slopseal --help` exits 0.
-          code=0
-          slopseal --help || code=$?
-          [ "$code" -eq 1 ]
+      - name: Console script runs
+        run: slopseal --help >/dev/null
+      - name: End-to-end demo (offline snapshot)
+        run: bash scripts/demo.sh
       - name: Tests
         run: |
           pytest -q
