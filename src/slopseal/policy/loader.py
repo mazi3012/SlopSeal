@@ -1,11 +1,12 @@
 """Load the trust policy from the fenced block in `.kiro/steering/dependency-trust.md`.
 
 This module is the only implementation of the extraction rule (design.md section 7). The
-pre-commit guard and the property tests import it, so the rule cannot drift between them.
+pre-commit guard, the CLI, and the property tests import it, so the rule cannot drift.
 
 Every failure is a `PolicyError`. The CLI maps it to exit 78 (R-1.4). That covers a missing
 or unreadable file, a wrong block count, malformed TOML, an unknown key at any level, a
-missing required key, a wrong value type, and an unsupported `schema_version`.
+missing required key, a wrong value type, an invalid level, and an unsupported
+`schema_version`.
 
 Requirements: R-1.4. Properties: P-FC-1, P-SM-*. Layer 2.
 """
@@ -20,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
+VALID_LEVELS = frozenset({"warn", "block"})
 
 # A backtick is \x60, so the fence can be written here without opening a fence in this file.
 _OPEN_FENCE = re.compile(r"^\x60{3}toml slopseal-policy[ \t]*$")
@@ -42,6 +44,15 @@ class Policy:
     keyboard_distance_max: int
     allow: tuple[str, ...]
     deny: tuple[str, ...]
+    slopsquat_max_distance: int
+    slopsquat_signatures: tuple[tuple[str, str], ...]
+    level_install_scripts: str
+    level_license: str
+    level_license_undeclared: str
+    level_maintainer: str
+    license_allow: tuple[str, ...]
+    license_deny: tuple[str, ...]
+    maintainer_min_account_age_days: int
     retry_budget: int
     max_seconds: int
     semantic_enabled: bool
@@ -65,6 +76,15 @@ _SCHEMA: dict[str, dict[str, type]] = {
         "keyboard_distance_max": int,
     },
     "lists": {"allow": list, "deny": list},
+    "slopsquat": {"max_distance": int, "signatures": list},
+    "levels": {
+        "install_scripts": str,
+        "license": str,
+        "license_undeclared": str,
+        "maintainer": str,
+    },
+    "licenses": {"allow": list, "deny": list},
+    "maintainers": {"min_account_age_days": int},
     "quarantine": {"retry_budget": int, "max_seconds": int},
     "semantic": {"enabled": bool, "confidence_threshold": float},
 }
@@ -119,6 +139,31 @@ def _canonical_hash(data: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _strings(where: str, values: list[Any]) -> tuple[str, ...]:
+    if not all(isinstance(item, str) for item in values):
+        raise PolicyError(f"{where} must be a list of strings")
+    return tuple(values)
+
+
+def _signatures(values: list[Any]) -> tuple[tuple[str, str], ...]:
+    pairs: list[tuple[str, str]] = []
+    for item in values:
+        if not (
+            isinstance(item, list)
+            and len(item) == 2
+            and all(isinstance(part, str) and part for part in item)
+        ):
+            raise PolicyError("slopsquat.signatures must be a list of [pattern, mimics] pairs")
+        pairs.append((item[0], item[1]))
+    return tuple(pairs)
+
+
+def _level(where: str, value: str) -> str:
+    if value not in VALID_LEVELS:
+        raise PolicyError(f"{where} must be 'warn' or 'block'")
+    return value
+
+
 def parse_policy(text: str) -> Policy:
     """Parse and validate the policy in the full text of the steering file."""
     body = extract_policy_block(text)
@@ -146,35 +191,42 @@ def parse_policy(text: str) -> Policy:
         _check_section(name, data[name], _SCHEMA[name])
         sections[name] = data[name]
 
-    thresholds = sections["thresholds"]
-    near = sections["near_name"]
+    t = sections["thresholds"]
+    n = sections["near_name"]
     lists = sections["lists"]
-    quarantine = sections["quarantine"]
-    semantic = sections["semantic"]
+    sq = sections["slopsquat"]
+    lv = sections["levels"]
+    lic = sections["licenses"]
+    mt = sections["maintainers"]
+    q = sections["quarantine"]
+    sem = sections["semantic"]
 
     return Policy(
         schema_version=top_level["schema_version"],
-        typosquat_max_distance=thresholds["typosquat_max_distance"],
-        typosquat_max_age_days=thresholds["typosquat_max_age_days"],
-        new_package_max_age_days=thresholds["new_package_max_age_days"],
-        new_package_max_releases=thresholds["new_package_max_releases"],
-        levenshtein_max=near["levenshtein_max"],
-        jaro_winkler_min=float(near["jaro_winkler_min"]),
-        keyboard_distance_max=near["keyboard_distance_max"],
-        allow=tuple(_as_strings("lists.allow", lists["allow"])),
-        deny=tuple(_as_strings("lists.deny", lists["deny"])),
-        retry_budget=quarantine["retry_budget"],
-        max_seconds=quarantine["max_seconds"],
-        semantic_enabled=semantic["enabled"],
-        confidence_threshold=float(semantic["confidence_threshold"]),
+        typosquat_max_distance=t["typosquat_max_distance"],
+        typosquat_max_age_days=t["typosquat_max_age_days"],
+        new_package_max_age_days=t["new_package_max_age_days"],
+        new_package_max_releases=t["new_package_max_releases"],
+        levenshtein_max=n["levenshtein_max"],
+        jaro_winkler_min=float(n["jaro_winkler_min"]),
+        keyboard_distance_max=n["keyboard_distance_max"],
+        allow=_strings("lists.allow", lists["allow"]),
+        deny=_strings("lists.deny", lists["deny"]),
+        slopsquat_max_distance=sq["max_distance"],
+        slopsquat_signatures=_signatures(sq["signatures"]),
+        level_install_scripts=_level("levels.install_scripts", lv["install_scripts"]),
+        level_license=_level("levels.license", lv["license"]),
+        level_license_undeclared=_level("levels.license_undeclared", lv["license_undeclared"]),
+        level_maintainer=_level("levels.maintainer", lv["maintainer"]),
+        license_allow=_strings("licenses.allow", lic["allow"]),
+        license_deny=_strings("licenses.deny", lic["deny"]),
+        maintainer_min_account_age_days=mt["min_account_age_days"],
+        retry_budget=q["retry_budget"],
+        max_seconds=q["max_seconds"],
+        semantic_enabled=sem["enabled"],
+        confidence_threshold=float(sem["confidence_threshold"]),
         policy_hash=_canonical_hash(data),
     )
-
-
-def _as_strings(where: str, values: list[Any]) -> list[str]:
-    if not all(isinstance(item, str) for item in values):
-        raise PolicyError(f"{where} must be a list of strings")
-    return list(values)
 
 
 def load_policy(path: str) -> Policy:

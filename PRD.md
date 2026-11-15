@@ -349,8 +349,8 @@ These resolve during implementation. Each has a deadline, stated as a phase exit
 |---|----------|------------|
 | 1 | Headless invocation of a Kiro sub-agent. If infeasible, L2 calls Needle directly and the spec wording changes to "separate process with separate context." | End of Phase 1 (Nov 22) |
 | 2 | Intent trust: how L2 resists an agent that rewrites its intent on retry. Options: score against package metadata only, or log every retry diff. | Start of Phase 1 (before PBT generators need it) |
-| 3 | Exit 75 in CI: keep for escalation, or use a separate code. | End of Phase 2 (Nov 24) |
-| 6 | Key scheme (for example Ed25519), key location, and who signs the snapshot and seals. | End of Phase 2 (Nov 24) |
+| 3 | **Resolved.** Exit 75 is kept for QUARANTINE. Pipelines fail on 75 unless they opt in to a manual-approval pause (THREAT_MODEL section 5a). | Resolved in Phase 3 |
+| 6 | **Resolved.** Seals use HMAC-SHA256. The CLI generates `.slopseal/secret.key` (mode 0600) on first run. Snapshot integrity is a static SHA-256 checksum manifest committed to the repo. Limits are in THREAT_MODEL sections 5a and 6. | Resolved in Phase 3 |
 | 7 | Rate limit N (4.7) and the numeric time bound for the quarantine state machine. | M2 (Nov 27) |
 | 8 | Confirm the git pre-commit hook rejects failing policy edits. | Mid Phase 2 (Nov 23) |
 | 9 | Exact data sent to OSV.dev and registries in live mode. Documented in `docs/THREAT_MODEL.md`. | M2 (Nov 27) |

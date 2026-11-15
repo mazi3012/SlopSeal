@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-11-18T00:00:00Z",
+  "ecosystems": {
+    "npm": [
+      "react-codemod",
+      "jscodeshift",
+      "lodash",
+      "express",
+      "react"
+    ],
+    "pypi": [
+      "requests",
+      "numpy",
+      "flask",
+      "pandas",
+      "django",
+      "pydantic",
+      "httpx"
+    ]
+  },
+  "fixture": true,
+  "ranking_source": "fixture reference list, not download counts. Replace with the top-5,000 build before submission.",
+  "snapshot_id": "slopseal-fixture-v1"
+}

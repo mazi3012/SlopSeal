@@ -6,7 +6,7 @@ SlopSeal is a dependency trust firewall for AI coding agents. Before a package i
 
 Built for Kiroween 2026 (Frankenstein category). License: MIT.
 
-> **Status:** Pre-alpha. Specs and project scaffolding are in place. The implementation follows the phases in `PRD.md`. Nothing here is ready for production use.
+> **Status:** Pre-alpha. The deterministic core, the policy guard, the quarantine state machine, the audit log, and the CLI are built and tested. The semantic layer (L2) is gated and not built. Live registry access is not built, so live mode blocks every check. Nothing here is ready for production use.
 
 ## The problem
 
@@ -57,6 +57,23 @@ SlopSeal never uses the calling agent's LLM.
 | `src/tests/` | Unit, property, and integration tests |
 | `docs/` | Plan, demo script, threat model, failure taxonomy, architecture, ADRs |
 | `AGENTS.md` | Rules for coding agents |
+
+## Quick start
+
+```bash
+pip install -e ".[dev]"
+bash scripts/demo.sh                                   # end-to-end demo, offline snapshot
+SLOPSEAL_OFFLINE_SNAPSHOT=1 slopseal check csv-parser --version 1.2.0 --expected-api csv.reader
+slopseal audit verify
+slopseal policy check
+```
+
+| Exit code | Meaning |
+|-----------|---------|
+| 0 | ALLOW |
+| 1 | BLOCK (DependencyViolation JSON on stderr) |
+| 75 | QUARANTINE (payload JSON on stdout). CI fails on 75 unless the job opts in to a pause |
+| 78 | Policy, key, or state directory is unusable. No verdict is issued |
 
 ## Development
 
