@@ -1,0 +1,9 @@
+{
+  "as_of": "2026-11-18T00:00:00Z",
+  "files": {
+    "osv_snapshot.json": "c931b20ebf90658fabd070c47b35427ad4b07df5a909e5334f9eb2ef90fa5847",
+    "registry_snapshot.json": "482d21a89efbcb590b28d47df8726436b041747dae1abdad9bc16a6dad79f6fa",
+    "topn_snapshot.json": "c97a13a5f66d4b99e0ff79957f5bd8a60179bb12fce75a3fad2bb6417cf2afcf"
+  },
+  "snapshot_id": "slopseal-fixture-v1"
+}

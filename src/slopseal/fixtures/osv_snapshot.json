@@ -1,0 +1,26 @@
+{
+  "advisories": {
+    "npm": {
+      "react-codeshift": {
+        "1.0.0": [
+          {
+            "id": "MAL-2026-0001",
+            "severity": "unknown",
+            "summary": "fixture: known malicious package"
+          }
+        ]
+      },
+      "urlnorm": {
+        "0.9.0": [
+          {
+            "id": "GHSA-fixture-urlnorm-0001",
+            "severity": "critical",
+            "summary": "fixture: prototype pollution (critical)"
+          }
+        ]
+      }
+    }
+  },
+  "fixture": true,
+  "snapshot_id": "slopseal-fixture-v1"
+}
