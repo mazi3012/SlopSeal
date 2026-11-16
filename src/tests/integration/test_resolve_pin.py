@@ -95,7 +95,12 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object
         monkeypatch.setattr(path_shim, "build_context", lambda: context)
 
     state["set_context"] = set_context
-    state["env"] = {"SLOPSEAL_REAL_PIP": "/bin/true", "SLOPSEAL_REAL_NPM": "/bin/true", "PATH": ""}
+    # A real executable in the test's temp directory. System paths differ across runners.
+    real = tmp_path / "real-tool"
+    real.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    real.chmod(0o755)
+    state["real"] = str(real)
+    state["env"] = {"SLOPSEAL_REAL_PIP": str(real), "SLOPSEAL_REAL_NPM": str(real), "PATH": ""}
     return state
 
 
@@ -108,7 +113,7 @@ def test_live_unpinned_pip_install_is_pinned_verified_and_run(harness: dict[str,
     tmp = harness["tmp"]
     assert isinstance(tmp, Path)
     path_shim.run(["pip", "install", "requests"], harness["env"])  # type: ignore[arg-type]
-    assert harness["execs"] == [["/bin/true", "pip", "install", "requests==2.34.2"]]  # type: ignore[index]
+    assert harness["execs"] == [[harness["real"], "pip", "install", "requests==2.34.2"]]  # type: ignore[index]
     events = _audit_events(tmp)
     resolution = [e for e in events if e["event"] == "resolution"]
     assert len(resolution) == 1
@@ -176,7 +181,7 @@ def test_already_pinned_install_is_not_rewritten_or_logged(harness: dict[str, ob
     tmp = harness["tmp"]
     assert isinstance(tmp, Path)
     path_shim.run(["pip", "install", "requests==2.33.0"], harness["env"])  # type: ignore[arg-type]
-    assert harness["execs"] == [["/bin/true", "pip", "install", "requests==2.33.0"]]  # type: ignore[index]
+    assert harness["execs"] == [[harness["real"], "pip", "install", "requests==2.33.0"]]  # type: ignore[index]
     assert not [e for e in _audit_events(tmp) if e["event"] == "resolution"]
 
 
@@ -199,4 +204,4 @@ def test_live_unpinned_npm_install_is_resolved_with_an_npm_answer(
     context = _context(tmp, LiveSource(top_n=top, fetch=_fetch_from(answers)))
     with mock.patch.object(path_shim, "build_context", return_value=context):
         path_shim.run(["npm", "install", "uuidkit"], harness["env"])  # type: ignore[arg-type]
-    assert harness["execs"] == [["/bin/true", "npm", "install", "uuidkit@1.4.0"]]  # type: ignore[index]
+    assert harness["execs"] == [[harness["real"], "npm", "install", "uuidkit@1.4.0"]]  # type: ignore[index]
