@@ -106,12 +106,13 @@ Contributors and agents: read `CONTRIBUTING.md` and `AGENTS.md` first.
 
 ## Post-Hackathon Roadmap
 
-In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. Post-hackathon roadmap: replay (R-5.7.3), live registry proxy, SARIF output, local dashboard, MCP server, Windows support, other package managers (yarn, pnpm, cargo, gem, go get), and a semantic layer if a new pre-registered experiment passes.
+In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. Post-hackathon roadmap: a one-level-deep check of transitive dependencies (T16), replay (R-5.7.3), live registry proxy, SARIF output, local dashboard, MCP server, Windows support, other package managers (yarn, pnpm, cargo, gem, go get), and a semantic layer if a new pre-registered experiment passes.
 
 ## Limitations
 
 - The intent check confirms that a declared API exists in the package's exports. It does not confirm that the package fits the purpose. The semantic layer that would address purpose is not in v1.
 - Measured on the 23-package fixture corpus, 9 of 10 attack packages were blocked, and 1 of 13 legitimate packages was flagged. The details are in `docs/L1_THRESHOLD_REVIEW.md`.
+- Transitive dependencies are not verified in v1. A package that passes can pull in dependencies that SlopSeal does not check, and their install-time code runs (THREAT_MODEL T16).
 - Live mode (`--live` or `SLOPSEAL_OFFLINE_SNAPSHOT=0`) queries PyPI, npm, and OSV over HTTPS, and treats every failure as unknown. It blocks every package at the maintainer check, because the registries do not publish maintainer account age. It cannot read exported symbols, so intent checks block, and its top-N list comes from the offline snapshot. It is lower assurance (THREAT_MODEL T5).
 - The PATH shim is advisory. A call to the real binary by absolute path skips it.
 - The on-install hook blocks agent install commands with exit 2. It does not verify packages. The PATH shim does. The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.

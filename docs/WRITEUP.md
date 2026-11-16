@@ -124,6 +124,13 @@ use. The checksum matches Hugging Face's published LFS object ID.
 README says its output matches the upstream JAX reference exactly, and we did not reproduce that
 comparison. It sits in an optional `needle` extra, so the default install adds no dependency.
 
+## Transitive dependencies
+
+SlopSeal checks the packages named on the command line. It does not check the packages those
+packages depend on, and their install-time code runs. A package that passes every check can
+still bring in an unverified dependency. The threat is recorded as T16 in `docs/THREAT_MODEL.md`.
+A one-level-deep check is on the post-hackathon roadmap.
+
 ## Live mode
 
 `--live` queries PyPI, npm, and OSV with the standard library. Every failed, malformed, or partial response becomes an explicit unknown, and unknown blocks. The public registries do not publish maintainer account age, so live mode blocks every package at the maintainer check. I chose to keep that block rather than weaken the check. Live mode is lower assurance than the offline snapshot, and `docs/THREAT_MODEL.md` T5 says so.
@@ -135,4 +142,5 @@ comparison. It sits in an optional `needle` extra, so the default install adds n
   would not count.
 - Replace the deterministic advisory-only shim with a check at the lockfile or the registry
   boundary, so absolute-path calls cannot skip it.
+- Check one level of transitive dependencies, so a dependency pulled in by an allowed package is verified too (T16).
 - Let the install hook call the verdict pipeline, so a verified agent install can run. Today it blocks every install command the agent issues.
