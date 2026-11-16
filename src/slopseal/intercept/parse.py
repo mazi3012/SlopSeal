@@ -15,9 +15,10 @@ Requirements: R-1.1, R-1.3. Layer 5. Pure.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+_PIP_NAME = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?P<extras>\[[A-Za-z0-9._,\s-]*\])?$")
 _PIP_EXACT = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?P<extras>\[[A-Za-z0-9._,\s-]*\])?"
     r"==(?P<version>[A-Za-z0-9.!+_-]+)$"
@@ -26,6 +27,7 @@ _NPM_EXACT = re.compile(
     r"^(?P<name>(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*)"
     r"@(?P<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$"
 )
+_NPM_NAME = re.compile(r"^(?P<name>(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*)$")
 _ARCHIVE_SUFFIXES = (".whl", ".tar.gz", ".zip", ".tgz", ".tar", ".egg")
 # npm spec prefixes that name a non-registry source (file, git, URL, hosted repo).
 _NPM_SOURCE_PREFIXES = (
@@ -132,8 +134,13 @@ class Passthrough:
 
 @dataclass(frozen=True)
 class Install:
+    """Packages to verify. A version of None means the command named the package without a
+    pin. Only parse(allow_unpinned=True) produces that, and `positions` then holds the index of
+    each such word in args, so the shim can rewrite exactly that word (R-1.7)."""
+
     ecosystem: str
-    specs: tuple[tuple[str, str], ...]
+    specs: tuple[tuple[str, str | None], ...]
+    positions: tuple[int, ...] = field(default=(), compare=False)
 
 
 @dataclass(frozen=True)
@@ -171,11 +178,12 @@ def _looks_local_npm(token: str) -> bool:
     )
 
 
-def parse_pip(args: list[str]) -> Parsed:
+def parse_pip(args: list[str], *, allow_unpinned: bool = False) -> Parsed:
     if not args or args[0] not in _PIP_INSTALL:
         return Passthrough()
 
-    specs: list[tuple[str, str]] = []
+    specs: list[tuple[str, str | None]] = []
+    positions: list[int] = []
     rest = args[1:]
     index = 0
     options_done = False
@@ -203,6 +211,12 @@ def parse_pip(args: list[str]) -> Parsed:
         exact = _PIP_EXACT.match(spec)
         if exact:
             specs.append((exact.group("name"), exact.group("version")))
+            positions.append(index)
+            continue
+        bare_pip = _PIP_NAME.match(spec)
+        if allow_unpinned and bare_pip:
+            specs.append((bare_pip.group("name"), None))
+            positions.append(index)
             continue
         # A bare name or a range would let pip pick a version SlopSeal did not verify.
         return Blocked(
@@ -212,7 +226,7 @@ def parse_pip(args: list[str]) -> Parsed:
     if not specs:
         # `pip install` with nothing to install fails inside pip. Nothing is installed.
         return Passthrough()
-    return Install("pypi", tuple(specs))
+    return Install("pypi", tuple(specs), tuple(positions))
 
 
 def parse_exec(args: list[str]) -> Parsed:
@@ -278,7 +292,7 @@ def parse_exec(args: list[str]) -> Parsed:
     return Install("npm", tuple(specs))
 
 
-def parse_npm(args: list[str]) -> Parsed:
+def parse_npm(args: list[str], *, allow_unpinned: bool = False) -> Parsed:
     if not args:
         return Passthrough()
     verb = args[0]
@@ -294,7 +308,8 @@ def parse_npm(args: list[str]) -> Parsed:
     if verb not in _NPM_INSTALL:
         return Passthrough()
 
-    specs: list[tuple[str, str]] = []
+    specs: list[tuple[str, str | None]] = []
+    positions: list[int] = []
     rest = args[1:]
     index = 0
     options_done = False
@@ -322,6 +337,12 @@ def parse_npm(args: list[str]) -> Parsed:
         exact = _NPM_EXACT.match(spec)
         if exact:
             specs.append((exact.group("name"), exact.group("version")))
+            positions.append(index)
+            continue
+        bare_npm = _NPM_NAME.match(spec)
+        if allow_unpinned and bare_npm:
+            specs.append((bare_npm.group("name"), None))
+            positions.append(index)
             continue
         # A bare name, range, or tag would let npm pick a version SlopSeal did not verify.
         return Blocked(
@@ -331,14 +352,16 @@ def parse_npm(args: list[str]) -> Parsed:
     if not specs:
         # `npm install` with no packages installs everything in package.json. Not verified.
         return Blocked("npm install with no packages installs package.json; refused")
-    return Install("npm", tuple(specs))
+    return Install("npm", tuple(specs), tuple(positions))
 
 
-def parse(tool: str, args: list[str]) -> Parsed:
+def parse(tool: str, args: list[str], *, allow_unpinned: bool = False) -> Parsed:
+    """Parse one command. With allow_unpinned, bare package names become unpinned specs (R-1.7)
+    for the shim to resolve. Otherwise they are refused, as before."""
     if tool == "pip":
-        return parse_pip(args)
+        return parse_pip(args, allow_unpinned=allow_unpinned)
     if tool == "npm":
-        return parse_npm(args)
+        return parse_npm(args, allow_unpinned=allow_unpinned)
     if tool == "npx":
         return parse_exec(args)
     return Passthrough()

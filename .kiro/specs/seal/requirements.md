@@ -84,6 +84,8 @@
 
 **R-1.6 (exec-style installs).** `npx`, `npm exec`, `npm x`, and `npm init <initializer>` / `npm create <initializer>` download and run a package, so they are installs. The system shall verify the named package at an exact version (`name@x.y.z`) before the command runs. The system shall refuse, without running anything, any such command that uses `-c`/`--call`, names no package, names an unpinned or non-registry package, or whose package it cannot parse.
 
+**R-1.7 (resolve then pin).** In live mode only, when an install names a package without a version, the system shall resolve the latest version from the live registry, verify that exact version, rewrite the command to pin it, and run the rewritten command. The system shall write both the original and the rewritten command to the audit log. `--no-resolve`, or `SLOPSEAL_NO_RESOLVE=1`, keeps the refusal. Offline, and when the latest version cannot be resolved, the system shall refuse the install.
+
 **R-1.3 (verify_install).** The system shall expose `verify_install(package, version, intent?)`, which returns the same verdict and exit code as the shim.
 
 ## 6. Audit
