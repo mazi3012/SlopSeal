@@ -1,14 +1,15 @@
-"""PreToolUse hook: stop a shell command that installs packages until the user confirms it.
+"""PreToolUse hook: block agent shell commands that install packages.
 
-Reads the hook payload (JSON) from stdin and searches every string in it for an install
-command. When one is found, the hook returns `permissionDecision: ask`, so the user decides.
+Kiro writes the hook payload as JSON on stdin. If any string in the payload contains a pip,
+npm, npx, or python -m pip install command, the hook exits 2. Kiro documents exit 2 as the
+block for PreToolUse, and it returns stderr to the agent, so the agent sees the reason.
 
-This hook does not verify the install. Verification runs in the PATH shim
-(`src/slopseal/intercept/path_shim.py`), which checks each pinned package before the real tool
-runs. The hook is a second layer that asks the user before any install command runs. An
-unreadable payload also asks, because the hook cannot prove the command is safe.
+This hook does not verify packages. Verification runs in the PATH shim
+(src/slopseal/intercept/path_shim.py). The hook stops agent-issued installs, which would
+otherwise bypass the shim. See docs/THREAT_MODEL.md, T11.
 
-Exit code is always 0. The decision is in the JSON on stdout.
+Fail closed: a payload that is not JSON also blocks, because the hook cannot prove the command
+is safe. Exit 0 means no install command was found.
 """
 
 from __future__ import annotations
@@ -20,10 +21,12 @@ from collections.abc import Iterator
 from typing import Any
 
 INSTALL_COMMAND = re.compile(
-    r"\b(pip3?|npm|pnpm|yarn|cargo|gem)\s+(install|i|add)\b"
+    r"\b(pip3?|npm|npx|pnpm|yarn|cargo|gem)\s+(install|i|add|exec|x)\b"
+    r"|\bnpx\s"
     r"|\bgo\s+get\b"
     r"|\bpython3?\s+-m\s+pip\s+install\b"
 )
+BLOCK_EXIT = 2
 
 
 def _strings(node: Any) -> Iterator[str]:
@@ -37,14 +40,8 @@ def _strings(node: Any) -> Iterator[str]:
             yield from _strings(item)
 
 
-def _ask(reason: str) -> None:
-    decision = {
-        "hookSpecificOutput": {
-            "permissionDecision": "ask",
-            "permissionDecisionReason": reason,
-        }
-    }
-    print(json.dumps(decision))
+def _block(reason: str) -> None:
+    print(f"slopseal: {reason}", file=sys.stderr)
 
 
 def main() -> int:
@@ -52,15 +49,16 @@ def main() -> int:
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        _ask("SlopSeal could not read the hook payload, so this command needs confirmation.")
-        return 0
+        _block("the hook payload could not be read, so the command is blocked.")
+        return BLOCK_EXIT
 
-    matches = [text for text in _strings(payload) if INSTALL_COMMAND.search(text)]
-    if matches:
-        _ask(
-            "This command installs packages. SlopSeal verification is not wired yet "
-            "(Phase 4), so confirm the install is intended before it runs."
+    if any(INSTALL_COMMAND.search(text) for text in _strings(payload)):
+        _block(
+            "this command installs packages, and agents may not install directly. "
+            "Ask the user to run the install in a shell where the SlopSeal shim is on PATH, "
+            "so every package is verified first."
         )
+        return BLOCK_EXIT
     return 0
 
 

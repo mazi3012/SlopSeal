@@ -51,7 +51,7 @@ pip install -e ".[dev]"
 bash scripts/demo.sh
 ```
 
-The demo runs offline against a signed fixture snapshot. The last line should read
+The demo runs offline against a checksummed fixture snapshot. The last line should read
 `demo: PASS (all beats)`.
 
 ## 6. Pre-submit steps

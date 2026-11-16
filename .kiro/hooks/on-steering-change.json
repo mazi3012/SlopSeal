@@ -3,12 +3,14 @@
   "hooks": [
     {
       "name": "SlopSeal: policy guard and property suite on steering change",
+      "description": "Runs the policy guard and the property suite when the trust policy is saved. The git pre-commit hook enforces the same check in IDE and CLI sessions.",
       "trigger": "PostFileSave",
       "matcher": "dependency-trust\\.md$",
       "action": {
         "type": "command",
-        "command": "bash SlopSeal/scripts/policy_checks.sh"
-      }
+        "command": "bash scripts/policy_checks.sh"
+      },
+      "timeout": 180
     }
   ]
 }

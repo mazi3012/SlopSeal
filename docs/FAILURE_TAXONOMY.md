@@ -24,7 +24,7 @@ Two kinds of failure: failures SlopSeal prevents, and failures SlopSeal itself c
 | F4 | Quarantine never ends | Agent or CI hangs | Terminal states, expiry, budget of 1 | P-SM-1, P-SM-2, R-Q-7 |
 | F5 | Quarantine mistaken for allow | Agent proceeds with install | Distinct exit code 75; payload on stdout | R-Q-4 |
 | F6 | L2 blocks a legitimate package | Friction | L2 can only QUARANTINE, never block | R-3.7, P-FC-5 |
-| F7 | Tampered snapshot, policy, or log trusted | Forged verdicts | Signature, hashes, hash chain | P-SN-1, P-AU-1, P-AU-2 |
+| F7 | Tampered snapshot, policy, or log trusted | Forged verdicts | Checksums, hash chain, seals | P-SN-1, P-AU-1, P-AU-2 |
 | F8 | Non-deterministic output | Demo and replay break | Injected clock, canonical JSON, no randomness in checks | P-SN-2, P-AU-3 |
 | F9 | Replay cannot reproduce | Evidence is unusable | Log stores policy hash and snapshot id; replay reports when inputs are missing | P-AU-3 |
 | F10 | Unsupported install command passes through | Bypass | Unparseable install commands block | design section 11 |

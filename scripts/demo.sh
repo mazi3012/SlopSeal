@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end demo path (PRD: Demo Scripts, fallback/deterministic version).
 #
-# Runs against the signed offline snapshot in a throwaway state directory. Every beat asserts
+# Runs against the checksummed offline snapshot in a throwaway state directory. Every beat asserts
 # the exit code and the key fields of the output, so a regression fails the script.
 #
 # Beats 1-3 use the CLI. Beat 4 runs pip and npm through the PATH shim with stub real tools,
