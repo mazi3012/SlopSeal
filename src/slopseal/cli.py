@@ -14,7 +14,7 @@ Output contract (design section 13):
   78      policy, key, or state directory is unusable. No verdict is issued.
 
 Environment (see .env.example):
-  SLOPSEAL_OFFLINE_SNAPSHOT=1  use the checksummed offline snapshot and pin the clock to its as_of
+  SLOPSEAL_OFFLINE_SNAPSHOT    unset or 1: checksummed offline snapshot. 0: live registries
   SLOPSEAL_SNAPSHOT_DIR        snapshot directory (default: src/slopseal/fixtures)
   SLOPSEAL_STATE_DIR           state directory (default: .slopseal)
   SLOPSEAL_POLICY_PATH         trust policy (default: .kiro/steering/dependency-trust.md)
@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
@@ -105,6 +106,9 @@ def _emit_decision(decision: Decision) -> int:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    if args.live:
+        # --live is the same as SLOPSEAL_OFFLINE_SNAPSHOT=0, set for this process only.
+        os.environ["SLOPSEAL_OFFLINE_SNAPSHOT"] = "0"
     context = _load_context()
 
     if args.allow_unsafe and not (args.bypass_reason or "").strip():
@@ -289,6 +293,11 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("package")
     check.add_argument("--ecosystem", choices=sorted(ECOSYSTEMS), default="pypi")
     check.add_argument("--version", default=None)
+    check.add_argument(
+        "--live",
+        action="store_true",
+        help="query PyPI, npm, and OSV instead of the offline snapshot (lower assurance, T5)",
+    )
     check.add_argument(
         "--expected-api", default=None, help="API the agent expects, e.g. csv.reader"
     )

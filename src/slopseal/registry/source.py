@@ -4,12 +4,10 @@ This is the seam the Phase 1 review asked for. Every method returns an explicit 
 an answer the source cannot give is an explicit unknown. Nothing is returned as an empty
 "safe" default.
 
-- `OfflineSource` reads a verified snapshot. It is the only fully working source in this
-  release, and it is what the demo and the tests use.
-- `LiveSource` is a stub. Every query returns unknown, so every check blocks. Live PyPI, npm,
-  and OSV access is not built yet. Until it is, live mode fails closed.
+- `OfflineSource` reads a verified snapshot. It is what the demo and the tests use.
+- `LiveSource` (registry/live.py) queries PyPI, npm, and OSV. Its failures are unknown values.
 
-Requirements: R-P-1. Layer 1 (adapter). Pure reads, no network in this release.
+Requirements: R-P-1, R-P-3. Layer 1 (adapter). Pure reads.
 """
 
 from __future__ import annotations
@@ -17,14 +15,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from slopseal.core.advisory import AdvisoryResult, AdvisoryUnknown
-from slopseal.core.install_scripts import ScriptInventory, ScriptsUnknown
-from slopseal.core.license import LicenseInput, LicenseUnknown
-from slopseal.core.maintainer import MaintainerInput, MaintainersUnknown
-from slopseal.core.types import Ecosystem, RegistryResult, RegistryUnknown
+from slopseal.core.advisory import AdvisoryResult
+from slopseal.core.install_scripts import ScriptInventory
+from slopseal.core.license import LicenseInput
+from slopseal.core.maintainer import MaintainerInput
+from slopseal.core.types import Ecosystem, RegistryResult
 from slopseal.fixtures.loader import Snapshot
-
-_LIVE_UNAVAILABLE = "live registry access is not built in this release"
 
 
 class RegistrySource(Protocol):
@@ -84,43 +80,3 @@ class OfflineSource:
 
     def alternatives(self, eco: Ecosystem, api: str, exclude: str) -> tuple[str, ...]:
         return self._snapshot.alternatives(eco, api, exclude)
-
-
-class LiveSource:
-    """Stub for live mode. Every answer is unknown, so every check blocks (fail closed)."""
-
-    snapshot_id: str | None = None
-    as_of: datetime | None = None
-
-    def registry_result(self, eco: Ecosystem, name: str) -> RegistryResult:
-        return RegistryUnknown(eco, name, _LIVE_UNAVAILABLE)
-
-    def latest_version(self, eco: Ecosystem, name: str) -> str | None:
-        return None
-
-    def exports(self, eco: Ecosystem, name: str, version: str) -> tuple[str, ...] | None:
-        return None
-
-    def install_scripts(self, eco: Ecosystem, name: str, version: str) -> ScriptInventory:
-        return ScriptsUnknown(_LIVE_UNAVAILABLE)
-
-    def advisories(self, eco: Ecosystem, name: str, version: str) -> AdvisoryResult:
-        return AdvisoryUnknown(_LIVE_UNAVAILABLE)
-
-    def license(self, eco: Ecosystem, name: str) -> LicenseInput:
-        return LicenseUnknown(_LIVE_UNAVAILABLE)
-
-    def maintainers(self, eco: Ecosystem, name: str) -> MaintainerInput:
-        return MaintainersUnknown(_LIVE_UNAVAILABLE)
-
-    def top_n(self, eco: Ecosystem) -> tuple[str, ...]:
-        return ()
-
-    def known_names(self, eco: Ecosystem) -> tuple[str, ...]:
-        return ()
-
-    def absent_names(self, eco: Ecosystem) -> tuple[str, ...]:
-        return ()
-
-    def alternatives(self, eco: Ecosystem, api: str, exclude: str) -> tuple[str, ...]:
-        return ()

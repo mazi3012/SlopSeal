@@ -124,6 +124,10 @@ use. The checksum matches Hugging Face's published LFS object ID.
 README says its output matches the upstream JAX reference exactly, and we did not reproduce that
 comparison. It sits in an optional `needle` extra, so the default install adds no dependency.
 
+## Live mode
+
+`--live` queries PyPI, npm, and OSV with the standard library. Every failed, malformed, or partial response becomes an explicit unknown, and unknown blocks. The public registries do not publish maintainer account age, so live mode blocks every package at the maintainer check. I chose to keep that block rather than weaken the check. Live mode is lower assurance than the offline snapshot, and `docs/THREAT_MODEL.md` T5 says so.
+
 ## What I would do next
 
 - Compare `needle-rs` output with the upstream reference, and pin the wheel hash.

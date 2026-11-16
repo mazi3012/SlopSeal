@@ -74,6 +74,8 @@
 
 **R-P-2 (snapshot integrity).** The system shall verify the SHA-256 checksum of each offline snapshot file against `manifest.json` at load time. A snapshot that fails verification shall cause BLOCK.
 
+**R-P-3 (live registry).** Live mode is selected only by `--live` or `SLOPSEAL_OFFLINE_SNAPSHOT=0`. In live mode, a registry or advisory answer that cannot be read, times out, returns a status other than 200 (or 404 for an existence lookup), is malformed or partial, or exceeds the size limit shall be an explicit unknown value. A check given an unknown value shall BLOCK. Live mode shall send only the ecosystem, package name, and version, with no credentials.
+
 **R-4.7 (rate limit).** When an agent makes more than `max_installs_per_minute` install attempts in a rolling 60-second window, the system shall BLOCK each further attempt until the window clears. Every attempt counts, including blocked ones. `--allow-unsafe` does not bypass this check.
 
 ## 5. Interception and API

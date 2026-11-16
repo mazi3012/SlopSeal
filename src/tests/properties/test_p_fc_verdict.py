@@ -20,7 +20,8 @@ from slopseal.core.types import Ecosystem
 from slopseal.fixtures.loader import load_snapshot
 from slopseal.policy.loader import load_policy
 from slopseal.quarantine.state_machine import QuarantineStore, new_quarantine_id
-from slopseal.registry.source import LiveSource, OfflineSource
+from slopseal.registry.live import LiveSource
+from slopseal.registry.source import OfflineSource
 from slopseal.verdict import Context, InstallRequest, Intent, Outcome, verify_install
 
 REPO = Path(__file__).resolve().parents[3]
@@ -133,11 +134,16 @@ def test_p_fc_4_quarantine_only_when_declared_api_is_absent(api: str) -> None:
 # ---- P-FC-1 and internal errors -----------------------------------------------------------
 
 
+def _no_network(url: str, body: bytes | None) -> bytes | None:
+    raise OSError("network is disabled in tests")
+
+
 def test_p_fc_1_live_source_blocks_every_package() -> None:
+    # Every registry call fails, so every answer is unknown. The test never reaches the network.
     with tempfile.TemporaryDirectory() as tmp:
         decision = verify_install(
             InstallRequest(Ecosystem.PYPI, "csv-parser", "1.2.0"),
-            context_for(Path(tmp), source=LiveSource()),
+            context_for(Path(tmp), source=LiveSource(fetch=_no_network)),
         )
     assert decision.outcome is Outcome.BLOCK
 

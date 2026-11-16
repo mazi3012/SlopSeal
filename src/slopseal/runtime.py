@@ -1,8 +1,8 @@
 """Shared runtime setup: the CLI, the PATH shim, and the verify API build the same context here.
 
 Environment (see .env.example):
-  SLOPSEAL_OFFLINE_SNAPSHOT=1  use the checksummed offline snapshot and pin verdict time
-                               to its as_of
+  SLOPSEAL_OFFLINE_SNAPSHOT    unset or 1: checksummed offline snapshot, clock pinned to its as_of.
+                               0: live registries (PyPI, npm, OSV). Same as the CLI --live flag.
   SLOPSEAL_SNAPSHOT_DIR        snapshot directory (default: src/slopseal/fixtures)
   SLOPSEAL_STATE_DIR           state directory (default: .slopseal)
   SLOPSEAL_POLICY_PATH         trust policy (default: .kiro/steering/dependency-trust.md)
@@ -30,7 +30,8 @@ from slopseal.fixtures.loader import load_snapshot
 from slopseal.policy.loader import load_policy
 from slopseal.quarantine.rate_limit import RateLimiter
 from slopseal.quarantine.state_machine import QuarantineStore, new_quarantine_id
-from slopseal.registry.source import LiveSource, OfflineSource
+from slopseal.registry.live import LiveSource
+from slopseal.registry.source import OfflineSource
 from slopseal.verdict import Context
 
 DEFAULT_STATE_DIR = ".slopseal"
@@ -44,7 +45,9 @@ def env_flag(name: str) -> bool:
 
 
 def offline() -> bool:
-    return env_flag("SLOPSEAL_OFFLINE_SNAPSHOT")
+    """Offline unless SLOPSEAL_OFFLINE_SNAPSHOT is exactly "0". Unset means offline, so no
+    package name leaves the machine by default (THREAT_MODEL section 5)."""
+    return os.environ.get("SLOPSEAL_OFFLINE_SNAPSHOT", "1") != "0"
 
 
 def state_dir() -> Path:
@@ -75,12 +78,15 @@ def build_context(root: Path | None = None, *, rate_limited: bool = True) -> Con
     state = root if root is not None else state_dir()
     policy = load_policy(str(policy_path()))
     key = load_or_create_key(state)
+    snapshot = load_snapshot(snapshot_dir())
+    source: OfflineSource | LiveSource
     if offline():
-        snapshot = load_snapshot(snapshot_dir())
-        source: OfflineSource | LiveSource = OfflineSource(snapshot)
+        source = OfflineSource(snapshot)
         clock = snapshot.as_of
     else:
-        source = LiveSource()
+        # The top-N list comes from the checksummed snapshot. Live mode has no ranking source.
+        top = {eco: snapshot.top_n(eco) for eco in (Ecosystem.PYPI, Ecosystem.NPM)}
+        source = LiveSource(top_n=top)
         clock = datetime.now(UTC)
     limiter = RateLimiter(state, policy.max_installs_per_minute) if rate_limited else None
     return Context(
