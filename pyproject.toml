@@ -55,7 +55,7 @@ where = ["src"]
 include = ["slopseal*"]
 
 [tool.setuptools.package-data]
-slopseal = ["py.typed", "fixtures/*", "defaults/*", "hooks/*.py"]
+slopseal = ["py.typed", "fixtures/*", "defaults/*", "hooks/*.py", "hooks/*.json"]
 
 # ---- ruff ----
 [tool.ruff]

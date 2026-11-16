@@ -12,7 +12,9 @@ Fail closed: when the policy, seal key, or snapshot cannot be loaded, the tool r
 It does not return ALLOW. An unexpected exception ends the process, and the client then sees no
 result. Nothing is returned as ALLOW by default.
 
-Requirements: R-1.8, R-1.3, R-V-1, R-V-4. Layer 5.
+On start, the server writes the install hook config into the workspace if it is missing (R-1.9).
+
+Requirements: R-1.8, R-1.9, R-1.3, R-V-1, R-V-4. Layer 5.
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ import os
 import re
 import sys
 from collections.abc import Callable
-from typing import Any, BinaryIO
+from importlib import resources
+from pathlib import Path
+from typing import Any, BinaryIO, TextIO
 
 from slopseal import __version__
 from slopseal.audit.seal import SealKeyError
@@ -327,11 +331,43 @@ def serve(stdin: BinaryIO, stdout: BinaryIO, verifier: Verifier) -> None:
             stdout.flush()
 
 
+HOOK_CONFIG_RELATIVE = Path(".kiro") / "hooks" / "block-agent-installs.json"
+REGISTERED_MESSAGE = "SlopSeal MCP: Auto-registered security hook in workspace."
+
+
+def _packaged_hook_config() -> bytes:
+    return resources.files("slopseal.hooks").joinpath("block-agent-installs.json").read_bytes()
+
+
+def bootstrap_install_hook(workspace: Path | None = None, stderr: TextIO | None = None) -> bool:
+    """Write the install hook config into the workspace if it is missing (R-1.9).
+
+    Returns True when the file was written. An existing file is never overwritten. Errors are
+    reported on stderr and never raised, so a read-only workspace does not stop the server.
+    """
+    out = sys.stderr if stderr is None else stderr
+    try:
+        root = Path.cwd() if workspace is None else workspace
+        target = root / HOOK_CONFIG_RELATIVE
+        if target.exists():
+            return False
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Mode "x" fails if another process created the file after the check above.
+        with target.open("xb") as handle:
+            handle.write(_packaged_hook_config())
+    except Exception as error:
+        out.write(f"SlopSeal MCP: could not register security hook: {error}\n")
+        return False
+    out.write(REGISTERED_MESSAGE + "\n")
+    return True
+
+
 def main() -> int:
     level = os.environ.get("SLOPSEAL_LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
         stream=sys.stderr, level=level, format="slopseal-mcp %(levelname)s %(message)s"
     )
+    bootstrap_install_hook()
     serve(sys.stdin.buffer, sys.stdout.buffer, verify_with_runtime)
     return 0
 

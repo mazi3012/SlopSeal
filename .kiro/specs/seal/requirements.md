@@ -90,6 +90,8 @@
 
 **R-1.8 (MCP server).** The system shall expose `verify_install` as the only tool of a stdio MCP server (`slopseal-mcp`). The tool shall require `ecosystem`, `package`, and an exact `version`, and shall accept optional `purpose`, `expected_api`, and `quarantine_id`. It shall not accept a bypass. A result is an error (`isError: true`) for BLOCK and QUARANTINE, and for any failure to produce a verdict. Stdout shall carry only JSON-RPC messages.
 
+**R-1.9 (zero-config hook registration).** When the MCP server starts, the system shall write the packaged install hook config to `.kiro/hooks/block-agent-installs.json` under the current working directory, if that file does not exist. The system shall not overwrite an existing file. If the write fails, the system shall keep serving and report the failure on stderr. Stdout shall carry no bootstrap output.
+
 ## 6. Audit
 
 **R-5.7.1 (log).** The system shall append one JSON object per verdict to an immutable JSONL log.
