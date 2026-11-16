@@ -67,6 +67,45 @@ A pair of hook and shim calls for one install therefore counts once. The oracle 
 |-----------|----------|---------|
 | `gen_install_events` | Sequences of up to 10 events: hook or shim call for a key from a small pool (allowed packages and one blocked package), or a time step of 0 to 90 seconds | P-G-2 |
 
+## 3. Contract Check (Phase 2)
+
+Tests for these properties build their artifacts in memory and serve them through a fake fetch. They use no network. Each property is checked with at least one mutant (a deliberate break of the code under test), and the result of each mutant goes in the pull request. A mutant that the property does not catch is reported, not hidden.
+
+**P-C-1 (the extractor never runs package code).** For any wheel, sdist, or npm tarball, including ones whose `setup.py`, `__init__.py`, `.pth` file, `sitecustomize.py`, `package.json` lifecycle scripts, and `index.js` are written to create a marker file when run, the marker file never appears, whatever result the extractor returns. The canary code embeds the absolute path of the marker. The extractor still returns a result (complete or UNKNOWN), and does not crash. An sdist is never opened: it returns UNKNOWN with reason `sdist_only`, and the property checks that too.
+
+*Generators:* `gen_canary_artifact` builds an archive where each of the places that could run code, chosen by Hypothesis, holds canary code, with random surrounding legitimate code.
+*Mutants:* (a) the worker runs `runpy.run_path` on a `setup.py` it finds. (b) the worker imports the top-level module. (c) the worker adds the extracted directory to `sys.path` and imports `sitecustomize`. Each must make the property fail.
+
+**P-C-2 (UNKNOWN never allows).** For any artifact the extractor cannot complete (each typed reason: `sdist_only`, `dynamic_exports`, `limit`, `parse_error`, `network`), and for any declared API, `verify_install` with that intent returns BLOCK (exit 1). It never returns ALLOW and never returns QUARANTINE (exit 75). The BLOCK names the typed reason. A QUARANTINE with `mismatch_type: api_absent` occurs only when the contract is complete and the symbol is not in it (R-C-5, P-FC-4).
+
+*Generators:* `gen_unknown_contract` (one result per typed reason, with random detail text), `gen_declared_api` (any string, including a name that is in the incomplete contract).
+*Mutants:* (a) UNKNOWN is mapped to PRESENT. (b) UNKNOWN is mapped to ABSENT, which gives QUARANTINE. (c) a symbol found in an incomplete contract returns PRESENT. Each must fail the property.
+
+**P-C-3 (a digest mismatch always blocks).** For any artifact, and any single-byte change to the artifact bytes or to the published digest, for each accepted algorithm (sha256, sha384, sha512) and both PyPI hex form and npm SRI form, the result is BLOCK with check `contract_digest` and level HARD_BLOCK. It is never UNKNOWN, never ALLOW, and never a cache hit. The archive is not opened before the digest has matched.
+
+*Generators:* `gen_artifact_bytes`, `gen_digest_mutation` (flip one byte of the artifact, flip one character of the digest, truncate, extend).
+*Mutants:* (a) the comparison checks only the first 8 bytes. (b) a mismatch is returned as UNKNOWN. (c) the archive is opened before the comparison, checked by a marker in a spy opener. (d) the algorithm is fixed at sha256, so an npm sha512 value is read with the wrong algorithm.
+
+**P-C-4 (ABSENT needs a complete contract).** For any generated Python module or npm entry file, built from a known list of symbols: (a) if the extractor returns ABSENT for a symbol, the extraction was complete and the symbol is not in the known list; (b) if the file contains any dynamic pattern in the lists of R-C-2 or R-C-3, the result is UNKNOWN for every symbol, never ABSENT and never PRESENT; (c) every symbol in the known list is PRESENT when the file has no dynamic pattern. The oracle is the generator's own symbol list, not the extractor.
+
+*Generators:* `gen_python_module` and `gen_js_module`, with symbols, optional literal `__all__`, optional re-exports, and optional injected dynamic patterns.
+*Mutants:* (a) a computed `__all__` is read as empty. (b) a module-level `__getattr__` is ignored. (c) `from .x import *` is dropped. (d) the JS scan stops at the first `module.exports` and misses `exports.y`. Each must fail the property.
+
+**P-C-5 (limits and hostile archives give UNKNOWN).** For any archive that breaks a limit of R-C-4 (size, expanded size, member count, wall time) or contains an unsafe member (absolute path, `..` segment, NUL byte, duplicate name, symlink, hardlink, device, fifo), the result is UNKNOWN with reason `limit` or `parse_error` (the typed reason matches the break), nothing is written outside the private temp dir, nothing is written for a member, and no member outside the archive is read.
+
+*Generators:* `gen_hostile_archive` (a zip or tar with one hostile property chosen by Hypothesis), `gen_bomb` (a highly compressible member).
+*Mutants:* (a) the `..` check is removed. (b) the expanded-size counter is placed before decompression. (c) symlink members are followed. Each must fail the property.
+
+**P-C-6 (the cache never returns a bad entry).** For any cache entry, and any single-byte change to the entry file, or a changed key, extractor version, or hash, the lookup is a miss, the bad entry is deleted, and the result comes from a fresh extraction. A valid entry returns the same exports as a fresh extraction. A key that is not `<known algorithm>-<lowercase hex>` never reaches the file system.
+
+*Generators:* `gen_cache_entry`, `gen_entry_mutation`, `gen_hostile_key` (path separators, `..`, uppercase, overlong).
+*Mutants:* (a) the stored hash is not checked. (b) the extractor version is not checked. (c) the key is used in a path without the format check. Each must fail the property.
+
+**P-C-7 (the contract diff is honest and has no number).** For any ABSENT result, the QUARANTINE payload has exactly the R-Q-3 field set. The nearest real symbol, when present, is a member of the real export set. It is a minimum-distance member, and ties go to the smallest by byte order, so two runs give identical bytes. No numeric value other than `retry_budget_remaining` appears in the payload. `found_apis` is sorted and has at most 200 entries, and a cut adds `found_apis_truncated`.
+
+*Generators:* `gen_export_set` (empty, one, many, more than 200), `gen_claimed_symbol` (near and far from the set).
+*Mutants:* (a) the nearest symbol is taken from outside the set. (b) the tie-break is removed. (c) the distance is added to the payload. Each must fail the property.
+
 ## Mapping to requirements
 
 | Property | Requirements |
@@ -74,8 +113,16 @@ A pair of hook and shim calls for one install therefore counts once. The oracle 
 | P-G-1 | R-G-1, R-G-2, R-G-3, R-G-4, R-G-5, R-G-6, R-G-7, R-G-8 |
 | P-G-2 | R-G-11, R-4.7 |
 | P-G-3 | R-G-6, R-G-7 |
+| P-C-1 | R-C-1, R-C-4 |
+| P-C-2 | R-C-5, R-Q-2 |
+| P-C-3 | R-C-1 |
+| P-C-4 | R-C-2, R-C-3, R-C-5 |
+| P-C-5 | R-C-4 |
+| P-C-6 | R-C-6 |
+| P-C-7 | R-C-7 |
 
 ## Pass criteria
 
 - P-G-1 passes with 500 or more cases.
+- P-C-1 to P-C-7 pass with 500 or more cases, and each has at least one mutant that fails it.
 - No v1 property is changed, skipped, or given fewer examples.
