@@ -96,10 +96,10 @@ Tests for these properties build their artifacts in memory and serve them throug
 *Generators:* `gen_hostile_archive` (a zip or tar with one hostile property chosen by Hypothesis), `gen_bomb` (a highly compressible member).
 *Mutants:* (a) the `..` check is removed. (b) the expanded-size counter is placed before decompression. (c) symlink members are followed. Each must fail the property.
 
-**P-C-6 (the cache never returns a bad entry).** For any cache entry, and any single-byte change to the entry file, or a changed key, extractor version, or hash, the lookup is a miss, the bad entry is deleted, and the result comes from a fresh extraction. A valid entry returns the same exports as a fresh extraction. A key that is not `<known algorithm>-<lowercase hex>` never reaches the file system.
+**P-C-6 (the cache never returns a bad entry).** For any cache entry, and any single-byte change to the entry file, or a changed key, extractor version, or hash, the lookup is a miss, the bad entry is deleted, and the result comes from a fresh extraction. A valid entry returns the same exports as a fresh extraction. A download whose digest does not match leaves no cache entry afterward (R-C-6). A key that is not `<known algorithm>-<lowercase hex>` never reaches the file system.
 
 *Generators:* `gen_cache_entry`, `gen_entry_mutation`, `gen_hostile_key` (path separators, `..`, uppercase, overlong).
-*Mutants:* (a) the stored hash is not checked. (b) the extractor version is not checked. (c) the key is used in a path without the format check. Each must fail the property.
+*Mutants:* (a) the stored hash is not checked. (b) the extractor version is not checked. (c) the key is used in a path without the format check. (d) the entry is written before the digest is verified, and the mismatch test finds a file in the cache directory afterward. Each must fail the property.
 
 **P-C-7 (the contract diff is honest and has no number).** For any ABSENT result, the QUARANTINE payload has exactly the R-Q-3 field set. The nearest real symbol, when present, is a member of the real export set. It is a minimum-distance member, and ties go to the smallest by byte order, so two runs give identical bytes. No numeric value other than `retry_budget_remaining` appears in the payload. `found_apis` is sorted and has at most 200 entries, and a cut adds `found_apis_truncated`.
 

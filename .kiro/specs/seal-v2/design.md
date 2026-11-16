@@ -268,7 +268,7 @@ JavaScript is not parsed, so this is a text scan. It can read an export that is 
 
 ### 2.8 Cache
 
-`<state dir>/contracts/<algorithm>-<hex>.json`. The entry is written to a temp file and moved into place with `os.replace`, as `rate_limit.py` does. Fields: `schema`, `key`, `extractor_version`, `exports`, and `entry_sha256`, which is the SHA-256 of the canonical JSON of the other fields. The reader recomputes the hash and discards (and deletes) any entry that fails any check in R-C-6. A hit reads one small file and does no network call, so it fits the 100 ms bound.
+`<state dir>/contracts/<algorithm>-<hex>.json`. The entry is written to a temp file and moved into place with `os.replace`, as `rate_limit.py` does. The write is the last step of a miss, after step 5 of section 2.1 (the digest check). A cache write before the digest check is a violation (R-C-6, mutant in P-C-6). Fields: `schema`, `key`, `extractor_version`, `exports`, and `entry_sha256`, which is the SHA-256 of the canonical JSON of the other fields. The reader recomputes the hash and discards (and deletes) any entry that fails any check in R-C-6. A hit reads one small file and does no network call, so it fits the 100 ms bound.
 
 The hash detects corruption and accidental edits. It does not stop someone who can write the state directory, who can rewrite an entry and its hash together. That is the same limit as the snapshot manifest (T9), and it is recorded under T17 in the threat model. There is no eviction in Phase 2. The cache holds only complete contracts, one small file each.
 
