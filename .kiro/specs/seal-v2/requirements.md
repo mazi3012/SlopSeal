@@ -8,10 +8,15 @@
 | Prefix | Area | Phase | Status |
 |--------|------|-------|--------|
 | `R-G-*` | Gate: the Kiro install hook | 1 (`feat/v2-hook`) | Specified below |
-| `R-C-*` | Closure: dependencies of an installed package | Not scheduled | Reserved. Requirements are written at the start of that phase |
-| `R-S-*` | Signing: Ed25519 seals behind an optional extra | Not scheduled | Reserved. Needs ADR-0004 before any code |
+| `R-C-*` | Contract Check | 2 | Reserved. Requirements are written at the start of that phase |
+| `R-S-*` | Signing: Ed25519 seals behind an optional extra | 3 (not scheduled) | Reserved. Needs ADR-0004 before any code |
 
-The meaning of `R-C` and `R-S` comes from the v1 roadmap (THREAT_MODEL T16 and `docs/adr/0002-stdlib-first.md`). It is an assumption until the owner confirms it.
+**Glossary**
+
+- **Gate (`R-G`)**: the Kiro install hook. It runs `verify_install` for each pinned pip or npm package in an agent command.
+- **Contract Check (`R-C`)**: Phase 2. A check on the package's declared contract. Requirements are not written yet.
+- **Signing (`R-S`)**: Ed25519 seals behind the optional `slopseal[sign]` extra. Needs ADR-0004.
+- **T16**: transitive dependencies of a package that passes. Still open. The owner has proposed a depth-1 transitive check under R-G-4, but R-G-4 is the QUARANTINE rule, so that check needs its own requirement before it counts as closed.
 
 Terms used below:
 

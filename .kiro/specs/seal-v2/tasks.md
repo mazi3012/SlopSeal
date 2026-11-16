@@ -24,7 +24,7 @@ Requirements: R-G-1 to R-G-10. Property: P-G-1.
 - [ ] 1.8 CHANGELOG entry
 - [ ] 1.9 Full checks and the offline demo. Open the PR. Stop for review
 
-## Phase 2: not scheduled (R-C-*, closure)
+## Phase 2: Contract Check (R-C-*)
 
 Requirements, design, and properties are written at the start of the phase, after the owner confirms the scope.
 
