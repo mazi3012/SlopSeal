@@ -246,7 +246,7 @@ If `import resource` fails (not POSIX), the worker reports UNKNOWN with reason `
 
 ### 2.6 Python extraction
 
-Per module: gather `__all__` literals first. If `__all__` is a literal, the module's export set is that list. If not, the set is the public top-level names (R-C-2). Dynamic patterns are detected in the same walk: module-level calls to `exec` and `eval`, a module-level `def __getattr__` or `__dir__`, a non-literal `__all__` write, a write to `globals()` or `vars()`. A function body is not walked for these patterns, because code inside a function does not run at import time.
+Per module: the export set is the union of set A (`__all__`, when it is a literal, with its literal additions) and set B (the public top-level names), as R-C-2 defines. A non-literal change to `__all__` returns UNKNOWN (`dynamic_exports`) before any set is built. Dynamic patterns are detected in the same walk: module-level calls to `exec` and `eval`, a module-level `def __getattr__` or `__dir__`, a non-literal `__all__` write, a write to `globals()` or `vars()`. A function body is not walked for these patterns, because code inside a function does not run at import time.
 
 The package's qualified names are `<dotted module path>.<symbol>` for every module in the wheel. An `__init__.py` takes its package's dotted path. The bare names are the symbols of the top-level import packages and top-level single-file modules. The module paths themselves are names too. The result is the union, sorted and de-duplicated, and capped at 100,000 names (over the cap is UNKNOWN with reason `limit`).
 
