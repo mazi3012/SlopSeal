@@ -7,9 +7,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Added
 
+- Verdict-aware install hook (R-G-1 to R-G-10, P-G-1): `slopseal.hooks.on_install` runs the verdict pipeline for each pinned pip or npm package in an agent's shell command. ALLOW exits 0 and the command runs. BLOCK and QUARANTINE exit 2 with the check, the reason, and a fix or next step. Unpinned versions, URLs, other package managers, environment assignments before an install, and any error exit 2. The v2 spec is in `.kiro/specs/seal-v2/`.
 - Resolve-then-pin in live mode (R-1.7): an unpinned `pip install x` or `npm install x` is pinned to the verified latest version. The original and rewritten commands are audited. `--no-resolve` or `SLOPSEAL_NO_RESOLVE=1` keeps the refusal.
 - `slopseal audit html`: a single self-contained HTML receipt of the audit log. Each verdict shows its badge, checks, warnings, policy hash, and seal status. Light and dark mode. Stdlib only, no scripts or external requests, and all log text is escaped (R-5.7.1, R-5.7.2).
 - Live registry adapter (`slopseal.registry.live`): PyPI JSON API, npm registry, and OSV over `urllib`, with timeouts, a size cap, and explicit unknowns (R-P-3). `slopseal check --live` selects it.
+
+### Fixed
+
+- Rate limit counted an allowed install twice when the install hook and the PATH shim both verified it. One install now counts once, whichever layers run (R-G-11, R-4.7, P-G-2). The limit of 10 per minute is unchanged.
 
 ### Changed
 

@@ -65,7 +65,7 @@ Then **start a new Kiro session**. Kiro reads hook files only at session start, 
 
 ### What the hook does
 
-Without it, an agent can skip SlopSeal and run `npm install` in the terminal. The hook blocks agent install commands and tells the agent to verify the package with the SlopSeal tool first. If SlopSeal cannot run, the hook blocks the command rather than letting it through.
+Without it, an agent can skip SlopSeal and run `npm install` in the terminal. The hook checks every agent install command before it runs. For pinned pip or npm packages, it runs the same checks as the SlopSeal tool, and the command runs only if every package is allowed. It blocks an install it cannot check, such as an unpinned version, and tells the agent what to fix. If SlopSeal cannot run, the hook blocks the command rather than letting it through.
 
 ## How we used Kiro
 

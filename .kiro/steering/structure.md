@@ -16,6 +16,7 @@ src/
     cli.py           command-line entry point
     verdict.py       pipeline orchestration, Decision, failclosed wrapper
     intercept/       path_shim.py, api.py
+    hooks/           on_install.py (Kiro install hook entry point), gate.py (verdict gate; R-G-1..R-G-8)
     mcp/             server.py (stdio MCP server, slopseal-mcp; R-1.8)
     core/            one file per L1 check (existence.py, typosquat.py, ...)
     semantic/        L2 interface and Needle adapter (gated at M1)
@@ -47,6 +48,8 @@ PRD.md  README.md  AGENTS.md  CONTRIBUTING.md  SECURITY.md  CHANGELOG.md
 Layers, lowest first: `types` → `fixtures`, `policy` → `core` → `quarantine`, `semantic`, `audit` → `verdict` → `cli`, `intercept`.
 
 A module may import only from layers below it. `core` and `semantic` never import each other. A circular import is a design error: fix the layering, not the import.
+
+One same-layer import is allowed: `hooks/gate.py` imports `intercept/parse.py`. `parse` is pure, so the hook and the PATH shim share one parser and cannot disagree about what a pinned install is (seal-v2 design, section 1.2).
 
 ## Spec-first rule
 

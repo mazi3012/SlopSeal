@@ -49,7 +49,7 @@ from slopseal.quarantine.payload import (
     build_escalation_artifact,
     build_payload,
 )
-from slopseal.quarantine.rate_limit import RateLimiter
+from slopseal.quarantine.rate_limit import Layer, RateLimiter, install_key
 from slopseal.quarantine.state_machine import (
     QState,
     QuarantineState,
@@ -92,6 +92,8 @@ class InstallRequest:
     intent: Intent | None = None
     quarantine_id: str | None = None
     bypass_reason: str | None = None
+    # Which caller verifies the install. The rate limit counts one install once across layers.
+    layer: Layer = Layer.OTHER
 
 
 @dataclass(frozen=True)
@@ -130,7 +132,18 @@ class Context:
 def verify_install(request: InstallRequest, ctx: Context) -> Decision:
     """Return a Decision. Never raises; any failure is BLOCK (fail closed)."""
     try:
-        return _verify(request, ctx)
+        decision = _verify(request, ctx)
+        if (
+            decision.outcome is Outcome.ALLOW
+            and request.layer is Layer.HOOK
+            and request.version is not None
+            and ctx.limiter is not None
+        ):
+            # Save the credit before returning ALLOW. If this fails, the call is a BLOCK.
+            ctx.limiter.note_hook_allow(
+                install_key(request.ecosystem, request.package, request.version)
+            )
+        return decision
     except Exception as exc:  # fail-closed wrapper: every error becomes BLOCK
         log.error("internal error while verifying %s: %s", request.package, type(exc).__name__)
         return _internal_block(request, ctx)
@@ -160,9 +173,11 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
     source = ctx.source
     snapshot_id = source.snapshot_id
 
-    # Step 1: rate limit (PRD 4.7). Every attempt counts. The limit is not bypassable.
+    # Step 1: rate limit (PRD 4.7, R-G-11). Every attempt counts, except a shim attempt for an
+    # install the hook already counted. The limit is not bypassable.
     if ctx.limiter is not None:
-        rate = ctx.limiter.attempt()
+        key = install_key(eco, name, request.version) if request.version is not None else None
+        rate = ctx.limiter.attempt(key, request.layer)
         if not rate.allowed:
             rate_version = request.version or source.latest_version(eco, name) or ""
             violation = CheckResult("rate_limit", Level.BLOCK, rate.reason)

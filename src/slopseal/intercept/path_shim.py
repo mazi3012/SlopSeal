@@ -37,6 +37,7 @@ from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.intercept.parse import Blocked, Passthrough, parse
 from slopseal.policy.loader import PolicyError
+from slopseal.quarantine.rate_limit import Layer
 from slopseal.runtime import ECOSYSTEMS, build_context, offline
 from slopseal.verdict import Context, Decision, InstallRequest, Outcome, verify_install
 
@@ -220,7 +221,10 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         pins.append((name, latest))
 
     decisions = [
-        verify_install(InstallRequest(ecosystem=eco, package=name, version=version), context)
+        verify_install(
+            InstallRequest(ecosystem=eco, package=name, version=version, layer=Layer.SHIM),
+            context,
+        )
         for name, version in pins
     ]
     if rewritten != args:
