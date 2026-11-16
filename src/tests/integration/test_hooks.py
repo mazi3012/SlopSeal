@@ -1,10 +1,11 @@
 # ruff: noqa: S602, S603 - every argv and shell string here is built by the test (the shipped
 # hook command from the repo, or a fixed stub), not from untrusted input.
-"""Tests for the Kiro hook files and the install hook script (T11, R-1.1).
+"""Tests for the Kiro hook files and the install hook script (T11, R-1.1, R-G-1..R-G-9).
 
-The hook runs as a subprocess with the payload on stdin, as Kiro runs it. The hook files are
-checked against the documented Kiro schema keys, and each command path must resolve from the
-repository root, where Kiro runs command hooks.
+The hook runs as a subprocess with the payload on stdin, as Kiro runs it. Installs go through the
+verdict pipeline against the offline snapshot, with a state directory private to each test. The
+hook files are checked against the documented Kiro schema keys, and each command path must
+resolve from the repository root, where Kiro runs command hooks.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -50,6 +52,15 @@ ALLOWED_TRIGGERS = {
     "PostTaskExec",
     "Manual",
 }
+
+
+@pytest.fixture(autouse=True)
+def _private_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test gets its own state directory (audit log, rate limit) and the offline snapshot."""
+    monkeypatch.setenv("SLOPSEAL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("SLOPSEAL_OFFLINE_SNAPSHOT", "1")
+    monkeypatch.delenv("SLOPSEAL_POLICY_PATH", raising=False)
+    monkeypatch.delenv("SLOPSEAL_SNAPSHOT_DIR", raising=False)
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -218,11 +229,25 @@ BLOCK_MESSAGE = (
 )
 
 
+BLOCK_PREFIX = "BLOCKED by SlopSeal:"
+
+
+def _problems(stderr: str) -> list[dict[str, str]]:
+    """The JSON objects after the first line of a verdict-aware block message."""
+    lines = stderr.splitlines()
+    assert lines[0].startswith(BLOCK_PREFIX), stderr
+    return [json.loads(line) for line in lines[1:]]
+
+
 @pytest.mark.parametrize("command", BLOCKED_COMMANDS)
 def test_install_commands_are_blocked_with_exit_2(command: str) -> None:
+    # R-G-3, R-G-5: every command here is an unverifiable install or a package that fails a
+    # check. v1 asserted the exact v1 message. The message now names the problem (R-G-3).
     result = _run_hook(_kiro_payload(command))
     assert result.returncode == 2, command
-    assert result.stderr == BLOCK_MESSAGE
+    assert result.stdout == ""
+    assert result.stderr.startswith(BLOCK_PREFIX), result.stderr
+    assert all("check" in problem for problem in _problems(result.stderr))
 
 
 @pytest.mark.parametrize(
@@ -429,4 +454,245 @@ def test_wrapper_passes_benign_commands_and_blocks_installs_when_installed() -> 
     assert benign.stderr == ""
     install = _run_shipped("npm install game-engine-pro-ultra", path=path)
     assert install.returncode == 2
-    assert install.stderr == BLOCK_MESSAGE
+    assert install.stderr.startswith(BLOCK_PREFIX)
+    verified = _run_shipped("pip install tinyfmt-kit==0.4.0", path=path)
+    assert verified.returncode == 0, verified.stderr
+
+
+# ---- Verdict-aware gate (R-G-1..R-G-8): the real pipeline against the offline snapshot. ----
+
+ALLOWED_PIP = "tinyfmt-kit==0.4.0"  # in the snapshot, passes every check
+ALLOWED_NPM = "colorkit@2.0.1"  # in the snapshot, passes every check
+
+
+def _state_dir(tmp_path: Path) -> Path:
+    return tmp_path / "state"
+
+
+def _audit_lines(tmp_path: Path) -> list[str]:
+    log = _state_dir(tmp_path) / "audit.jsonl"
+    return log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+
+
+def _attempts(tmp_path: Path) -> int:
+    path = _state_dir(tmp_path) / "ratelimit.json"
+    return len(json.loads(path.read_text(encoding="utf-8"))["attempts"]) if path.exists() else 0
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (f"pip install {ALLOWED_PIP}", "ALLOW tinyfmt-kit==0.4.0"),
+        (f"npm install {ALLOWED_NPM}", "ALLOW colorkit==2.0.1"),
+        (f"npx {ALLOWED_NPM}", "ALLOW colorkit==2.0.1"),
+        ("python3 -m pip install csv-parser==1.2.0 --quiet", "ALLOW csv-parser==1.2.0"),
+        (f"sudo pip install {ALLOWED_PIP}", "ALLOW tinyfmt-kit==0.4.0"),
+        (f"cd app && pip install {ALLOWED_PIP} | tail -n 1", "ALLOW tinyfmt-kit==0.4.0"),
+        (f'bash -c "pip install {ALLOWED_PIP}"', "ALLOW tinyfmt-kit==0.4.0"),
+    ],
+)
+def test_r_g_2_verified_install_exits_0(command: str, expected: str) -> None:
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert expected in result.stderr
+
+
+def test_r_g_2_every_package_in_a_chain_is_verified(tmp_path: Path) -> None:
+    command = f"pip install {ALLOWED_PIP} && npm install {ALLOWED_NPM}"
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 0, result.stderr
+    assert "ALLOW tinyfmt-kit==0.4.0" in result.stderr
+    assert "ALLOW colorkit==2.0.1" in result.stderr
+    assert len(_audit_lines(tmp_path)) == 3  # genesis and one verdict per package
+
+
+def test_r_g_3_blocked_package_names_check_reason_and_fix() -> None:
+    result = _run_hook(_kiro_payload("pip install csv-parser-pro==0.1.0"))
+    assert result.returncode == 2
+    assert result.stdout == ""
+    (problem,) = _problems(result.stderr)
+    assert problem["check"] == "existence"
+    assert problem["package"] == "csv-parser-pro"
+    assert problem["version"] == "0.1.0"
+    assert problem["reason"]
+    assert problem["fix"] == "Did you mean csv-parser?"  # the check's remedy
+
+
+def test_r_g_3_block_without_a_remedy_gets_the_fallback_fix() -> None:
+    result = _run_hook(_kiro_payload("npm install react-codeshift@1.0.0"))
+    assert result.returncode == 2
+    (problem,) = _problems(result.stderr)
+    assert problem["check"] == "malware"
+    assert problem["fix"].startswith("Do not install this package")
+
+
+def test_r_g_3_one_blocked_package_blocks_the_whole_command(tmp_path: Path) -> None:
+    command = f"pip install {ALLOWED_PIP} && pip install csv-parser-pro==0.1.0"
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 2
+    assert [problem["package"] for problem in _problems(result.stderr)] == ["csv-parser-pro"]
+    assert len(_audit_lines(tmp_path)) == 3  # both packages were verified and logged
+
+
+@pytest.mark.parametrize(
+    ("command", "fix_part"),
+    [
+        ("pip install requests", "name==1.2.3"),
+        ("pip install tinyfmt-kit>=0.4", "name==1.2.3"),
+        ("npm install left-pad", "name@1.2.3"),
+        ("pip install -r requirements.txt", "name==1.2.3"),
+        ("pip install ./local-pkg", "name==1.2.3"),
+        ("pip install https://example.invalid/x.whl", "name==1.2.3"),
+        ("pip install", "name==1.2.3"),
+        ("pip download tinyfmt-kit==0.4.0", "name==1.2.3"),
+        ("npm install", "name@1.2.3"),
+        ("uv add requests", "pip or npm"),
+        ("cargo install ripgrep", "pip or npm"),
+        ("pnpm add x", "pip or npm"),
+        (f"FOO=1 pip install {ALLOWED_PIP}", "environment assignments"),
+        (f"PIP_INDEX_URL=http://example.invalid pip install {ALLOWED_PIP}", "environment"),
+        (f"export PIP_INDEX_URL=http://example.invalid; pip install {ALLOWED_PIP}", "environment"),
+        (f"env FOO=1 pip install {ALLOWED_PIP}", "environment"),
+        (f"cat reqs.txt | xargs pip install {ALLOWED_PIP}", "xargs"),
+        ("echo 'unclosed", "plain pip or npm"),
+    ],
+)
+def test_r_g_5_unverifiable_install_exits_2_with_a_fix(
+    command: str, fix_part: str, tmp_path: Path
+) -> None:
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 2, result.stderr
+    assert result.stdout == ""
+    problems = _problems(result.stderr)
+    assert problems
+    assert all(problem["check"] == "unverifiable_install" for problem in problems)
+    assert all(
+        fix_part in problem["fix"] or "environment" in problem["fix"] for problem in problems
+    )
+    assert _audit_lines(tmp_path) == []  # nothing was verified, so nothing was logged
+
+
+def test_r_g_5_a_verified_package_does_not_excuse_an_unverifiable_one(tmp_path: Path) -> None:
+    result = _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP} && uv add requests"))
+    assert result.returncode == 2
+    assert [problem["check"] for problem in _problems(result.stderr)] == ["unverifiable_install"]
+
+
+def test_r_g_5_the_hook_does_not_resolve_an_unpinned_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # R-1.7 resolves in the shim. The hook cannot rewrite the command, so even live mode refuses.
+    monkeypatch.setenv("SLOPSEAL_OFFLINE_SNAPSHOT", "0")
+    result = _run_hook(_kiro_payload("pip install requests"))
+    assert result.returncode == 2
+    assert "not pinned" in _problems(result.stderr)[0]["reason"]
+
+
+def test_r_g_6_install_in_a_payload_without_command_text_is_refused() -> None:
+    payload = {"tool_input": {"description": f"pip install {ALLOWED_PIP}"}}
+    result = _run_hook(json.dumps(payload))
+    assert result.returncode == 2
+    (problem,) = _problems(result.stderr)
+    assert problem["check"] == "unverifiable_install"
+    assert "no command text" in problem["reason"]
+
+
+def test_r_g_7_non_install_command_writes_nothing(tmp_path: Path) -> None:
+    result = _run_hook(_kiro_payload("ls -la"))
+    assert result.returncode == 0
+    assert result.stdout == ""
+    assert result.stderr == ""
+    assert not _state_dir(tmp_path).exists()  # no verdict, no audit line, no rate-limit attempt
+
+
+def test_r_g_1_each_distinct_package_counts_as_one_attempt(tmp_path: Path) -> None:
+    command = f"pip install {ALLOWED_PIP}; pip install {ALLOWED_PIP}; npm install {ALLOWED_NPM}"
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 0, result.stderr
+    assert _attempts(tmp_path) == 2
+
+
+def test_r_g_1_the_rate_limit_applies_to_the_hook(tmp_path: Path) -> None:
+    # R-4.7: every attempt counts, so enough attempts in a minute turn an ALLOW into a block.
+    limit = 10
+    codes = [
+        _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP}")).returncode for _ in range(limit + 1)
+    ]
+    assert codes[:limit] == [0] * limit
+    assert codes[limit] == 2
+
+
+def test_r_g_6_policy_error_exits_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    broken = tmp_path / "policy.md"
+    broken.write_text("no policy block here\n", encoding="utf-8")
+    monkeypatch.setenv("SLOPSEAL_POLICY_PATH", str(broken))
+    result = _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP}"))
+    assert result.returncode == 2
+    assert [problem["check"] for problem in _problems(result.stderr)] == ["policy_error"]
+
+
+def test_r_g_6_tampered_snapshot_exits_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    copy = tmp_path / "snapshot"
+    shutil.copytree(REPO / "src" / "slopseal" / "fixtures", copy)
+    with (copy / "registry_snapshot.json").open("a", encoding="utf-8") as handle:
+        handle.write(" ")
+    monkeypatch.setenv("SLOPSEAL_SNAPSHOT_DIR", str(copy))
+    result = _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP}"))
+    assert result.returncode == 2
+    assert [problem["check"] for problem in _problems(result.stderr)] == ["snapshot_integrity"]
+
+
+def test_r_g_6_unusable_state_directory_exits_2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    blocker = tmp_path / "not-a-directory"
+    blocker.write_text("x", encoding="utf-8")
+    monkeypatch.setenv("SLOPSEAL_STATE_DIR", str(blocker / "state"))
+    result = _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP}"))
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert _problems(result.stderr)
+
+
+def _run_patched(body: str) -> subprocess.CompletedProcess[str]:
+    """Run on_install.main() after the test code in `body` has patched the module."""
+    script = "import sys\nfrom slopseal.hooks import on_install\n"
+    script += textwrap.dedent(body) + "\nsys.exit(on_install.main())\n"
+    return subprocess.run(
+        [sys.executable, "-c", script],
+        input=_kiro_payload(f"pip install {ALLOWED_PIP}"),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        timeout=30,
+        check=False,
+    )
+
+
+def test_r_g_6_an_unexpected_error_in_the_decision_exits_2() -> None:
+    result = _run_patched(
+        """
+        def boom(raw, decide=None):
+            raise RuntimeError("boom")
+        on_install.evaluate = boom
+        """
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert BLOCK_MESSAGE in result.stderr
+
+
+def test_r_g_6_a_decision_that_misses_the_deadline_exits_2() -> None:
+    result = _run_patched(
+        """
+        import time
+        def slow(raw, decide=None):
+            time.sleep(60)
+        on_install.evaluate = slow
+        on_install.DEADLINE_SECONDS = 0.5
+        """
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert result.stderr == BLOCK_MESSAGE
