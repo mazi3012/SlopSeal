@@ -15,10 +15,10 @@ Rules for every phase (from the session brief):
 Requirements: R-G-1 to R-G-10. Property: P-G-1.
 
 - [x] 1.1 Write `.kiro/specs/seal-v2/` (requirements, design, properties, tasks) [R-G-1..R-G-10]
-- [ ] 1.2 `hooks/gate.py`: `Detected`, `decide`, messages [R-G-1..R-G-5, R-G-10]
-- [ ] 1.3 `hooks/on_install.py`: collect `Detected`, add `evaluate`, deadline, fail-closed paths [R-G-5..R-G-8]
-- [ ] 1.4 Property test P-G-1 in `src/tests/properties/test_p_g_1_hook.py`
-- [ ] 1.5 Update `src/tests/integration/test_hooks.py` for the verdict-aware behavior. Record each changed assertion and why in the PR
+- [x] 1.2 `hooks/gate.py`: `decide`, messages [R-G-1..R-G-5, R-G-10]
+- [x] 1.3 `hooks/on_install.py`: collect `Detected`, add `evaluate`, deadline, fail-closed paths [R-G-5..R-G-8]
+- [x] 1.4 Property test P-G-1 in `src/tests/properties/test_p_g_1_hook.py`
+- [x] 1.5 Update `src/tests/integration/test_hooks.py` for the verdict-aware behavior. Record each changed assertion and why in the PR
 - [ ] 1.6 Update the hook `description` in both copies of `block-agent-installs.json` [R-G-9]
 - [ ] 1.7 Update `docs/REFERENCE.md` [R-G-9]
 - [ ] 1.8 CHANGELOG entry
