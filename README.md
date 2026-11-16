@@ -10,6 +10,10 @@ Product requirements: [PRD.md](PRD.md). Kiro write-up: [docs/WRITEUP.md](docs/WR
 
 > **Status:** v1 is feature-complete for the deterministic path. The deterministic checks, the PATH shim, the quarantine state machine, the rate limit, the signed audit log, and the CLI are built and tested. The semantic layer (L2) tested against Needle 3 and failed its pre-registered gate, so it is not in v1. Live mode queries PyPI, npm, and OSV. The registries do not publish maintainer account age, so in live mode the maintainer check warns instead of blocking. Use the offline snapshot for demos. Nothing here is ready for production use.
 
+## Zero-config setup
+
+SlopSeal works out of the box with a secure default policy. The bundled default policy is loaded from the installed package and requires no configuration. To customize the policy, create `.kiro/steering/dependency-trust.md` in your project. See `src/slopseal/defaults/dependency-trust.md` for the default policy contents.
+
 ## The problem
 
 AI coding agents run `pip install` and `npm install` from LLM suggestions.
@@ -74,9 +78,8 @@ Powers, so check the Powers panel in your version.
 Notes:
 
 - The server starts with the SlopSeal folder as its working directory. It reads the trust
-  policy from `.kiro/steering/dependency-trust.md` in that folder and runs offline against the
-  checksummed snapshot. If the policy is missing, the tool reports no verdict, and the install
-  must not run.
+  policy from `.kiro/steering/dependency-trust.md` in that folder, or falls back to the bundled
+  default policy if that file is not present, and runs offline against the checksummed snapshot.
 - The power does not install packages. The install still goes through the shell, and the
   install hook and PATH shim still apply.
 - To run the server from a different folder, set `SLOPSEAL_POLICY_PATH` and
@@ -101,6 +104,8 @@ bash scripts/demo.sh
 ```
 
 The script ends with `demo: PASS (all beats)`. It runs seven beats: a slopsquat name is blocked, an API mismatch is quarantined, a retry is allowed, pip and npm run through the PATH shim, the audit log verifies, a tampered log fails, and a weakened policy fails the floor check.
+
+SlopSeal works out of the box with the bundled default policy. The demo uses the default policy without any configuration.
 
 Single commands, after activating the venv:
 

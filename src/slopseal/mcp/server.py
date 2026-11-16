@@ -29,7 +29,7 @@ from slopseal import __version__
 from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.policy.loader import PolicyError
-from slopseal.runtime import ECOSYSTEMS, build_context, policy_path, state_dir
+from slopseal.runtime import ECOSYSTEMS, build_context, state_dir
 from slopseal.verdict import Decision, InstallRequest, Intent, Outcome, verify_install
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -284,14 +284,14 @@ def verify_with_runtime(request: InstallRequest) -> Decision:
     """Build the verdict context from the environment and run verify_install.
 
     The policy and state paths come from SLOPSEAL_POLICY_PATH and SLOPSEAL_STATE_DIR, or their
-    defaults, which are relative to the working directory. A missing policy is a NoVerdict.
+    defaults, which are relative to the working directory. A missing policy falls back to the
+    bundled default. Any other error is a NoVerdict.
     """
     try:
         context = build_context()
     except PolicyError as exc:
         raise NoVerdict(
-            f"trust policy at {policy_path()} is unusable ({exc}); SLOPSEAL_POLICY_PATH "
-            "selects another file"
+            f"policy error ({exc}); use SLOPSEAL_POLICY_PATH to specify another file"
         ) from exc
     except SealKeyError as exc:
         raise NoVerdict(f"seal key in {state_dir()} is unusable ({exc})") from exc
