@@ -13,7 +13,8 @@ does not block.
 Exit 2 blocks. The hook also blocks when the payload cannot be read, when stdin does not
 close within 3 seconds, when the command cannot be parsed, or when shell nesting is too deep.
 The hook does not verify packages. Verification runs in the PATH shim
-(src/slopseal/intercept/path_shim.py). Known limit: a script file, or `python -c`, that runs
+(src/slopseal/intercept/path_shim.py) or in the slopseal MCP tool, which the block message
+names. Known limit: a script file, or `python -c`, that runs
 an install is not inspected.
 """
 
@@ -33,9 +34,8 @@ STDIN_TIMEOUT_SECONDS = 3.0
 MAX_DEPTH = 8
 
 BLOCK_MESSAGE = (
-    "slopseal: this command is blocked by SlopSeal. Do not retry it, and do not offer "
-    "alternatives that skip verification. Tell the user to run the install themselves in a "
-    "shell where the SlopSeal shim is on PATH, or call the verify tool."
+    "BLOCKED by SlopSeal: Direct installs are disabled. You must use the slopseal MCP tool "
+    "to verify the package first."
 )
 
 _ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
