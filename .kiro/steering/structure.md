@@ -16,6 +16,7 @@ src/
     cli.py           command-line entry point
     verdict.py       pipeline orchestration, Decision, failclosed wrapper
     intercept/       path_shim.py, api.py
+    mcp/             server.py (stdio MCP server, slopseal-mcp; R-1.8)
     core/            one file per L1 check (existence.py, typosquat.py, ...)
     semantic/        L2 interface and Needle adapter (gated at M1)
     quarantine/      state_machine.py, payload.py, escalation.py, api_surface.py

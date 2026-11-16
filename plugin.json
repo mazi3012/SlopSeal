@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "slopseal",
+  "version": "1.0.0",
+  "description": "Checks a package version before the agent installs it. Blocks slopsquatted, typosquatted, malicious, and hallucinated package names, and returns ALLOW, BLOCK, or QUARANTINE.",
+  "author": {
+    "name": "SlopSeal contributors"
+  },
+  "keywords": [
+    "install",
+    "pip",
+    "npm",
+    "package",
+    "dependency",
+    "supply-chain",
+    "slopsquatting",
+    "typosquatting",
+    "verify"
+  ],
+  "homepage": "https://github.com/mazi3012/SlopSeal",
+  "repository": "https://github.com/mazi3012/SlopSeal",
+  "license": "MIT"
+}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "slopseal": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--from", ".", "slopseal-mcp"],
+      "env": {
+        "SLOPSEAL_OFFLINE_SNAPSHOT": "1",
+        "SLOPSEAL_SNAPSHOT_DIR": "src/slopseal/fixtures",
+        "SLOPSEAL_STATE_DIR": ".slopseal",
+        "SLOPSEAL_POLICY_PATH": ".kiro/steering/dependency-trust.md"
+      }
+    }
+  }
+}

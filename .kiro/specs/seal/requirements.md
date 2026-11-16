@@ -88,6 +88,8 @@
 
 **R-1.3 (verify_install).** The system shall expose `verify_install(package, version, intent?)`, which returns the same verdict and exit code as the shim.
 
+**R-1.8 (MCP server).** The system shall expose `verify_install` as the only tool of a stdio MCP server (`slopseal-mcp`). The tool shall require `ecosystem`, `package`, and an exact `version`, and shall accept optional `purpose`, `expected_api`, and `quarantine_id`. It shall not accept a bypass. A result is an error (`isError: true`) for BLOCK and QUARANTINE, and for any failure to produce a verdict. Stdout shall carry only JSON-RPC messages.
+
 ## 6. Audit
 
 **R-5.7.1 (log).** The system shall append one JSON object per verdict to an immutable JSONL log.
