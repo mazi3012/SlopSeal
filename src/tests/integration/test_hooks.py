@@ -125,16 +125,24 @@ def _matcher(filename: str) -> str:
     return str(hook["matcher"])
 
 
-@pytest.mark.parametrize("tool_id", ["execute_bash", "execute_pwsh"])
-def test_install_hook_matcher_selects_the_shell_tools(tool_id: str) -> None:
-    # Kiro: a matcher with regex metacharacters is an anchored regex against the tool ID.
-    # execute_bash (macOS and Linux) and execute_pwsh (Windows) are the shell tool IDs.
-    assert re.search(_matcher("on-install.json"), tool_id)
+INSTALL_HOOK_FILE = "block-agent-installs.json"
 
 
-@pytest.mark.parametrize("tool_id", ["read_file", "fs_write", "mcp_git_status", "execute_bash_x"])
+def test_install_hook_matcher_is_execute_bash() -> None:
+    assert _matcher(INSTALL_HOOK_FILE) == "execute_bash"
+
+
+@pytest.mark.parametrize("tool_id", ["execute_bash"])
+def test_install_hook_matcher_selects_the_shell_tool(tool_id: str) -> None:
+    # The matcher is matched against the whole tool ID, so it must match exactly.
+    assert re.fullmatch(_matcher(INSTALL_HOOK_FILE), tool_id)
+
+
+@pytest.mark.parametrize(
+    "tool_id", ["read_file", "fs_write", "mcp_git_status", "execute_bash_x", "execute_pwsh"]
+)
 def test_install_hook_matcher_does_not_select_other_tools(tool_id: str) -> None:
-    assert not re.search(_matcher("on-install.json"), tool_id)
+    assert not re.fullmatch(_matcher(INSTALL_HOOK_FILE), tool_id)
 
 
 def test_policy_hook_matcher_selects_only_the_trust_policy() -> None:
