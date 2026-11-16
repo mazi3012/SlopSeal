@@ -161,7 +161,7 @@ def _load_json(name: str) -> dict[str, Any]:
 
 
 def test_plugin_manifest_has_the_required_fields() -> None:
-    plugin = _load_json("plugin.json")
+    plugin = _load_json("power-upload/plugin.json")
     assert plugin["name"] == "slopseal"
     assert plugin["version"] == __version__
     assert plugin["keywords"]
@@ -170,11 +170,11 @@ def test_plugin_manifest_has_the_required_fields() -> None:
 
 
 def test_mcp_config_runs_the_slopseal_mcp_entry_point_with_uvx() -> None:
-    server = _load_json("mcp.json")["mcpServers"]["slopseal"]
+    server = _load_json("power-upload/mcp.json")["mcpServers"]["slopseal"]
     assert server["type"] == "stdio"
     assert server["command"] == "uvx"
     assert server["args"][-1] == "slopseal-mcp"
-    assert server["args"][:2] == ["--from", "."]
+    assert server["args"][:2] == ["--from", "git+https://github.com/mazi3012/SlopSeal.git"]
     # Offline is the default. The config keeps it explicit so no package name leaves the machine.
     assert server["env"]["SLOPSEAL_OFFLINE_SNAPSHOT"] == "1"
 
@@ -187,7 +187,7 @@ def test_console_script_is_declared_in_pyproject() -> None:
 
 
 def test_power_description_names_the_only_tool_and_the_outcomes() -> None:
-    text = (REPO / "POWER.md").read_text(encoding="utf-8")
+    text = (REPO / "power-upload" / "POWER.md").read_text(encoding="utf-8")
     assert "`verify_install`" in text
     for outcome in ("ALLOW", "BLOCK", "QUARANTINE"):
         assert outcome in text

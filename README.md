@@ -52,7 +52,7 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip`, `npm`, 
 
 ## Install with Kiro Powers
 
-SlopSeal ships as a Kiro power. The repo root holds `POWER.md` (the description Kiro shows),
+SlopSeal ships as a Kiro power. The `power-upload/` folder holds `POWER.md` (the description Kiro shows),
 `plugin.json` (the manifest Kiro requires), and `mcp.json` (how Kiro starts the server). The
 power adds one tool, `verify_install`, which runs the deterministic checks on an exact package
 version.
@@ -64,8 +64,8 @@ Powers, so check the Powers panel in your version.
 1. Get the SlopSeal folder on disk. Clone it, or download and unpack the repo:
    `git clone https://github.com/mazi3012/SlopSeal.git`
 2. In Kiro, open the Powers panel and choose **Add Custom Power**.
-3. Choose **Import power from a folder**, then select the SlopSeal folder, the one that
-   contains `plugin.json`.
+3. Choose **Import power from a folder**, then select the `power-upload/` folder inside the
+   SlopSeal repo. It contains `plugin.json`.
 4. Confirm that the power lists the `verify_install` tool. A power named `slopseal` appears
    under installed powers.
 5. Test it. In a chat, mention a package install, for example "install tinyfmt-kit 0.4.0".
