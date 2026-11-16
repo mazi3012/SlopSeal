@@ -72,6 +72,7 @@ SLOPSEAL_OFFLINE_SNAPSHOT=1 slopseal check csv-parser-pro --version 0.1.0     # 
 SLOPSEAL_OFFLINE_SNAPSHOT=1 slopseal check csv-parser --version 1.2.0 --expected-api csv.reader   # exit 75
 SLOPSEAL_OFFLINE_SNAPSHOT=1 slopseal check tinyfmt-kit --version 0.4.0        # exit 0
 slopseal audit verify
+slopseal audit html --out receipt.html   # one-file HTML receipt of the audit log
 slopseal policy check
 slopseal policy diff .kiro/steering/dependency-trust.md .kiro/steering/dependency-trust.md
 SLOPSEAL_OFFLINE_SNAPSHOT=0 slopseal check requests --version 2.33.0   # live registries; see Limitations

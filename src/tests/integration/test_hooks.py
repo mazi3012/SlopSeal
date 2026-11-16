@@ -9,6 +9,7 @@ repository root, where Kiro runs command hooks.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -117,3 +118,28 @@ def test_non_install_commands_pass(command: str) -> None:
 def test_unreadable_payload_blocks() -> None:
     result = _run_hook("this is not json")
     assert result.returncode == 2
+
+
+def _matcher(filename: str) -> str:
+    hook = _load(HOOKS_DIR / filename)["hooks"][0]  # type: ignore[index]
+    return str(hook["matcher"])
+
+
+@pytest.mark.parametrize("tool_id", ["execute_bash", "execute_pwsh"])
+def test_install_hook_matcher_selects_the_shell_tools(tool_id: str) -> None:
+    # Kiro: a matcher with regex metacharacters is an anchored regex against the tool ID.
+    # execute_bash (macOS and Linux) and execute_pwsh (Windows) are the shell tool IDs.
+    assert re.search(_matcher("on-install.json"), tool_id)
+
+
+@pytest.mark.parametrize("tool_id", ["read_file", "fs_write", "mcp_git_status", "execute_bash_x"])
+def test_install_hook_matcher_does_not_select_other_tools(tool_id: str) -> None:
+    assert not re.search(_matcher("on-install.json"), tool_id)
+
+
+def test_policy_hook_matcher_selects_only_the_trust_policy() -> None:
+    # PostFileSave matchers are a regex against the saved file path.
+    matcher = _matcher("on-steering-change.json")
+    assert re.search(matcher, ".kiro/steering/dependency-trust.md")
+    assert not re.search(matcher, ".kiro/steering/dependency-trust.md.bak")
+    assert not re.search(matcher, ".kiro/steering/product.md")
