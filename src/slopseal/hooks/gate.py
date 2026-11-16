@@ -30,6 +30,7 @@ from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.hooks.on_install import BLOCK_EXIT, Detected, Evaluation
 from slopseal.intercept.parse import Blocked, Install, parse
 from slopseal.policy.loader import PolicyError
+from slopseal.quarantine.rate_limit import Layer
 from slopseal.runtime import ECOSYSTEMS, build_context
 from slopseal.verdict import Context, Decision, InstallRequest, Outcome, verify_install
 
@@ -184,7 +185,7 @@ def decide(
             problems.append(_setup_problem(exc))
         else:
             for ecosystem, name, version in packages:
-                request = InstallRequest(ECOSYSTEMS[ecosystem], name, version)
+                request = InstallRequest(ECOSYSTEMS[ecosystem], name, version, layer=Layer.HOOK)
                 decisions.append(verify(request, context))
 
     for decision in decisions:

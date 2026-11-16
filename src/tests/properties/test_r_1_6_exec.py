@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from slopseal.core.types import Ecosystem
 from slopseal.intercept import path_shim
 from slopseal.intercept.parse import Install, Passthrough, parse
+from slopseal.quarantine.rate_limit import Layer
 from slopseal.verdict import Decision, InstallRequest, Outcome
 
 PREFIXES = st.sampled_from([("npx", []), ("npm", ["exec"]), ("npm", ["x"])])
@@ -135,4 +136,8 @@ def test_exec_request_carries_the_pinned_version_to_the_verifier() -> None:
         return _allow_all(request, ctx)
 
     _run_with("npx", ["tinyfmt-kit@0.4.0", "--help"], record)
-    assert seen == [InstallRequest(ecosystem=Ecosystem.NPM, package="tinyfmt-kit", version="0.4.0")]
+    assert seen == [
+        InstallRequest(
+            ecosystem=Ecosystem.NPM, package="tinyfmt-kit", version="0.4.0", layer=Layer.SHIM
+        )
+    ]

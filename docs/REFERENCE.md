@@ -59,7 +59,7 @@ The hook verifies `pip install name==x.y.z`, `python -m pip install name==x.y.z`
 - An environment assignment, `export`, or `env` assignment earlier in the command, and `xargs`. Both can change which package is installed (for example `PIP_INDEX_URL=...`).
 - A command that has a stray word from a redirect such as `2>&1` after the package list. Remove the redirect.
 
-Each package the hook sends to the pipeline counts as one install attempt for the rate limit, and each verdict is written to the audit log. If the PATH shim is also active, an allowed install is counted twice, once by the hook and once by the shim. Both sides use `max_installs_per_minute`, so the effective limit for allowed installs through both is half of it.
+Each package the hook sends to the pipeline counts as one install attempt for the rate limit, and each verdict is written to the audit log. When the PATH shim also runs the same allowed install, the shim does not count it again (R-G-11). The rate limit is `max_installs_per_minute` per install, whichever layers verify it.
 
 The hook does not read a package index set outside the command, such as `.npmrc`, `pip.conf`, or an earlier `npm config set registry`.
 

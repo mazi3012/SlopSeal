@@ -696,3 +696,24 @@ def test_r_g_6_a_decision_that_misses_the_deadline_exits_2() -> None:
     assert result.returncode == 2
     assert result.stdout == ""
     assert result.stderr == BLOCK_MESSAGE
+
+
+def test_r_g_11_hook_then_shim_counts_the_install_once(tmp_path: Path) -> None:
+    # The agent's command passes the hook, then runs through the PATH shim. Both layers see the
+    # same install. The rate limit counts it once (R-G-11). The real pip is `true` here.
+    true_bin = shutil.which("true")
+    assert true_bin is not None
+    hook = _run_hook(_kiro_payload(f"pip install {ALLOWED_PIP}"))
+    assert hook.returncode == 0, hook.stderr
+    assert _attempts(tmp_path) == 1
+    shim = subprocess.run(
+        [sys.executable, "-m", "slopseal.intercept.path_shim", "pip", "install", ALLOWED_PIP],
+        env={**os.environ, "SLOPSEAL_REAL_PIP": true_bin},
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        check=False,
+    )
+    assert shim.returncode == 0, shim.stderr
+    assert "ALLOW tinyfmt-kit==0.4.0" in shim.stderr
+    assert _attempts(tmp_path) == 1
