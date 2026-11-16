@@ -1,4 +1,5 @@
-# ruff: noqa: S603 - every argv here is built by the test, not from untrusted input.
+# ruff: noqa: S602, S603 - every argv and shell string here is built by the test (the shipped
+# hook command from the repo, or a fixed stub), not from untrusted input.
 """Tests for the Kiro hook files and the install hook script (T11, R-1.1).
 
 The hook runs as a subprocess with the payload on stdin, as Kiro runs it. The hook files are
@@ -10,8 +11,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,11 +75,14 @@ def test_hook_file_uses_only_documented_keys_and_triggers(path: Path) -> None:
 @pytest.mark.parametrize("path", sorted(HOOKS_DIR.glob("*.json")), ids=lambda p: p.name)
 def test_hook_command_paths_resolve_from_the_repository_root(path: Path) -> None:
     for hook in _load(path)["hooks"]:  # type: ignore[index, union-attr]
-        argv = shlex.split(hook["action"]["command"])
-        if "-m" in argv:
-            module = argv[argv.index("-m") + 1]
-            assert importlib.util.find_spec(module) is not None, f"module {module} not importable"
+        command = hook["action"]["command"]
+        modules = re.findall(r"-m ([A-Za-z_][\w.]*)", command)
+        if modules:
+            # The install hook runs a module inside a sh -c wrapper, so check the command text.
+            for module in modules:
+                assert importlib.util.find_spec(module) is not None, f"{module} not importable"
             continue
+        argv = shlex.split(command)
         script_args = [arg for arg in argv if arg.endswith((".py", ".sh"))]
         assert script_args, argv
         for arg in script_args:
@@ -355,3 +361,72 @@ def test_policy_hook_matcher_selects_only_the_trust_policy() -> None:
     assert re.search(matcher, ".kiro/steering/dependency-trust.md")
     assert not re.search(matcher, ".kiro/steering/dependency-trust.md.bak")
     assert not re.search(matcher, ".kiro/steering/product.md")
+
+
+# ---- Fail-closed wrapper (R-1.1): the shipped command, run through a shell as Kiro runs it. ----
+
+WRAPPER_NOT_INSTALLED = "BLOCKED: SlopSeal is not installed for this python3."
+
+
+def _shipped_command() -> str:
+    hook = _load(HOOKS_DIR / INSTALL_HOOK_FILE)["hooks"][0]  # type: ignore[index]
+    return str(hook["action"]["command"])  # type: ignore[index]
+
+
+def _run_shipped(payload_command: str, path: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        _shipped_command(),
+        shell=True,
+        input=_kiro_payload(payload_command),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        env={**os.environ, "PATH": path},
+        check=False,
+    )
+
+
+def _isolated_path(directory: Path) -> str:
+    # The wrapper starts with `sh -c`, so PATH needs sh. Link only sh, so python3 is absent
+    # unless a test puts a stub there.
+    shell = shutil.which("sh")
+    assert shell is not None
+    (directory / "sh").symlink_to(shell)
+    return str(directory)
+
+
+def _python3_stub(directory: Path, body: str) -> None:
+    stub = directory / "python3"
+    stub.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    os.chmod(stub, 0o700)
+
+
+@pytest.mark.parametrize("payload_command", ["git status", "npm install game-engine-pro-ultra"])
+def test_wrapper_blocks_every_command_when_slopseal_is_not_installed(
+    tmp_path: Path, payload_command: str
+) -> None:
+    # A python3 that cannot import slopseal exits 1 (ModuleNotFoundError). The wrapper must
+    # turn that into exit 2, so Kiro blocks the command instead of running it.
+    _python3_stub(tmp_path, 'echo "ModuleNotFoundError: No module named slopseal" >&2\nexit 1')
+    result = _run_shipped(payload_command, path=_isolated_path(tmp_path))
+    assert result.returncode == 2
+    assert WRAPPER_NOT_INSTALLED in result.stderr
+    assert "python3 -m pip install git+https://github.com/mazi3012/SlopSeal.git" in result.stderr
+
+
+def test_wrapper_blocks_when_python3_is_missing(tmp_path: Path) -> None:
+    # Shell exit 127 (command not found) is also an error state, so it blocks too.
+    result = _run_shipped("git status", path=_isolated_path(tmp_path))
+    assert result.returncode == 2
+    assert WRAPPER_NOT_INSTALLED in result.stderr
+
+
+def test_wrapper_passes_benign_commands_and_blocks_installs_when_installed() -> None:
+    # Put the interpreter running this test first on PATH. It has slopseal installed.
+    path = f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}"
+    benign = _run_shipped("git status", path=path)
+    assert benign.returncode == 0
+    assert benign.stderr == ""
+    install = _run_shipped("npm install game-engine-pro-ultra", path=path)
+    assert install.returncode == 2
+    assert install.stderr == BLOCK_MESSAGE
