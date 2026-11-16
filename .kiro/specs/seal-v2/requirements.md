@@ -16,7 +16,7 @@
 - **Gate (`R-G`)**: the Kiro install hook. It runs `verify_install` for each pinned pip or npm package in an agent command.
 - **Contract Check (`R-C`)**: Phase 2. A check on the package's declared contract. Requirements are not written yet.
 - **Signing (`R-S`)**: Ed25519 seals behind the optional `slopseal[sign]` extra. Needs ADR-0004.
-- **T16**: transitive dependencies of a package that passes. Still open. The owner has proposed a depth-1 transitive check under R-G-4, but R-G-4 is the QUARANTINE rule, so that check needs its own requirement before it counts as closed.
+- **T16**: transitive dependencies of a package that passes. Mapped to **R-G-12** (depth-1 transitive check). **Not implemented.** Phase 4 ships it. T16 stays open until then. R-G-4 is the QUARANTINE rule and does not cover transitive checks.
 
 Terms used below:
 
@@ -47,6 +47,8 @@ Terms used below:
 **R-G-9 (hook config).** The hook description in `.kiro/hooks/block-agent-installs.json` shall state the verdict behavior of R-G-2 to R-G-5. The packaged copy at `src/slopseal/hooks/block-agent-installs.json` shall stay identical to it (R-1.9). The `sh -c` wrapper that maps an exit code other than 0 or 2 to exit 2 shall stay.
 
 **R-G-10 (untrusted metadata).** The system shall treat the text of a verdict reason as data. The hook shall write it as a JSON string value, never as prose that the agent could read as an instruction, and shall cap its length.
+
+**R-G-12 (depth-1 transitive check). Not implemented. Planned for seal-v2 Phase 4.** When the hook or the PATH shim verifies a pinned install that passes R-G-1 to R-G-4, the system shall also check the direct dependencies of that exact version, one level deep, with the same L1 checks, and shall block the install if a dependency fails a check. Until Phase 4 ships this requirement, the hook and the shim do not check transitive dependencies, and T16 is open. This wording is provisional. Phase 4 writes the design and the properties before any code. R-G-4 is unchanged.
 
 **R-G-11 (one count per install across layers).** When the hook and the PATH shim both verify the same exact package and version, the rate limit (R-4.7) shall count that install once. The hook always counts its own attempt. When the hook allows a package, it leaves one credit for that package and version. A shim attempt for the same package and version consumes one credit and does not count again, and the shim still runs the verdict pipeline. A credit expires after the 60-second window. A shim run after that window counts as a new install. The install key is the ecosystem, the normalized name, and the exact version. The shim cannot see the hook's command ID, because the hook payload has no ID that reaches the shim. This refines R-4.7 for the one case where a single install produces two attempts. The limit of 10 per minute (`max_installs_per_minute`) is unchanged. Fail closed: an unreadable rate-limit state still blocks (R-4.7).
 

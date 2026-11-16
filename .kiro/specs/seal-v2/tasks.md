@@ -31,3 +31,7 @@ Requirements, design, and properties are written at the start of the phase, afte
 ## Phase 3: not scheduled (R-S-*, signing)
 
 Starts with ADR-0004 (Ed25519 behind the `slopseal[sign]` extra). The extra stays empty until the ADR is accepted.
+
+## Phase 4: depth-1 transitive check (R-G-12). Not implemented
+
+Ships R-G-12 and closes T16 when it is done. Starts with the requirement wording, the design section, and a property. Nothing in this phase is built yet, and no document may say T16 is closed before this phase ships.

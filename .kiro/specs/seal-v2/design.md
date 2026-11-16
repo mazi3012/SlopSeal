@@ -139,4 +139,4 @@ The v1 requirements are not changed. Each place that described the hook as non-v
 
 ## 2. Phase 2 and later
 
-Not designed. Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).
+Not designed. Phase 4 ships R-G-12, the depth-1 transitive check, which is not implemented. T16 stays open until then (see `requirements.md`, glossary and R-G-12). Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).

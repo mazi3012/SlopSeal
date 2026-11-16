@@ -52,7 +52,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T13 | Unexpected crash returns success | Failclosed wrapper turns any exception into BLOCK | design section 6 |
 | T14 | `--allow-unsafe` used silently | Requires a non-empty reason and writes an audit line before proceeding | R-1.5 |
 | T15 | Secrets leak through logs or output | No env dumps; exception detail goes to the log only; stdout is the payload only | tech.md conventions |
-| T16 | A dependency pulled in by an allowed package is installed unverified | Not mitigated in v1. The shim verifies only the packages named on the command line, not their transitive dependencies, and their install-time code is not checked. A one-level-deep dependency check is on the post-hackathon roadmap | none (roadmap) |
+| T16 | A dependency pulled in by an allowed package is installed unverified | Not mitigated in v1. The shim verifies only the packages named on the command line, not their transitive dependencies, and their install-time code is not checked. The hook does the same. A one-level-deep dependency check is planned as R-G-12 in seal-v2 Phase 4. It is not implemented, and T16 stays open until it ships | R-G-12 (not implemented, Phase 4) |
 
 ## 5. Data that leaves the machine (live mode)
 
