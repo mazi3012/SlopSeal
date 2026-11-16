@@ -25,11 +25,14 @@ from slopseal.audit.log import AuditLog
 from slopseal.audit.seal import load_or_create_key
 from slopseal.core.types import Ecosystem
 from slopseal.fixtures.loader import load_snapshot
+from slopseal.hooks.gate import decide
+from slopseal.hooks.on_install import Detected
+from slopseal.intercept.parse import Blocked, parse
 from slopseal.policy.loader import load_policy
 from slopseal.quarantine.rate_limit import WINDOW, Layer, RateDecision, RateLimiter
 from slopseal.quarantine.state_machine import QuarantineStore, new_quarantine_id
 from slopseal.registry.source import OfflineSource
-from slopseal.verdict import Context, InstallRequest, Outcome, verify_install
+from slopseal.verdict import Context, Decision, InstallRequest, Outcome, verify_install
 
 REPO = Path(__file__).resolve().parents[3]
 FIXTURES = REPO / "src" / "slopseal" / "fixtures"
@@ -46,11 +49,20 @@ KEYS: tuple[tuple[Ecosystem, str, str], ...] = (
     (Ecosystem.PYPI, "csv-parser-pro", "0.1.0"),
 )
 ALLOWED = {0, 1, 2}
+# Spellings of the same install. PyPI names compare under PEP 503 (case, and runs of `-`, `_`,
+# `.` are equal). npm names compare lowercase. Each layer may spell the name differently, and
+# the credit must still match (R-G-11).
+SPELLINGS: tuple[tuple[str, ...], ...] = (
+    ("tinyfmt-kit", "Tinyfmt_Kit", "TINYFMT.KIT", "tinyfmt_kit"),
+    ("csv-parser", "CSV_Parser", "csv.parser"),
+    ("colorkit", "ColorKit"),
+    ("csv-parser-pro", "CSV_PARSER_PRO"),
+)
 
 events = st.one_of(
-    st.tuples(st.just("hook"), st.integers(0, len(KEYS) - 1)),
-    st.tuples(st.just("shim"), st.integers(0, len(KEYS) - 1)),
-    st.tuples(st.just("tick"), st.integers(0, 90)),
+    st.tuples(st.just("hook"), st.integers(0, len(KEYS) - 1), st.integers(0, 3)),
+    st.tuples(st.just("shim"), st.integers(0, len(KEYS) - 1), st.integers(0, 3)),
+    st.tuples(st.just("tick"), st.integers(0, 90), st.just(0)),
 )
 
 
@@ -61,9 +73,9 @@ class Model:
     counted: int = 0
     credits: dict[int, list[int]] = field(default_factory=dict)
 
-    def run(self, sequence: list[tuple[str, int]]) -> int:
+    def run(self, sequence: list[tuple[str, int, int]]) -> int:
         now = 0
-        for kind, value in sequence:
+        for kind, value, _spelling in sequence:
             if kind == "tick":
                 now += value
                 continue
@@ -125,7 +137,9 @@ def _counted(context: Context) -> int:
 
 
 @given(sequence=st.lists(events, max_size=LIMIT))
-def test_p_g_2_one_install_counts_once_across_layers(sequence: list[tuple[str, int]]) -> None:
+def test_p_g_2_one_install_counts_once_across_layers(
+    sequence: list[tuple[str, int, int]],
+) -> None:
     """P-G-2: the code's count equals the model's count for any event sequence.
 
     At most LIMIT events run, so no call is blocked by the limit itself. The oracle does not
@@ -136,11 +150,13 @@ def test_p_g_2_one_install_counts_once_across_layers(sequence: list[tuple[str, i
         state = Path(tmp)
         clock = [0]
         context = _context(state, clock)
-        for kind, value in sequence:
+        for kind, value, spelling in sequence:
             if kind == "tick":
                 clock[0] += value
                 continue
-            ecosystem, name, version = KEYS[value]
+            ecosystem, _name, version = KEYS[value]
+            names = SPELLINGS[value]
+            name = names[spelling % len(names)]
             layer = Layer.HOOK if kind == "hook" else Layer.SHIM
             decision = verify_install(
                 InstallRequest(ecosystem, name, version, layer=layer), context
@@ -150,6 +166,55 @@ def test_p_g_2_one_install_counts_once_across_layers(sequence: list[tuple[str, i
             else:
                 assert decision.outcome is Outcome.BLOCK
         assert _counted(context) == expected
+
+
+def test_p_g_2_spelling_variants_share_one_credit() -> None:
+    """A hook call spelled `Tinyfmt_Kit` and a shim call spelled `tinyfmt-kit` are one install."""
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp)
+        context = _context(state, [0])
+        hook = InstallRequest(Ecosystem.PYPI, "Tinyfmt_Kit", "0.4.0", layer=Layer.HOOK)
+        shim = InstallRequest(Ecosystem.PYPI, "tinyfmt-kit", "0.4.0", layer=Layer.SHIM)
+        assert verify_install(hook, context).outcome is Outcome.ALLOW
+        assert verify_install(shim, context).outcome is Outcome.ALLOW
+        assert _counted(context) == 1
+
+
+def test_p_g_2_unpinned_install_is_refused_before_a_credit_is_used() -> None:
+    """An unpinned install is refused by the hook and the shim before the limiter runs.
+
+    The refusal must not use the credit. The next pinned shim call for the same package still
+    consumes the credit and counts nothing. The credit is what keeps the count at 1.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        state = Path(tmp)
+        context = _context(state, [0])
+        pinned_hook = InstallRequest(Ecosystem.PYPI, "tinyfmt-kit", "0.4.0", layer=Layer.HOOK)
+        assert verify_install(pinned_hook, context).outcome is Outcome.ALLOW
+        assert _counted(context) == 1
+
+        verified: list[InstallRequest] = []
+
+        def verify(request: InstallRequest, _context: object) -> Decision:
+            verified.append(request)
+            return verify_install(request, context)
+
+        # The hook: an unpinned command is a problem before any verdict is requested.
+        result = decide(
+            [Detected("pip", ("install", "tinyfmt-kit"))],
+            build=lambda: context,
+            verify=verify,
+        )
+        assert result.exit_code == 2
+        assert verified == []
+        # The shim: parse refuses the unpinned spec in offline mode, before the limiter.
+        assert isinstance(parse("pip", ["install", "tinyfmt-kit"], allow_unpinned=False), Blocked)
+        assert _counted(context) == 1
+
+        # The credit survives both refusals. The pinned shim call consumes it, counts nothing.
+        pinned_shim = InstallRequest(Ecosystem.PYPI, "tinyfmt-kit", "0.4.0", layer=Layer.SHIM)
+        assert verify_install(pinned_shim, context).outcome is Outcome.ALLOW
+        assert _counted(context) == 1
 
 
 def test_p_g_2_hook_then_shim_is_one_count() -> None:
