@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import tomllib
 from dataclasses import dataclass
@@ -234,11 +235,8 @@ def parse_policy(text: str) -> Policy:
     )
 
 
-def _get_bundled_default_path() -> Path:
-    """Return the path to the bundled default policy within the installed package."""
-    import importlib.resources
-
-    return importlib.resources.files("slopseal") / "defaults" / "dependency-trust.md"
+BUNDLED_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "defaults" / "dependency-trust.md"
+WORKSPACE_POLICY_PATH = Path(".kiro") / "steering" / "dependency-trust.md"
 
 
 def load_policy(path: str) -> Policy:
@@ -262,17 +260,16 @@ def load_policy_or_bundled_default() -> Policy:
 
     Any failure to load ANY source is a PolicyError. The bundled default is always valid.
     """
-    import os
-
     env_path = os.environ.get("SLOPSEAL_POLICY_PATH")
     if env_path is not None:
         return load_policy(env_path)
 
-    workspace_path = Path(".kiro") / "steering" / "dependency-trust.md"
-    if workspace_path.exists():
-        return load_policy(str(workspace_path))
+    if WORKSPACE_POLICY_PATH.exists():
+        return load_policy(str(WORKSPACE_POLICY_PATH))
 
-    bundled_path = _get_bundled_default_path()
-    if not bundled_path.exists():
-        raise PolicyError("no policy found: SLOPSEAL_POLICY_PATH not set, workspace policy missing, and bundled default unavailable")
-    return load_policy(str(bundled_path))
+    if not BUNDLED_DEFAULT_PATH.is_file():
+        raise PolicyError(
+            "no policy found: SLOPSEAL_POLICY_PATH is unset, the workspace policy is missing, "
+            "and the bundled default is unavailable"
+        )
+    return load_policy(str(BUNDLED_DEFAULT_PATH))

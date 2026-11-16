@@ -32,7 +32,7 @@ from slopseal.audit.log import AuditLog
 from slopseal.audit.seal import load_or_create_key
 from slopseal.core.types import Ecosystem
 from slopseal.fixtures.loader import load_snapshot
-from slopseal.policy.loader import load_policy
+from slopseal.policy.loader import load_policy_or_bundled_default
 from slopseal.quarantine.rate_limit import RateLimiter
 from slopseal.quarantine.state_machine import QuarantineStore, new_quarantine_id
 from slopseal.registry.live import LiveSource
@@ -77,7 +77,6 @@ def build_context(root: Path | None = None, *, rate_limited: bool = True) -> Con
     exit code.
     """
     state = root if root is not None else state_dir()
-    from slopseal.policy.loader import load_policy_or_bundled_default
     policy = load_policy_or_bundled_default()
     key = load_or_create_key(state)
     snapshot = load_snapshot(snapshot_dir())

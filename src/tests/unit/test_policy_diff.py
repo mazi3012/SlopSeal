@@ -8,7 +8,7 @@ import pytest
 
 from slopseal.cli import main
 from slopseal.policy.diff import diff_policies
-from slopseal.policy.loader import load_policy
+from slopseal.policy.loader import load_policy, load_policy_or_bundled_default
 
 REPO = Path(__file__).resolve().parents[3]
 POLICY = REPO / ".kiro" / "steering" / "dependency-trust.md"
@@ -77,26 +77,21 @@ def test_cli_fails_closed_when_a_file_is_not_a_valid_policy(
     assert "policy error" in capsys.readouterr().err
 
 
-def test_bundled_default_policy_loads_without_workspace_file(tmp_path: Path) -> None:
-    """When no workspace policy exists, load_policy_or_bundled_default uses the bundled default."""
-    import os
+def test_policy_check_exits_78_when_the_env_policy_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """SLOPSEAL_POLICY_PATH takes precedence and fails closed; it does not fall back."""
+    monkeypatch.setenv("SLOPSEAL_POLICY_PATH", str(tmp_path / "missing.md"))
+    assert main(["policy", "check"]) == 78
+    assert "policy error" in capsys.readouterr().err
 
-    from slopseal.policy.loader import load_policy_or_bundled_default
 
-    # Temporarily change to a temp directory with no .kiro folder
-    original_cwd = os.getcwd()
-    original_env = os.environ.get("SLOPSEAL_POLICY_PATH")
-    try:
-        os.chdir(tmp_path)
-        # Ensure SLOPSEAL_POLICY_PATH is not set
-        if "SLOPSEAL_POLICY_PATH" in os.environ:
-            del os.environ["SLOPSEAL_POLICY_PATH"]
-        # Load should succeed using the bundled default
-        policy = load_policy_or_bundled_default()
-        assert policy.schema_version == 1
-        assert policy.max_installs_per_minute == 10
-    finally:
-        os.chdir(original_cwd)
-        if original_env is not None:
-            os.environ["SLOPSEAL_POLICY_PATH"] = original_env
-
+def test_bundled_default_policy_loads_without_workspace_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no env var and no workspace policy, the bundled default loads and parses."""
+    monkeypatch.delenv("SLOPSEAL_POLICY_PATH", raising=False)
+    monkeypatch.chdir(tmp_path)  # no .kiro/steering/dependency-trust.md here
+    policy = load_policy_or_bundled_default()
+    assert policy.schema_version == 1
+    assert policy.max_installs_per_minute == 10

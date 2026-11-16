@@ -295,11 +295,11 @@ def cmd_audit_html(args: argparse.Namespace) -> int:
 
 def cmd_policy_check(args: argparse.Namespace) -> int:
     path = args.path
-    if path is None:
-        # When no path is provided, use the fallback chain
-        policy = load_policy_or_bundled_default()
-    else:
-        policy = load_policy(path)
+    try:
+        policy = load_policy_or_bundled_default() if path is None else load_policy(path)
+    except PolicyError as exc:
+        print(f"slopseal: policy error: {exc}", file=sys.stderr)
+        return EXIT_POLICY
     violations = enforce_floors(policy)
     for violation in violations:
         print(f"slopseal: floor violated: {violation}", file=sys.stderr)
