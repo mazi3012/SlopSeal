@@ -5,7 +5,12 @@ Environment (see .env.example):
                                0: live registries (PyPI, npm, OSV). Same as the CLI --live flag.
   SLOPSEAL_SNAPSHOT_DIR        snapshot directory (default: src/slopseal/fixtures)
   SLOPSEAL_STATE_DIR           state directory (default: .slopseal)
-  SLOPSEAL_POLICY_PATH         trust policy (default: .kiro/steering/dependency-trust.md)
+  SLOPSEAL_POLICY_PATH         trust policy (default: .kiro/steering/dependency-trust.md or bundled)
+
+Policy loading order (R-1.4):
+  1. SLOPSEAL_POLICY_PATH environment variable (if set).
+  2. .kiro/steering/dependency-trust.md in the current workspace (if it exists).
+  3. The bundled defaults/dependency-trust.md (Zero-config fallback).
 
 The rate limit uses the wall clock even in offline mode. Pinning it would make a per-minute
 limit permanent after the first N attempts. Verdicts keep the pinned clock, so they stay
@@ -54,10 +59,6 @@ def state_dir() -> Path:
     return Path(os.environ.get("SLOPSEAL_STATE_DIR", DEFAULT_STATE_DIR))
 
 
-def policy_path() -> Path:
-    return Path(os.environ.get("SLOPSEAL_POLICY_PATH", DEFAULT_POLICY))
-
-
 def snapshot_dir() -> Path:
     return Path(os.environ.get("SLOPSEAL_SNAPSHOT_DIR", str(FIXTURES)))
 
@@ -76,7 +77,8 @@ def build_context(root: Path | None = None, *, rate_limited: bool = True) -> Con
     exit code.
     """
     state = root if root is not None else state_dir()
-    policy = load_policy(str(policy_path()))
+    from slopseal.policy.loader import load_policy_or_bundled_default
+    policy = load_policy_or_bundled_default()
     key = load_or_create_key(state)
     snapshot = load_snapshot(snapshot_dir())
     source: OfflineSource | LiveSource

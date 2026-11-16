@@ -44,7 +44,7 @@ from slopseal.core.types import CheckResult, Level
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.policy.diff import diff_policies
 from slopseal.policy.invariants import enforce_floors
-from slopseal.policy.loader import PolicyError, load_policy
+from slopseal.policy.loader import PolicyError, load_policy, load_policy_or_bundled_default
 from slopseal.quarantine.state_machine import (
     QState,
     QuarantineStore,
@@ -294,12 +294,12 @@ def cmd_audit_html(args: argparse.Namespace) -> int:
 
 
 def cmd_policy_check(args: argparse.Namespace) -> int:
-    path = args.path or str(runtime.policy_path())
-    try:
+    path = args.path
+    if path is None:
+        # When no path is provided, use the fallback chain
+        policy = load_policy_or_bundled_default()
+    else:
         policy = load_policy(path)
-    except PolicyError as exc:
-        print(f"slopseal: policy error: {exc}", file=sys.stderr)
-        return EXIT_POLICY
     violations = enforce_floors(policy)
     for violation in violations:
         print(f"slopseal: floor violated: {violation}", file=sys.stderr)
@@ -312,8 +312,8 @@ def cmd_policy_check(args: argparse.Namespace) -> int:
 def cmd_policy_diff(args: argparse.Namespace) -> int:
     """Print the policy fields that differ between two files. Exit 0, or 78 if either fails."""
     try:
-        old = load_policy(args.old)
-        new = load_policy(args.new)
+        old = load_policy(args.old) if args.old else load_policy_or_bundled_default()
+        new = load_policy(args.new) if args.new else load_policy_or_bundled_default()
     except PolicyError as exc:
         print(f"slopseal: policy error: {exc}", file=sys.stderr)
         return EXIT_POLICY

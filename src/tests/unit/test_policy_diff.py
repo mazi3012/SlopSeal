@@ -75,3 +75,28 @@ def test_cli_fails_closed_when_a_file_is_not_a_valid_policy(
     bad = _write(tmp_path, "bad.md", "no policy block here\n")
     assert main(["policy", "diff", str(good), str(bad)]) == 78
     assert "policy error" in capsys.readouterr().err
+
+
+def test_bundled_default_policy_loads_without_workspace_file(tmp_path: Path) -> None:
+    """When no workspace policy exists, load_policy_or_bundled_default uses the bundled default."""
+    import os
+
+    from slopseal.policy.loader import load_policy_or_bundled_default
+
+    # Temporarily change to a temp directory with no .kiro folder
+    original_cwd = os.getcwd()
+    original_env = os.environ.get("SLOPSEAL_POLICY_PATH")
+    try:
+        os.chdir(tmp_path)
+        # Ensure SLOPSEAL_POLICY_PATH is not set
+        if "SLOPSEAL_POLICY_PATH" in os.environ:
+            del os.environ["SLOPSEAL_POLICY_PATH"]
+        # Load should succeed using the bundled default
+        policy = load_policy_or_bundled_default()
+        assert policy.schema_version == 1
+        assert policy.max_installs_per_minute == 10
+    finally:
+        os.chdir(original_cwd)
+        if original_env is not None:
+            os.environ["SLOPSEAL_POLICY_PATH"] = original_env
+
