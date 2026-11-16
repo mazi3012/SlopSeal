@@ -37,7 +37,7 @@ SlopSeal never uses the calling agent's LLM. In offline mode (the default), the 
 | 75 | QUARANTINE (payload JSON on stdout). CI fails on 75 unless the job opts in to a pause |
 | 78 | Policy, key, or state directory is unusable. No verdict is issued |
 
-The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip` and `npm` wrappers. The wrappers verify each pinned install before the real tool runs. The shim is advisory: a command that calls the real binary by absolute path skips it (see `docs/THREAT_MODEL.md`, T11).
+The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip`, `npm`, and `npx` wrappers. The wrappers verify each pinned install before the real tool runs. `npx`, `npm exec`, and `npm x` must name an exact `name@x.y.z`. Other forms are refused. The shim is advisory: a command that calls the real binary by absolute path skips it (see `docs/THREAT_MODEL.md`, T11).
 
 ## How Kiro constitutes the policy
 

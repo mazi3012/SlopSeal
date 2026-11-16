@@ -1,4 +1,4 @@
-"""PATH shim for pip and npm. Verifies every install before the real tool runs.
+"""PATH shim for pip, npm, and npx. Verifies every install before the real tool runs.
 
 The shim wrappers in a shim directory (see shims.py) call this module as
 `python -m slopseal.intercept.path_shim <tool> <args...>`. The flow:
@@ -39,7 +39,7 @@ from slopseal.policy.loader import PolicyError
 from slopseal.runtime import ECOSYSTEMS, build_context
 from slopseal.verdict import Decision, InstallRequest, Outcome, verify_install
 
-TOOLS = ("pip", "npm")
+TOOLS = ("pip", "npm", "npx")
 EXIT_ALLOW = 0
 EXIT_BLOCK = 1
 EXIT_QUARANTINE = 75

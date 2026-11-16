@@ -96,7 +96,7 @@ echo "== Beat 4: pip and npm run through the PATH shim (stub real tools record w
 shim_dir="$work/shims"
 stub_dir="$work/real"
 mkdir -p "$stub_dir"
-for tool in pip npm; do
+for tool in pip npm npx; do
     printf '#!/bin/sh\necho "%s $*" >>"%s/ran.log"\n' "$tool" "$work" >"$stub_dir/$tool"
     chmod 755 "$stub_dir/$tool"
 done
@@ -123,6 +123,20 @@ expect 1 "npm install react-codeshift@1.0.0 is blocked by the shim" \
     npm install react-codeshift@1.0.0
 assert_json err "d['package'] == 'react-codeshift'" \
     "the shim names the blocked npm package"
+
+expect 1 "npx react-codeshift@1.0.0 is blocked by the shim (malware advisory)" \
+    npx react-codeshift@1.0.0
+assert_json err "d['package'] == 'react-codeshift'" \
+    "the shim blocks npx, which downloads and runs packages"
+
+expect 1 "npx evil without a pin is refused without running npx" \
+    npx evil
+if [ -f "$work/ran.log" ] && grep -q "^npx evil" "$work/ran.log"; then
+    echo "FAIL  npx evil reached the real npx"
+    failures=$((failures + 1))
+else
+    echo "PASS  the unpinned npx command never reached the real npx"
+fi
 
 expect 1 "an unpinned pip install is refused without running pip" \
     pip install tinyfmt-kit

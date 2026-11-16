@@ -135,3 +135,68 @@ def test_npm_non_install_passes_through() -> None:
 
 def test_unknown_tool_passes_through() -> None:
     assert parse("cargo", ["install", "x"]) == Passthrough()
+
+
+# R-1.6: npx, npm exec, npm x, and npm init/create with an initializer are installs.
+
+
+@pytest.mark.parametrize(
+    ("tool", "args", "expected"),
+    [
+        ("npx", ["react-codeshift@1.0.0"], (("react-codeshift", "1.0.0"),)),
+        ("npx", ["--yes", "tinyfmt-kit@0.4.0", "--help"], (("tinyfmt-kit", "0.4.0"),)),
+        ("npx", ["--", "tinyfmt-kit@0.4.0"], (("tinyfmt-kit", "0.4.0"),)),
+        ("npx", ["-p", "a@1.0.0", "a"], (("a", "1.0.0"),)),
+        ("npx", ["--package=a@1.0.0", "a", "--flag"], (("a", "1.0.0"),)),
+        ("npm", ["exec", "tinyfmt-kit@0.4.0"], (("tinyfmt-kit", "0.4.0"),)),
+        ("npm", ["x", "@scope/pkg@1.2.3", "arg"], (("@scope/pkg", "1.2.3"),)),
+        ("npm", ["exec", "--package=a@1.0.0", "--", "a"], (("a", "1.0.0"),)),
+    ],
+)
+def test_exec_style_pins_parse_to_verifiable_specs(
+    tool: str, args: list[str], expected: tuple
+) -> None:
+    assert parse(tool, args) == Install("npm", expected)
+
+
+@pytest.mark.parametrize(
+    ("tool", "args"),
+    [
+        ("npx", ["evil"]),
+        ("npx", ["@scope/evil"]),
+        ("npx", ["evil@^1.0.0"]),
+        ("npx", ["evil@latest"]),
+        ("npx", []),
+        ("npx", ["--yes"]),
+        ("npx", ["-c", "rm -rf ."]),
+        ("npx", ["--call=echo hi"]),
+        ("npx", ["--no-install", "evil@1.0.0"]),
+        ("npx", ["-p", "a", "a"]),
+        ("npx", ["-p", "a@1.0.0", "b"]),
+        ("npx", ["-p"]),
+        ("npx", ["./local@1.0.0"]),
+        ("npx", ["https://example.com/x.tgz"]),
+        ("npx", ["git+https://github.com/x/y.git"]),
+        ("npx", ["--registry", "https://evil.example", "evil@1.0.0"]),
+        ("npm", ["exec"]),
+        ("npm", ["exec", "--"]),
+        ("npm", ["exec", "evil"]),
+        ("npm", ["exec", "--", "evil"]),
+        ("npm", ["x", "evil"]),
+        ("npm", ["exec", "-c", "evil@1.0.0"]),
+        ("npm", ["exec", "--package=a", "--", "a@1.0.0"]),
+        ("npm", ["init", "react-app"]),
+        ("npm", ["init", "react-app@5.0.0"]),
+        ("npm", ["create", "vite"]),
+    ],
+)
+def test_exec_style_unverifiable_forms_block(tool: str, args: list[str]) -> None:
+    assert isinstance(parse(tool, args), Blocked)
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["init", "-y"], ["init"], ["init", "--yes"]],
+)
+def test_npm_init_without_initializer_passes_through(args: list[str]) -> None:
+    assert parse("npm", args) == Passthrough()

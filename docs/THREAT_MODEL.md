@@ -47,7 +47,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T8 | Prompt injection through package description or README into L2 | L2 gets data fields only, is advisory, can only move ALLOW to QUARANTINE | R-3.7, P-FC-5 |
 | T9 | Snapshot is tampered with | Static SHA-256 checksum manifest checked at load. Detects corruption and accidental edits only; a repo writer can change data and manifest together (see section 6) | R-P-2, P-SN-1 |
 | T10 | Audit log is edited or truncated | Hash chain across lines; seals signed | R-5.7.1, R-5.7.2, P-AU-1, P-AU-2 |
-| T11 | Install bypasses the shim | Shim is advisory by design; the Kiro hook and agent steering add a second trigger. Documented limit | R-1.1 |
+| T11 | Install bypasses the shim | The shim covers `pip`, `npm`, and `npx`. `npx`, `npm exec`, `npm x`, and `npm init <initializer>` must name an exact `name@x.y.z`, or they are refused (R-1.6). The shim is advisory: a call to the real binary by absolute path, or to a tool not shimmed (yarn, pnpm, cargo, gem, go get), bypasses it. The Kiro hook is a second trigger. Documented limit | R-1.1, R-1.6 |
 | T12 | Quarantine retry used to probe the check repeatedly | Retry budget 1, then escalation; rate limit on installs per minute | R-Q-5, R-Q-6, R-4.7 |
 | T13 | Unexpected crash returns success | Failclosed wrapper turns any exception into BLOCK | design section 6 |
 | T14 | `--allow-unsafe` used silently | Requires a non-empty reason and writes an audit line before proceeding | R-1.5 |
@@ -72,6 +72,7 @@ Live mode uses `urllib` with a 10-second timeout per request, a 10 MB response c
 
 ## 6. Accepted limits for v1
 
+- **Tools outside the shim.** `yarn`, `pnpm` (including `pnpm dlx`), `cargo`, `gem`, and `go get` are not shimmed in v1. A command that runs them is not verified.
 - **Transitive dependencies are not verified (T16).** A package that passes can pull in dependencies that SlopSeal never checks, and their install-time code runs. This is the largest gap after the shim boundary (T11).
 - **Live mode blocks every package in v1 (R-P-3).** The public registries do not publish maintainer account age, so the maintainer check always blocks. Live mode also has no exported symbols, so intent checks always block. Its top-N list comes from the checksummed snapshot. It rules out install-time code only for a version with a universal wheel on PyPI. It does not follow OSV pagination.
 - **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** HMAC was rejected because the seal key is per machine, so a committed snapshot could not be checked by anyone else. Ed25519 would need a dependency. Snapshot files are checked against `manifest.json`. Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.

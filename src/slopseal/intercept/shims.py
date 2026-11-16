@@ -1,4 +1,4 @@
-"""Write the pip and npm wrapper scripts that route installs through the PATH shim.
+"""Write the pip and npm wrapper scripts (pip, npm, npx) that route installs through the PATH shim.
 
 Usage: python -m slopseal.intercept.shims <directory>
 

@@ -28,7 +28,7 @@ def stubs(tmp_path: Path) -> dict[str, Path]:
     real = tmp_path / "real"
     real.mkdir()
     marks: dict[str, Path] = {}
-    for tool in ("pip", "npm"):
+    for tool in ("pip", "npm", "npx"):
         script = real / tool
         script.write_text(STUB, encoding="utf-8")
         script.chmod(0o755)
@@ -181,3 +181,46 @@ def test_wrapper_for_a_blocked_package_stops_the_install(
     )
     assert result.returncode == 1
     assert not stubs["pip"].exists()
+
+
+# R-1.6: npx and npm exec download and run packages, so they go through the same verification.
+
+
+def test_npx_unpinned_package_is_refused_and_runs_nothing(
+    base_env: dict[str, str], stubs: dict[str, Path]
+) -> None:
+    result = _run_shim("npx", ["evil"], base_env, stubs)
+    assert result.returncode == 1
+    assert _last_json(result.stderr)["check"] == "shim"
+    assert not stubs["npx"].exists(), "the real npx must not run an unpinned package"
+
+
+def test_npx_known_malicious_version_is_blocked(
+    base_env: dict[str, str], stubs: dict[str, Path]
+) -> None:
+    result = _run_shim("npx", ["react-codeshift@1.0.0"], base_env, stubs)
+    assert result.returncode == 1
+    assert _last_json(result.stderr)["package"] == "react-codeshift"
+    assert not stubs["npx"].exists()
+
+
+def test_npx_pinned_allowed_package_runs_the_real_tool(
+    base_env: dict[str, str], stubs: dict[str, Path]
+) -> None:
+    result = _run_shim("npx", ["uuidkit@1.4.0", "--help"], base_env, stubs)
+    assert result.returncode == 0, result.stderr
+    assert "ALLOW uuidkit==1.4.0" in result.stderr
+    assert stubs["npx"].read_text().strip() == "uuidkit@1.4.0 --help"
+
+
+def test_npm_exec_unpinned_package_is_refused(
+    base_env: dict[str, str], stubs: dict[str, Path]
+) -> None:
+    result = _run_shim("npm", ["exec", "evil"], base_env, stubs)
+    assert result.returncode == 1
+    assert not stubs["npm"].exists()
+
+
+def test_written_wrappers_include_npx(tmp_path: Path) -> None:
+    names = sorted(path.name for path in write_shims(tmp_path / "shims"))
+    assert names == ["npm", "npx", "pip"]
