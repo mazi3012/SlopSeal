@@ -29,11 +29,28 @@ Properties 3 and 4 are the part that says "only ALLOW maps to 0". The wording "f
 | `gen_outcome_map` | An outcome (ALLOW, BLOCK, QUARANTINE) per package name | P-G-1 (4, 5) |
 | `gen_build_result` | Context build success, or one of the handled errors | P-G-1 (6) |
 
+## 2. Rate limit across layers (Phase 1)
+
+**P-G-2 (one install, one count).** For any sequence of installs, where each install is one of: a hook call then a shim call for the same package and version (both layers), a hook call alone, or a shim call alone, and where time moves forward by any amount, the number of counted attempts equals the number of counted installs predicted by this model:
+
+- Every hook call counts once (R-G-11).
+- A hook call that ALLOWs adds one credit for its install key.
+- A shim call counts once when no credit exists for its key, and consumes one credit (without counting) when a credit younger than the 60-second window exists.
+
+A pair of hook and shim calls for one install therefore counts once. The oracle is the model above, a plain counter, not the limiter's code. The sequence stays at or under the limit, so every call is ALLOW and the blocked path is tested by R-4.7.
+
+### Generators
+
+| Generator | Produces | Used by |
+|-----------|----------|---------|
+| `gen_install_events` | Sequences of up to 10 events: hook or shim call for a key from a small pool (allowed packages and one blocked package), or a time step of 0 to 90 seconds | P-G-2 |
+
 ## Mapping to requirements
 
 | Property | Requirements |
 |----------|--------------|
 | P-G-1 | R-G-1, R-G-2, R-G-3, R-G-4, R-G-5, R-G-6, R-G-7, R-G-8 |
+| P-G-2 | R-G-11, R-4.7 |
 
 ## Pass criteria
 

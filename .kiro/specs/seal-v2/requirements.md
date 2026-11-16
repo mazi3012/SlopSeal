@@ -48,6 +48,8 @@ Terms used below:
 
 **R-G-10 (untrusted metadata).** The system shall treat the text of a verdict reason as data. The hook shall write it as a JSON string value, never as prose that the agent could read as an instruction, and shall cap its length.
 
+**R-G-11 (one count per install across layers).** When the hook and the PATH shim both verify the same exact package and version, the rate limit (R-4.7) shall count that install once. The hook always counts its own attempt. When the hook allows a package, it leaves one credit for that package and version. A shim attempt for the same package and version consumes one credit and does not count again, and the shim still runs the verdict pipeline. A credit expires after the 60-second window. A shim run after that window counts as a new install. The install key is the ecosystem, the normalized name, and the exact version. The shim cannot see the hook's command ID, because the hook payload has no ID that reaches the shim. This refines R-4.7 for the one case where a single install produces two attempts. The limit of 10 per minute (`max_installs_per_minute`) is unchanged. Fail closed: an unreadable rate-limit state still blocks (R-4.7).
+
 ### Supersedes
 
 - v1 `design.md` section 11: "It does not verify packages." This no longer holds for verifiable installs.

@@ -63,7 +63,23 @@ Known limits, kept from v1: a script file or `python -c` that runs an install is
 
 ### 1.4 Rate limit
 
-Each `verify_install` call from the hook counts as an attempt (R-4.7: every attempt counts). When the PATH shim is also active, an allowed install is counted twice, once by the hook and once by the shim, so the effective limit for allowed installs is half of `max_installs_per_minute`. This is stricter than R-4.7 needs and it fails closed. Counting only in the shim would let an agent probe blocked packages through the hook without limit. The cost is recorded here so the owner can decide whether the hook should share a window with the shim in a later phase.
+Each `verify_install` call from the hook counts as an attempt (R-4.7: every attempt counts, including blocked ones). Before this change, an allowed install was also counted by the PATH shim, so one install counted twice, and the effective limit for allowed installs was half of `max_installs_per_minute`. That was a bug, and R-G-11 fixes it. The fix is one shared rate-limit record, `ratelimit.json`, in the state directory, with two lists:
+
+- `attempts`: one timestamp per counted attempt, as before.
+- `hook_allows`: per install key, one timestamp for each package the hook allowed. Each entry is a credit.
+
+The install key is `ecosystem:normalized-name==version`. Normalization uses `core/names.py`, so the hook and the shim produce the same key for the same package.
+
+| Caller | Attempt is counted? | Effect on `hook_allows` |
+|--------|---------------------|-------------------------|
+| Hook, any verdict | Yes, always | On ALLOW, adds one credit for the key |
+| Shim, no live credit for the key | Yes | None |
+| Shim, a live credit for the key (under 60 s old) | No. The shim is still verified | Consumes the oldest credit |
+| Any caller with no version (API) | Yes | None |
+
+Fail closed: the credit is written after the verdict. If the write fails, the verdict becomes BLOCK, as for any other error in `verify_install`. An ALLOW never returns without its credit saved, so a shim cannot skip a count for an install whose credit was lost.
+
+Counting only in the shim would let an agent probe blocked packages through the hook without limit, so the hook always counts. A call is not counted only when a live hook credit matches it. The shim cannot see the hook's command ID, because the hook payload has no ID that reaches the shim. The install key is used instead. A credit that expires unused (no shim run within 60 seconds) leaves the install counted once, by the hook.
 
 ### 1.5 Exit codes
 
