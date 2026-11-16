@@ -1,0 +1,120 @@
+# SlopSeal v2: Design
+
+**Source of truth for behavior:** `requirements.md` (what) and `properties.md` (what must always hold).
+**v1 design:** `.kiro/specs/seal/design.md` stays in force. This file adds to it and names each v1 statement it supersedes.
+If this file and `requirements.md` disagree, `requirements.md` wins and this file is fixed.
+
+---
+
+## 1. Phase 1: verdict-aware install hook
+
+### 1.1 Flow
+
+```
+ Kiro PreToolUse payload (stdin)
+        │
+        ▼
+ on_install.evaluate(raw)
+   read payload ─ unreadable ─────────────────────────────► exit 2   [R-G-6]
+        │
+   scan tool_input.command ── no install found ───────────► exit 0   [R-G-7]
+        │ list[Detected]
+        ▼
+ gate.decide(detected)
+   for each Detected:
+     unverifiable? ─────────────────────────────► problem            [R-G-5]
+     tool is pip / npm / npx ─ parse() ─ Install ─► (package, exact version)
+                                         other ──► problem           [R-G-5]
+        │
+   any package to verify? ─ build_context() ─ error ──► exit 2       [R-G-6]
+        │
+   verify_install(package, version) for each distinct package        [R-G-1]
+        │
+   no problem and every decision ALLOW ───────────────► exit 0       [R-G-2]
+   anything else ─────────────────────────────────────► exit 2       [R-G-3, R-G-4, R-G-5]
+```
+
+### 1.2 Modules
+
+| Module | Layer | Change |
+|--------|-------|--------|
+| `hooks/gate.py` (new) | 5 | `Detected`, `decide()`, message building. Holds the mapping from decisions to the exit code |
+| `hooks/on_install.py` | 5 | Detection now collects each install as a `Detected` instead of returning a bool. Reads the payload, runs the deadline, calls `gate.decide` |
+| `intercept/parse.py` | 5 | Unchanged. The hook reuses it |
+
+`hooks/` is layer 5, the same layer as `intercept/` and `cli`. The import rule in `structure.md` says a module imports only from layers below it. The hook breaks that rule in one place: it imports `intercept.parse`. The exception is deliberate. `parse` is pure (no I/O), and sharing it means the shim and the hook cannot disagree about what a pinned install is. This is the same reasoning as the single policy-fence function (v1 design section 7). No other layer-5 to layer-5 import is added.
+
+### 1.3 Detection and extraction
+
+The v1 detection logic stays. It splits the command into simple commands, strips wrappers (`sudo`, `env`, `VAR=val`, `nohup`, `xargs`, and others), and recurses into `bash -c` strings. What changes is the result. Each function that returned `True` now also appends a `Detected(tool, args, unverifiable)` record, where `tool` is the base name of the installing command and `args` are its arguments after wrappers were removed.
+
+Rules that keep extraction from verifying a different command than the one that runs:
+
+- Every code path that returns `True` appends at least one record. A path that cannot read the text appends a record with `unverifiable` set. The evaluation never treats "detected but no record" as ALLOW.
+- A `VAR=val` assignment, or an `env` assignment, before the install sets `unverifiable` on the record. The reason: `PIP_INDEX_URL=... pip install name==1.0.0` verifies `name` against the snapshot but installs from another index.
+- `xargs` sets `unverifiable`, because the package names arrive on stdin.
+- A `Passthrough` result from `parse` for a detected install (for example `pip install` with no package, or `pip download`) is a problem, not an ALLOW.
+- When `tool_input.command` is missing or not a string, the evaluation scans every string in the payload as in v1, and every install it finds is unverifiable (R-G-6).
+- Detection uses `shlex` over the command text. It does not run a shell. Expansion forms (`$VAR`, `$(...)`, globs) fail the strict version pattern in `parse`, so they become unverifiable.
+
+Known limits, kept from v1: a script file or `python -c` that runs an install is not inspected, and neither is `curl | sh`. A redirect such as `2>&1` after the package list leaves a stray `2` word, which `parse` rejects. The command is then refused with a fix that says to remove the redirect.
+
+### 1.4 Rate limit
+
+Each `verify_install` call from the hook counts as an attempt (R-4.7: every attempt counts). When the PATH shim is also active, an allowed install is counted twice, once by the hook and once by the shim, so the effective limit for allowed installs is half of `max_installs_per_minute`. This is stricter than R-4.7 needs and it fails closed. Counting only in the shim would let an agent probe blocked packages through the hook without limit. The cost is recorded here so the owner can decide whether the hook should share a window with the shim in a later phase.
+
+### 1.5 Exit codes
+
+The hook uses its own two exit codes, as in v1. They are not the verdict exit codes.
+
+| Hook exit | Meaning | Reached by |
+|-----------|---------|------------|
+| 0 | Run the command | No install (R-G-7), or all packages ALLOW (R-G-2) |
+| 2 | Block the command (the Kiro PreToolUse block) | Every other path |
+
+| Verdict | Verdict exit (shim, CLI) | Hook exit |
+|---------|--------------------------|-----------|
+| ALLOW | 0 | 0 |
+| BLOCK | 1 | 2 |
+| QUARANTINE | 75 | 2 |
+| Policy, key, or snapshot error | 78 or 1 | 2 |
+
+No new exit code is added.
+
+### 1.6 Output
+
+Stdout stays empty (R-G-8). On exit 2, stderr has one fixed first line, then one JSON object per problem, in the order the problems were found:
+
+```
+BLOCKED by SlopSeal: this install is not allowed. Fix the problem below, or verify the package with the slopseal MCP tool first.
+{"check": "existence", "fix": "...", "package": "csv-parser-pro", "reason": "...", "version": "0.1.0"}
+```
+
+Keys are sorted. A BLOCK carries `check`, `package`, `version`, `reason`, `fix`. A QUARANTINE carries `check` (the `mismatch_type`), `package`, `version`, `quarantine_id`, `reason`, `next_step`. An unverifiable install carries `check` (`unverifiable_install`), `reason`, `fix`. A reason is capped at 300 characters (R-G-10).
+
+Paths that fail before a command is known (unreadable payload, stalled stdin, deadline) keep the v1 `BLOCK_MESSAGE` text unchanged.
+
+On exit 0 after a verified install, stderr has one `slopseal: ALLOW name==version: reason` line per package and one `slopseal: WARN check: reason` line per warning, as the shim prints. On exit 0 with no install, stderr is empty.
+
+### 1.7 Errors and the deadline
+
+`decide` handles the errors the pipeline is known to raise: `PolicyError`, `SealKeyError`, `SnapshotIntegrityError`, and `OSError`. Each becomes exit 2 with a JSON problem. `verify_install` never raises (its own failclosed wrapper). `tech.md` forbids catching a bare `Exception` outside that wrapper, so the hook does not. An exception outside the handled set ends the process with a traceback and exit 1, and the `sh -c` wrapper in the hook config maps exit 1 to exit 2 (v1 design section 11). That mapping is the last line of defense, and R-G-9 keeps it.
+
+The hook runs `decide` in a worker thread with a 25-second deadline. The hook config's `timeout` is 30 seconds, so the deadline leaves time to write the block message. If the worker has not finished, the hook writes the v1 block message and exits 2 at once with `os._exit`, the same pattern as the stdin stall.
+
+### 1.8 Hook config
+
+The `description` in both copies of `block-agent-installs.json` changes to describe R-G-2 to R-G-5. The `command`, `matcher`, `trigger`, and `timeout` stay. The test that checks the two copies are identical stays.
+
+### 1.9 Documents out of date after Phase 1
+
+The v1 spec is frozen by the owner's instruction, and the task scopes doc edits to `docs/REFERENCE.md` and the hook description. These statements remain and are listed in the PR:
+
+- `.kiro/specs/seal/design.md` section 11 ("It does not verify packages").
+- `docs/THREAT_MODEL.md` T11 and section 6 ("The hook does not verify packages").
+- `README.md` and `docs/WRITEUP.md` where they describe the hook as non-verifying.
+- `.kiro/steering/structure.md` import-direction text (the one exception in 1.2).
+
+## 2. Phase 2 and later
+
+Not designed. Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).
