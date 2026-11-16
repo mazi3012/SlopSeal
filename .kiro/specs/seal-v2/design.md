@@ -310,7 +310,7 @@ Alternative, not chosen: a new `contract_diff` key. That would need R-Q-3 and th
 | Address-space limit | 1 GiB | proposed here |
 | `found_apis` in the payload | 200 | proposed here |
 
-`AGENTS.md` says thresholds come from the policy file. These are fixed safety ceilings of the extractor, like `MAX_BYTES` (10 MB) in `registry/live.py`, and not trust policy. A policy edit must not be able to raise them, because a higher value weakens T17. They live as named constants in `contract/limits.py`. If the owner wants them in the policy file instead, that needs a new policy section, a floor in `policy/invariants.py`, and an explicit request, because `dependency-trust.md` is a file agents may not change on their own.
+Owner ruling: these values are fixed safety ceilings of the extractor. They are resource limits, not trust thresholds. They live as named constants in `contract/limits.py`, like `MAX_BYTES` (10 MB) in `registry/live.py`. A later policy section may lower them. Policy may never raise them, and a floor in `policy/invariants.py` must enforce that when such a section is added. That section is not part of this phase, and `dependency-trust.md` is not changed. In the table, *owner* marks a value from the brief and *proposed* marks a value this design chose. The owner may change any *proposed* value before the code lands.
 
 ### 2.13 Documents this phase updates when the code lands
 
