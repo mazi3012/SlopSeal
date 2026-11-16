@@ -288,6 +288,8 @@ A present-labelled symbol that the extractor calls ABSENT (a false ABSENT) is a 
 
 P-SM-4 pins the payload to the exact R-Q-3 field set, and this phase does not change that set. The diff therefore uses existing keys: `declared_api` is the claimed symbol, `found_apis` is the real exports, and the nearest real symbol is an extra entry in `missing_evidence`, for example `["api_surface_mismatch", "nearest_real_symbol:parse_csv=>parse"]`. A name that reaches the payload has passed the name check in R-C-2, so it holds no whitespace and no control character. `found_apis` is capped at 200 sorted names, and a cut adds `found_apis_truncated`. The nearest symbol is computed over the whole set before the cap. The PRD example shows `missing_evidence` with one entry. The PRD is not edited.
 
+Owner ruling: the structured Contract Diff (the claimed symbol, the real exports, and the nearest symbol for each miss) goes into the receipt in Phase 3, which is not implemented here. The payload keys stay as above. R-Q-3 and P-SM-4 are not edited.
+
 Alternative, not chosen: a new `contract_diff` key. That would need R-Q-3 and the pinned set in `test_p_sm_quarantine.py` to change, which this phase does not do without the owner's decision.
 
 ### 2.11 The escalated retry
@@ -316,13 +318,23 @@ Owner ruling: these values are fixed safety ceilings of the extractor. They are 
 
 `docs/REFERENCE.md` "Full limitations" (live exports are available only for artifacts the extractor can complete, and UNKNOWN blocks), `docs/THREAT_MODEL.md` (T5 status, T17, T18, T23 from planned to implemented, the data-sent table for the artifact download, section 6), `CHANGELOG.md`, and `.kiro/steering/structure.md` (`contract/`). Text that says live exports are always `None` is removed.
 
-### 2.14 Questions for the owner
+### 2.14 Owner rulings and open questions
 
-1. **Typed reasons for two cases.** A registry without a usable digest has no listed reason. This spec uses `parse_error`. An offline lookup the snapshot does not cover has no listed reason either. This spec uses `network` and defines it as "the data source could not supply the data". Say if you want a sixth reason for either.
-2. **Cache key for npm.** R-C-6 asks for a SHA-256 key. npm publishes sha512 only, and a sha256 key needs the download. This spec keys by the verified registry digest, `<algorithm>-<hex>`, so PyPI is sha256 and npm is sha512.
-3. **Literal `__all__`.** R-C-2 says the export set is `__all__` when it is a literal. A real package whose `__all__` leaves out a documented name would then give a false ABSENT, which is the phase's hard stop. The alternative is the union of `__all__` and the public top-level names. The spec follows R-C-2 as written.
-4. **Contract Diff placement.** See 2.10.
-5. **Constants.** See 2.12.
+Rulings applied in this step:
+
+- **Typed reasons: seven.** `no_digest` and `not_in_snapshot` are added. A cause is never reported under another reason's label (glossary, R-C-5, P-C-2).
+- **npm cache key** is `<algorithm>-<hex>` of the registry digest. A cache entry is written only after the download is verified against that digest (R-C-6, P-C-6).
+- **Literal `__all__`** exports are the union of `__all__` and the public top-level names. A non-literal change gives UNKNOWN (`dynamic_exports`). The false-PRESENT risk is documented in R-C-2. A false PRESENT is reported. A false ABSENT stops the phase (P-C-4).
+- **Limits** are fixed safety ceilings. A future policy section may lower them and may never raise them (2.12).
+- **Payload keys** stay as they are. The structured Contract Diff goes into the receipt in Phase 3 (2.10).
+- **R-C-8, R-C-9, and P-C-4 to P-C-7** are accepted as written.
+
+Open questions. Each one can produce a false ABSENT, which stops the phase. Each needs a ruling before the extractor runs on the 50 labelled packages:
+
+1. **Module attribute writes.** R-C-2 lists writes to `globals()` and `vars()` as dynamic. It does not list writes through `sys.modules[...]`, `setattr(module, ...)`, or `module.__dict__[...]` at module level. A name bound that way is missed, and the contract reports it ABSENT. Proposal: add these writes to the dynamic list, so that they give UNKNOWN.
+2. **Members added to a `module.exports` value.** In CommonJS, `module.exports = _` followed by `_.map = map` exports `map`. This is the lodash, underscore, `ws`, and `minimatch` pattern. R-C-3 follows the one-hop name but not later member assignments, so `map` would be ABSENT. Proposal: any member write on a `module.exports` target that is not a literal `exports.x =` form makes the contract UNKNOWN (`dynamic_exports`). The spec should also state which names `module.exports = name` yields. Lodash is left out of the 50 labels for this reason.
+3. **Unnamed CommonJS export.** `module.exports = function ...` or `module.exports = new X()` has no literal name to read. R-C-3 says an unresolved export is UNKNOWN but does not name the reason. Proposal: `dynamic_exports`.
+4. **Default export.** R-C-2 and R-C-3 do not say whether `default` is a name in a contract. Proposal: `default` is never a contract name. An `export default` counts under the bare name of its declaration when it has one, and otherwise it is not an export name.
 
 ## 3. Phase 3 and later
 
