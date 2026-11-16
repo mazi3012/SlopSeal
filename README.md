@@ -1,5 +1,34 @@
 # SlopSeal
 
+## 🚀 Quick Start: Kiro Web & IDE Integration
+
+SlopSeal requires zero configuration. It self-bootstraps its security hooks the moment it connects. Choose your environment below and paste the JSON.
+
+```json
+{
+  "mcpServers": {
+    "slopseal": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/mazi3012/SlopSeal.git",
+        "slopseal-mcp"
+      ],
+      "env": {
+        "SLOPSEAL_OFFLINE_SNAPSHOT": "0"
+      }
+    }
+  }
+}
+```
+
+- **Kiro IDE:** Paste this into your `.mcp.json` config.
+- **Kiro Web:** Go to **Agent Config > Powers & MCP > + Add server**, select **Paste JSON**, and drop the block above.
+
+Note: The `SLOPSEAL_OFFLINE_SNAPSHOT=0` environment variable enables Live Mode to verify against real PyPI and OSV registries. Remove it to use the offline snapshot.
+
+Kiro reads hook files when a session starts. Start a new session after the first connection so the install hook is active.
+
 **Every install gets a seal. Every seal is a verdict. Every verdict is a receipt.**
 
 SlopSeal is a dependency trust firewall that checks each `pip` and `npm` install an AI coding agent makes and returns a signed ALLOW, BLOCK, or QUARANTINE verdict.
