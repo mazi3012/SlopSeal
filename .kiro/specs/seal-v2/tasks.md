@@ -42,7 +42,7 @@ Order of work:
 - [x] 2.1 Spec: requirements R-C-1 to R-C-9, design section 2, properties P-C-1 to P-C-7, threats T17, T18, T23 and the T5 note. **STOP for review.**
 - [ ] 2.2 Draft the labels, `docs/contract_labels.json`, and the metric definitions, `docs/CONTRACT_EVAL.md`. 25 PyPI and 25 npm packages. The labels come from each package's official docs and public API, and never from extractor output. Each package pins an exact version, the artifact file name, and the artifact digest from the registry metadata. Each absent name is a plausible hallucination an agent might write. The hard cases are included: a literal `__all__`, a module `__getattr__` (expected UNKNOWN), re-export-heavy packages, a `.d.ts`-only npm package, CommonJS, and ESM `exports` maps. The expected extraction status is recorded for each. **The extractor is not run in this step.** **STOP: the owner reviews every absent label.**
 - [ ] 2.3 Commit the labels and the metric definitions together, in their own commit, before the first extractor run. They do not change after any result is seen.
-- [ ] 2.4 Types, `UnknownReason`, `check_contract`, and the verdict wiring for UNKNOWN and digest mismatch, with tests that use fake sources [R-C-5]
+- [ ] 2.4 Types, `UnknownReason`, `check_contract`, and the verdict wiring for UNKNOWN and digest mismatch, with tests that use fake sources [R-C-5]. Includes the seven `test_reason_*` tests (properties.md, typed-reason table)
 - [ ] 2.5 Digest parsing and verification (PyPI hex, npm SRI) [R-C-1]
 - [ ] 2.6 Archive safety, limits, and the worker subprocess [R-C-4]
 - [ ] 2.7 Python export extraction [R-C-2]
@@ -51,7 +51,7 @@ Order of work:
 - [ ] 2.10 Contract Diff in the payload [R-C-7]
 - [ ] 2.11 Live wiring, the artifact download, and `test_contract_plumbing_snapshot_parity` [R-C-8]
 - [ ] 2.12 Escalated retry returns BLOCK for UNKNOWN [R-C-9]
-- [ ] 2.13 Property tests P-C-1 to P-C-7, and the mutant run for each. Record the result of every mutant
+- [ ] 2.13 Property tests P-C-1 to P-C-8, and the mutant run for each. P-C-8 covers the completeness rule (Q1 to Q5); its six mutants are listed in properties.md. Record the result of every mutant
 - [ ] 2.14 Run the extractor once against the 50 labelled packages. Report coverage, decided accuracy, and strict agreement, per ecosystem and per hard case. List every false ABSENT. **A false ABSENT stops the phase.**
 - [ ] 2.15 Docs: `docs/REFERENCE.md` "Full limitations", `docs/THREAT_MODEL.md` (T5, T17, T18, T23 from planned to implemented, the data-sent table, section 6), `CHANGELOG.md`, `.kiro/steering/structure.md`. Remove text that says live exports are always `None`
 - [ ] 2.16 Full check list. Stop and report: the diff summary per requirement, the mutant results per property, the three accuracy numbers, and the output of the checks. No push.

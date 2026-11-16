@@ -106,6 +106,42 @@ Tests for these properties build their artifacts in memory and serve them throug
 *Generators:* `gen_export_set` (empty, one, many, more than 200), `gen_claimed_symbol` (near and far from the set).
 *Mutants:* (a) the nearest symbol is taken from outside the set. (b) the tie-break is removed. (c) the distance is added to the payload. Each must fail the property.
 
+**P-C-8 (no synthetic artifact for the completeness rules gives ABSENT).** For a synthetic artifact built for each ruling below, the extraction result is never ABSENT for any probe. Where the artifact would make a probe ABSENT under a naive reading, the result is UNKNOWN with reason `dynamic_exports`. The cases are:
+
+- Q1, Python module writes: `sys.modules[__name__]` aliasing, `setattr(module, name, value)`, `globals()[name] = value`, `globals().update({...})`, `vars()[name] = value`, `module.__dict__[name] = value`, `exec(...)`, and `eval(...)`. Each as a module-level statement, and once inside a function body.
+- Q2, reassigned exports: `module.exports = someIdentifier`, `module.exports = function () {}`, and `module.exports = new Thing()`, followed by `module.exports.x = ...`. Every probe is UNKNOWN, not ABSENT.
+- Q3, unnamed exports: `module.exports = function ...` and `export = name` in a `.d.ts`. Every probe is UNKNOWN.
+- Q4, default: `export default function f() {}` and `exports.default = value`. The probe `default` is PRESENT, never ABSENT. A probe that is not exported is ABSENT only when the contract is complete.
+- Q5, helpers: `__export(exports, {...})`, `__exportStar(require("./x"), exports)`, `__reExport(...)`, `__createBinding(...)`, `Object.defineProperty(exports, "x", { get: ... })`, `Object.assign(module.exports, {...})`, and `Object.keys(src).forEach((k) => { exports[k] = src[k]; })`. Every probe is UNKNOWN.
+- Two entry points: an `import` entry that lists `a`, and a `require` entry that is unresolvable or uses an unmodelled form. `a` is PRESENT. A probe that neither complete entry lists is UNKNOWN, not ABSENT.
+
+*Generators:* `gen_q1_python_write`, `gen_q2_reassigned_exports`, `gen_q3_unnamed_export`, `gen_q4_default`, `gen_q5_helper`, `gen_two_entries`. Each draws one form from its list, places it at a random position in a file of otherwise modelled statements, and gives the expected result, which the test computes from the generator's own list, not from the extractor.
+
+*Mutants.* Each one removes one rule. Each mutant must fail P-C-8:
+
+- M-Q1: the Python reference check is skipped.
+- M-Q2: a non-literal `module.exports = x` is read as a complete empty set.
+- M-Q3: an unnamed export is read as a complete empty set, and `export = x` in a `.d.ts` is ignored.
+- M-Q4: the reserved name `default` is not added to the contract.
+- M-Q5: the bundler helper and `Object.defineProperty` checks are skipped.
+- M-DUAL: a symbol missing from one entry point is ABSENT, even when another entry point is UNKNOWN.
+
+Results of the mutant runs go in the pull request. A mutant that the property does not catch is reported, not hidden.
+
+**Typed-reason tests (one per reason; not P-properties).** Each reason in the glossary has one test in `src/tests/unit/test_contract_reasons.py`. Each test triggers the reason through the verdict path, with a real `verify_install` call and a synthetic source. It asserts the verdict is BLOCK (exit 1), the typed reason is named in the `api_surface` or `contract_digest` detail, and the result is neither ALLOW nor QUARANTINE.
+
+| Reason | Trigger | Test |
+|--------|---------|------|
+| `sdist_only` | A PyPI version whose files are only an sdist | `test_reason_sdist_only` |
+| `dynamic_exports` | A wheel with a Q1 `setattr` on the module | `test_reason_dynamic_exports` |
+| `limit` | A wheel above 50 MB compressed | `test_reason_limit` |
+| `parse_error` | A `.py` file with a syntax error | `test_reason_parse_error` |
+| `network` | A download that raises, and a redirect to a host outside the allowlist | `test_reason_network` |
+| `no_digest` | An npm version with only `shasum`, and a PyPI file with no `sha256` | `test_reason_no_digest` |
+| `not_in_snapshot` | An offline lookup for a package the snapshot does not cover | `test_reason_not_in_snapshot` |
+
+These tests need `ContractUnknown` and the verdict wiring (tasks 2.4 and 2.6 to 2.8). They are written with those tasks, not before. Until then the table is the specification of what they check.
+
 ## Mapping to requirements
 
 | Property | Requirements |
@@ -120,6 +156,7 @@ Tests for these properties build their artifacts in memory and serve them throug
 | P-C-5 | R-C-4 |
 | P-C-6 | R-C-6 |
 | P-C-7 | R-C-7 |
+| P-C-8 | R-C-2, R-C-3, R-C-5 (completeness rule, Q1 to Q5) |
 
 ## Pass criteria
 
