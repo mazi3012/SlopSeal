@@ -47,7 +47,7 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip`, `npm`, 
 |--------------|-----------------|
 | Steering | `dependency-trust.md` holds the trust policy that the code loads at run time |
 | Specs | `.kiro/specs/seal/` holds requirements (EARS), design, and the property contract |
-| Hooks | `on-install.json` blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
+| Hooks | `block-agent-installs.json` (matcher `execute_bash`) runs `scripts/hooks/on_install.py`, which blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
 | Properties | Hypothesis tests assert that unknown state always blocks. A pre-commit guard rejects a policy edit that fails them |
 
 ## Demo
@@ -117,7 +117,9 @@ In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, 
 - Transitive dependencies are not verified in v1. A package that passes can pull in dependencies that SlopSeal does not check, and their install-time code runs (THREAT_MODEL T16).
 - Live mode (`--live` or `SLOPSEAL_OFFLINE_SNAPSHOT=0`) queries PyPI, npm, and OSV over HTTPS, and treats every failure as unknown. PyPI and npm do not publish maintainer account age, so in live mode the maintainer check returns WARN, not BLOCK. Existence, typosquat, slopsquat, CVE/OSV, malware, and install-script checks stay fail-closed. Offline mode is unchanged: unknown maintainer data still blocks. It cannot read exported symbols, so intent checks block, and its top-N list comes from the offline snapshot. It is lower assurance (THREAT_MODEL T5).
 - The PATH shim is advisory. A call to the real binary by absolute path skips it.
-- The on-install hook blocks agent install commands with exit 2. It does not verify packages. The PATH shim does. The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.
+- The install hook (`block-agent-installs.json`) blocks agent install commands with exit 2. It covers pip, pip3, `python -m pip`, pipx, uv, uvx, poetry, pdm, conda, mamba, easy_install, npm, npx, pnpm, yarn, cargo, gem, and `go get`/`go install`, including after `sudo`, `env`, `VAR=val`, `bash -c`, and `&&`, `||`, `;`, `|`. It does not verify packages. The PATH shim does. It does not inspect a script file or `python -c` that runs an install, and `curl | sh` is out of scope (THREAT_MODEL T11).
+- The hook is verified on Kiro IDE 1.4.178. It uses the v1 JSON hook format, reads the stdin payload, and blocks on exit 2. It does not load on Kiro IDE 0.12.x. The minimum supported Kiro IDE version is 1.4.178.
+- The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.
 - SlopSeal does not scan package source for vulnerabilities and does not police runtime behavior after install.
 
 ## Security

@@ -10,7 +10,7 @@ inclusion: always
 .kiro/
   specs/seal/        requirements.md, design.md, properties.md   (behavior contract)
   steering/          product.md, tech.md, structure.md, dependency-trust.md, llm-backend.md, demo-fixtures.md
-  hooks/             on-install.json, on-steering-change.json
+  hooks/             block-agent-installs.json, on-steering-change.json
 src/
   slopseal/
     cli.py           command-line entry point
