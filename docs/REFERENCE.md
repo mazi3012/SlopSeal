@@ -33,7 +33,35 @@ Kiro loads hook files when a session starts. A hook registered during a running 
 
 The hook is fail closed. Its command is a `sh -c` wrapper. If the interpreter cannot run the module (exit code other than 0 or 2, such as a missing `slopseal` package), the wrapper prints `BLOCKED: SlopSeal is not installed` with an install command and exits 2. Without the wrapper, Kiro would treat that exit 1 as a pass.
 
-The hook covers pip, pip3, `python -m pip`, pipx, uv, uvx, poetry, pdm, conda, mamba, easy_install, npm, npx, pnpm, yarn, cargo, gem, and `go get`/`go install`, including after `sudo`, `env`, `VAR=val`, `bash -c`, and `&&`, `||`, `;`, `|`. It does not verify packages. The PATH shim and the MCP tool do. It does not inspect a script file or `python -c` that runs an install, and `curl | sh` is out of scope (THREAT_MODEL T11).
+The hook detects installs for pip, pip3, `python -m pip`, pipx, uv, uvx, poetry, pdm, conda, mamba, easy_install, npm, npx, pnpm, yarn, cargo, gem, and `go get`/`go install`, including after `sudo`, `env`, `VAR=val`, `bash -c`, and `&&`, `||`, `;`, `|`. It does not inspect a script file or `python -c` that runs an install, and `curl | sh` is out of scope (THREAT_MODEL T11).
+
+## Install hook decisions
+
+The hook runs the verdict pipeline for the packages a command installs (R-G-1 to R-G-8). It reads `tool_input.command` and decides as follows.
+
+| Command | Hook exit | What the agent sees on stderr |
+|---------|-----------|-------------------------------|
+| No install (`ls`, `npm run build`, `echo pip install x`) | 0 | Nothing |
+| Pinned pip or npm packages, every verdict ALLOW | 0, and the command runs | One `slopseal: ALLOW name==version` line per package, and any warnings |
+| Any package returns BLOCK | 2 | A fixed first line, then one JSON object per package with `check`, `package`, `version`, `reason`, `fix` |
+| Any package returns QUARANTINE | 2 | The same, with `check` (the mismatch type), `quarantine_id`, `reason`, `next_step` |
+| An install the hook cannot verify | 2 | One JSON object with `check: "unverifiable_install"`, the `reason`, and a `fix` |
+| Any error: unreadable payload, policy, key, or snapshot problem, unwritable state directory, no decision within 25 seconds | 2 | The block message, or a JSON object that names the failed setup check |
+
+The hook exits 0 or 2 only. The verdict exit codes (1, 75, 78) belong to the shim and the CLI. Stdout stays empty.
+
+The hook verifies `pip install name==x.y.z`, `python -m pip install name==x.y.z`, `npm install name@x.y.z`, and `npx`, `npm exec`, and `npm x` with `name@x.y.z`, with the same parser as the PATH shim. It sends no intent, so the API-surface check does not run. These installs are refused with exit 2 and a fix, because the hook cannot verify them:
+
+- An unpinned name or a version range, such as `pip install requests` or `npm install left-pad`. Unlike the shim, the hook never resolves the latest version and never rewrites the command (R-1.7 does not apply). Pin a version and run it again.
+- A URL, a local path, `-r`, or an option that changes the package source or index.
+- `pip install` or `npm install` with no package, and `pip download`.
+- A package manager other than pip, npm, and npx: uv, uvx, pipx, poetry, pdm, pipenv, conda, cargo, gem, pnpm, yarn, `go`, and easy_install.
+- An environment assignment, `export`, or `env` assignment earlier in the command, and `xargs`. Both can change which package is installed (for example `PIP_INDEX_URL=...`).
+- A command that has a stray word from a redirect such as `2>&1` after the package list. Remove the redirect.
+
+Each package the hook sends to the pipeline counts as one install attempt for the rate limit, and each verdict is written to the audit log. If the PATH shim is also active, an allowed install is counted twice, once by the hook and once by the shim. Both sides use `max_installs_per_minute`, so the effective limit for allowed installs through both is half of it.
+
+The hook does not read a package index set outside the command, such as `.npmrc`, `pip.conf`, or an earlier `npm config set registry`.
 
 ## Install with Kiro Powers
 
@@ -79,6 +107,7 @@ SLOPSEAL_OFFLINE_SNAPSHOT=0 slopseal check requests --version 2.33.0   # live re
 - Transitive dependencies are not verified in v1. A package that passes can pull in dependencies that SlopSeal does not check, and their install-time code runs (THREAT_MODEL T16).
 - Live mode (`--live` or `SLOPSEAL_OFFLINE_SNAPSHOT=0`) queries PyPI, npm, and OSV over HTTPS, and treats every failure as unknown. PyPI and npm do not publish maintainer account age, so in live mode the maintainer check returns WARN, not BLOCK. Existence, typosquat, slopsquat, CVE/OSV, malware, and install-script checks stay fail-closed. Offline mode is unchanged: unknown maintainer data still blocks. Offline mode cannot read exported symbols, so intent checks block, and its top-N list comes from the offline snapshot. It is lower assurance (THREAT_MODEL T5).
 - The PATH shim is advisory. A call to the real binary by absolute path skips it.
+- The hook runs the verdict pipeline for pinned pip and npm installs, and refuses every other install (see Install hook decisions). It does not resolve unpinned versions, so an agent must pin them.
 - The hook is verified on Kiro IDE 1.4.178. It uses the v1 JSON hook format, reads the stdin payload, and blocks on exit 2. It does not load on Kiro IDE 0.12.x. The minimum supported Kiro IDE version is 1.4.178.
 - The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.
 - The hook command is a `sh -c` wrapper, so Windows is untested.
