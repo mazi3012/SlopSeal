@@ -185,3 +185,44 @@ def _seal_ok(key: bytes, record: dict[str, Any]) -> bool:
 
 def _fail(raw: list[str], index: int, check: str) -> VerifyReport:
     return VerifyReport(False, len(raw), None, None, index, check)
+
+
+@dataclass(frozen=True)
+class LineCheck:
+    """Checks on one line, independent of the others. `verify` stops at the first failure. This
+    reports every line, so a receipt can show the state of each entry."""
+
+    seq: int | None
+    chain_ok: bool
+    seal: str  # "ok", "invalid", "not applicable" (genesis), or "unreadable"
+    problem: str | None
+
+
+def line_checks(lines: list[str], key: bytes) -> list[LineCheck]:
+    """Check every line's hash link, line hash, and seal. Read-only; never writes the log."""
+    checks: list[LineCheck] = []
+    previous_hash = GENESIS_PREV
+    for index, text in enumerate(lines):
+        try:
+            record = json.loads(text)
+        except json.JSONDecodeError:
+            checks.append(LineCheck(None, False, "unreadable", "line is not JSON"))
+            continue
+        if not isinstance(record, dict):
+            checks.append(LineCheck(None, False, "unreadable", "line is not an object"))
+            continue
+        seq = record.get("seq") if isinstance(record.get("seq"), int) else None
+        problems: list[str] = []
+        if record.get("prev_hash") != previous_hash:
+            problems.append("prev_hash does not match the previous line")
+        if _line_hash(previous_hash, record) != record.get("line_hash"):
+            problems.append("line_hash does not match the line contents")
+        if index == 0:
+            seal = "not applicable"
+        else:
+            seal = "ok" if _seal_ok(key, record) else "invalid"
+            if seal == "invalid":
+                problems.append("seal does not verify")
+        checks.append(LineCheck(seq, not problems, seal, "; ".join(problems) or None))
+        previous_hash = str(record.get("line_hash", ""))
+    return checks

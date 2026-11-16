@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Added
 
+- `slopseal audit html`: a single self-contained HTML receipt of the audit log. Each verdict shows its badge, checks, warnings, policy hash, and seal status. Light and dark mode. Stdlib only, no scripts or external requests, and all log text is escaped (R-5.7.1, R-5.7.2).
 - Live registry adapter (`slopseal.registry.live`): PyPI JSON API, npm registry, and OSV over `urllib`, with timeouts, a size cap, and explicit unknowns (R-P-3). `slopseal check --live` selects it.
 
 ### Changed
