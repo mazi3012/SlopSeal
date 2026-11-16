@@ -8,6 +8,7 @@ repository root, where Kiro runs command hooks.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import shlex
@@ -19,7 +20,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[3]
 HOOKS_DIR = REPO / ".kiro" / "hooks"
-HOOK_SCRIPT = REPO / "scripts" / "hooks" / "on_install.py"
+HOOK_MODULE = "slopseal.hooks.on_install"
 
 # Keys documented for a hook file (kiro.dev hooks reference, schema version v1).
 ALLOWED_TOP_KEYS = {"version", "hooks"}
@@ -72,6 +73,10 @@ def test_hook_file_uses_only_documented_keys_and_triggers(path: Path) -> None:
 def test_hook_command_paths_resolve_from_the_repository_root(path: Path) -> None:
     for hook in _load(path)["hooks"]:  # type: ignore[index, union-attr]
         argv = shlex.split(hook["action"]["command"])
+        if "-m" in argv:
+            module = argv[argv.index("-m") + 1]
+            assert importlib.util.find_spec(module) is not None, f"module {module} not importable"
+            continue
         script_args = [arg for arg in argv if arg.endswith((".py", ".sh"))]
         assert script_args, argv
         for arg in script_args:
@@ -104,7 +109,7 @@ def _kiro_payload(
 
 def _run_hook(stdin: str | bytes) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(HOOK_SCRIPT.relative_to(REPO))],
+        [sys.executable, "-m", HOOK_MODULE],
         input=stdin,
         capture_output=True,
         text=isinstance(stdin, str),
@@ -301,7 +306,7 @@ def test_payload_that_is_not_utf8_blocks() -> None:
 def test_stalled_stdin_blocks_within_the_timeout() -> None:
     # The writer never closes stdin. The hook must give up and block, not hang.
     process = subprocess.Popen(
-        [sys.executable, str(HOOK_SCRIPT.relative_to(REPO))],
+        [sys.executable, "-m", HOOK_MODULE],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

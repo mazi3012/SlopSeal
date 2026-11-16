@@ -51,7 +51,7 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip`, `npm`, 
 |--------------|-----------------|
 | Steering | `dependency-trust.md` holds the trust policy that the code loads at run time |
 | Specs | `.kiro/specs/seal/` holds requirements (EARS), design, and the property contract |
-| Hooks | `block-agent-installs.json` (matcher `execute_bash`) runs `scripts/hooks/on_install.py`, which blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
+| Hooks | `block-agent-installs.json` (matcher `execute_bash`) runs `python3 -m slopseal.hooks.on_install`, which blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
 | Properties | Hypothesis tests assert that unknown state always blocks. A pre-commit guard rejects a policy edit that fails them |
 
 ## Install with Kiro Powers

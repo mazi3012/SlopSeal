@@ -37,7 +37,7 @@ threshold is therefore a reviewed decision, not a side effect of an agent edit.
 
 **Hooks.** Two hooks are configured in `.kiro/hooks/`, in the Kiro v1 JSON format. The first
 is `block-agent-installs.json`, a PreToolUse hook with matcher `execute_bash`. Kiro sends the
-tool call as JSON on stdin. `scripts/hooks/on_install.py` reads `tool_input.command` and blocks
+tool call as JSON on stdin. `slopseal.hooks.on_install` reads `tool_input.command` and blocks
 any command that installs packages, using exit code 2, which Kiro documents as the block for
 this event. The check looks at command positions, so it sees installs behind `sudo`, `env`,
 `bash -c`, and `&&`, `||`, `;`, `|`. It does not scan the description. It blocks when stdin is

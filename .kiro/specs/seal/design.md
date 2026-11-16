@@ -286,7 +286,7 @@ Verification requires line 1 to be a genesis entry with `seq = 0` and the all-ze
 
 - **PATH shim** (`intercept/path_shim.py`): a small executable installed ahead of the real tool on PATH. It parses the install subcommand and package specs for pip and npm in v1, calls `verify_install` for each, and execs the real tool only if every decision is ALLOW. Unsupported subcommands pass through unchanged. For a command it cannot parse, it blocks, not passes (fail closed).
 - **API** (`intercept/api.py`): `verify_install(package, version=None, intent=None) -> Decision`. Same code path as the shim.
-- **Kiro hook** (`.kiro/hooks/block-agent-installs.json`, matcher `execute_bash`): a PreToolUse hook. `scripts/hooks/on_install.py` reads `tool_input.command` and blocks agent shell commands which install packages (exit 2). It does not verify packages. The PATH shim does.
+- **Kiro hook** (`.kiro/hooks/block-agent-installs.json`, matcher `execute_bash`): a PreToolUse hook. `slopseal.hooks.on_install` (`src/slopseal/hooks/on_install.py`) reads `tool_input.command` and blocks agent shell commands which install packages (exit 2). It does not verify packages. The PATH shim does.
 - **Recursion guard:** the shim sets `SLOPSEAL_ACTIVE=1` when it execs the real tool, so a tool that calls back into the shim does not loop.
 
 ## 12. L2 and the sub-agent question
