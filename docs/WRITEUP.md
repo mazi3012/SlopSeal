@@ -42,7 +42,7 @@ any command that installs packages, using exit code 2, which Kiro documents as t
 this event. The check looks at command positions, so it sees installs behind `sudo`, `env`,
 `bash -c`, and `&&`, `||`, `;`, `|`. It does not scan the description. It blocks when stdin is
 unreadable or does not arrive within 3 seconds. It does not verify packages. Verification
-happens in the PATH shim. The hook command is a `sh -c` wrapper that fails closed: if slopseal is missing from `python3`, it blocks with exit 2 and prints an install hint. The hook is verified on Kiro IDE 1.4.178, the minimum supported
+happens in the PATH shim. The hook command is a `sh -c` wrapper that fails closed: if slopseal is missing from `python3`, it blocks with exit 2 and prints an install hint. The MCP server registers this hook itself on start, if the file is missing (R-1.9). A user who adds only the MCP server config gets the hook in the workspace. Kiro loads it at session start, so the first session after that start is the first one the hook covers. The hook is verified on Kiro IDE 1.4.178, the minimum supported
 version. It does not load on Kiro IDE 0.12.x. The second hook runs
 `scripts/policy_checks.sh` when the policy file is saved. That trigger works in the Kiro IDE
 and CLI. It does not run in a Kiro Web session, where the git pre-commit hook and CI run the
