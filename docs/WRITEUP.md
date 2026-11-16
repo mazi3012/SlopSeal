@@ -149,3 +149,9 @@ A one-level-deep check is on the post-hackathon roadmap.
   boundary, so absolute-path calls cannot skip it.
 - Check one level of transitive dependencies, so a dependency pulled in by an allowed package is verified too (T16).
 - Let the install hook call the verdict pipeline, so a verified agent install can run. Today it blocks every install command the agent issues.
+
+## Known Limitations
+
+- **Windows is untested.** The hook command is a `sh -c` wrapper and needs a POSIX shell.
+- **The hook file is written once.** The MCP server writes `.kiro/hooks/block-agent-installs.json` only when it is missing and never rewrites it. If the interpreter path later changes (for example, a uv cache is pruned), every shell command is blocked with the not-installed message until the file is deleted.
+- **The interpreter path is machine-specific.** The generated hook names the Python that started the server. Do not commit a generated hook file from a workspace to a shared repo.
