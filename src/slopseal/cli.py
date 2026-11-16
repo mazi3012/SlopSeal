@@ -5,6 +5,8 @@ Subcommands:
   escalate <id>            approve an escalated quarantine (human step).
   abandon <id>             close an open or escalated quarantine without installing.
   audit verify             check the audit log chain and seals. Exit 0, 1, or 78.
+  audit html [--out FILE]  write the audit log as an HTML receipt. Stdout stays empty.
+                           Exit 0, 1, or 78.
   policy check [PATH]      validate the trust policy and its floors. Exit 0, 1, or 78.
   policy diff OLD NEW      list the policy fields that differ. Exit 0 or 78.
 
@@ -30,11 +32,13 @@ import os
 import sys
 from collections.abc import Sequence
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from slopseal import runtime
-from slopseal.audit.log import AuditLog
+from slopseal.audit.log import AuditLog, line_checks
+from slopseal.audit.receipt import is_verified, render_receipt
 from slopseal.audit.seal import SealKeyError, load_or_create_key
 from slopseal.core.types import CheckResult, Level
 from slopseal.fixtures.loader import SnapshotIntegrityError
@@ -249,6 +253,46 @@ def cmd_audit_verify(args: argparse.Namespace) -> int:
     return EXIT_ALLOW if report.ok else EXIT_BLOCK
 
 
+def cmd_audit_html(args: argparse.Namespace) -> int:
+    """Write the audit log as one self-contained HTML receipt page. Stdout stays empty."""
+    state_dir = runtime.state_dir()
+    log_path = Path(args.log) if args.log else state_dir / "audit.jsonl"
+    key_path = state_dir / "secret.key"
+    if not log_path.exists():
+        print(f"slopseal: audit log not found: {log_path}; no receipt written", file=sys.stderr)
+        return EXIT_POLICY
+    if not key_path.exists():
+        print("slopseal: seal key not found; cannot check seals", file=sys.stderr)
+        return EXIT_POLICY
+    try:
+        key = key_path.read_bytes()
+        lines = log_path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        print(f"slopseal: cannot read audit inputs: {exc.strerror}", file=sys.stderr)
+        return EXIT_POLICY
+    report = AuditLog(log_path, key).verify()
+    checks = line_checks(lines, key)
+    page = render_receipt(
+        lines,
+        checks,
+        report,
+        log_name=log_path.name,
+        generated=datetime.now(UTC),
+    )
+    out = Path(args.out)
+    try:
+        out.write_text(page, encoding="utf-8")
+    except OSError as exc:
+        print(f"slopseal: cannot write receipt {out}: {exc.strerror}", file=sys.stderr)
+        return EXIT_POLICY
+    verified = is_verified(report, checks)
+    print(
+        f"slopseal: wrote receipt {out} ({'verified' if verified else 'verification FAILED'})",
+        file=sys.stderr,
+    )
+    return EXIT_ALLOW if verified else EXIT_BLOCK
+
+
 def cmd_policy_check(args: argparse.Namespace) -> int:
     path = args.path or str(runtime.policy_path())
     try:
@@ -325,6 +369,12 @@ def build_parser() -> argparse.ArgumentParser:
     verify = audit_sub.add_parser("verify", help="verify the hash chain and seals")
     verify.add_argument("--log", default=None)
     verify.set_defaults(handler=cmd_audit_verify)
+    html_cmd = audit_sub.add_parser(
+        "html", help="write the audit log as a single self-contained HTML receipt"
+    )
+    html_cmd.add_argument("--log", default=None)
+    html_cmd.add_argument("--out", default="slopseal-receipt.html")
+    html_cmd.set_defaults(handler=cmd_audit_html)
 
     policy = sub.add_parser("policy", help="trust policy commands")
     policy_sub = policy.add_subparsers(dest="policy_command", required=True)
