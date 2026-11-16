@@ -159,7 +159,8 @@
       ],
       "absent_review": "pending_owner",
       "source_urls": [
-        "https://www.python-httpx.org/api/"
+        "https://www.python-httpx.org/api/",
+        "https://www.python-httpx.org/exceptions/"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
       "notes": "Predicted: literal __all__ plus re-exports from submodules."
@@ -320,7 +321,9 @@
       ],
       "absent_review": "pending_owner",
       "source_urls": [
-        "https://typer.tiangolo.com/tutorial/"
+        "https://typer.tiangolo.com/tutorial/",
+        "https://typer.tiangolo.com/tutorial/printing/",
+        "https://typer.tiangolo.com/tutorial/options/"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
       "notes": ""
@@ -779,8 +782,7 @@
       "present": [
         "encode",
         "decode",
-        "IDNAError",
-        "intranges_contain"
+        "IDNAError"
       ],
       "absent": [
         "to_ascii",
@@ -791,7 +793,7 @@
         "https://github.com/kjd/idna#readme"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
-      "notes": "Predicted: one-hop star import from core (no second hop)."
+      "notes": "Predicted: one-hop star import from core (no second hop). Dropped probe 'intranges_contain' in the docs check: no cited page names it."
     },
     {
       "id": "npm:semver",
@@ -1498,8 +1500,7 @@
       "expected_reason": null,
       "hard_case": "commonjs",
       "present": [
-        "parse",
-        "serialize"
+        "parse"
       ],
       "absent": [
         "stringify",
@@ -1510,7 +1511,7 @@
         "https://github.com/jshttp/cookie#readme"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
-      "notes": "CommonJS exports.x = form."
+      "notes": "CommonJS exports.x = form. Dropped probe 'serialize' in the docs check: no cited page names it."
     }
   ]
 }
