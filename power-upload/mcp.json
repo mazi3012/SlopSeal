@@ -4,7 +4,7 @@
     "slopseal": {
       "type": "stdio",
       "command": "uvx",
-      "args": ["--from", ".", "slopseal-mcp"],
+      "args": ["--from", "git+https://github.com/mazi3012/SlopSeal.git", "slopseal-mcp"],
       "env": {
         "SLOPSEAL_OFFLINE_SNAPSHOT": "1",
         "SLOPSEAL_SNAPSHOT_DIR": "src/slopseal/fixtures",
