@@ -1166,7 +1166,7 @@
         "https://immerjs.github.io/immer/api"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
-      "notes": "Predicted: the CommonJS build uses an esbuild helper that defines exports from a getter object. That helper is not in the spec's rules. The true answers are PRESENT. An ABSENT answer here is a false ABSENT."
+      "notes": "Q5: the CommonJS build uses an esbuild helper that defines exports from a getter object. Q5 gives UNKNOWN (dynamic_exports). The true answers are PRESENT. An ABSENT answer here is a false ABSENT."
     },
     {
       "id": "npm:query-string",
@@ -1512,6 +1512,35 @@
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
       "notes": "CommonJS exports.x = form. Dropped probe 'serialize' in the docs check: no cited page names it."
+    },
+    {
+      "id": "npm:lodash",
+      "ecosystem": "npm",
+      "name": "lodash",
+      "version": "4.17.21",
+      "artifact": {
+        "url": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg=="
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "cjs_reassigned_exports",
+      "present": [
+        "map",
+        "chunk",
+        "debounce"
+      ],
+      "absent": [
+        "mapAsync",
+        "chunkBy"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://lodash.com/docs/4.17.15"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Q2: the main file assigns (freeModule.exports = _) and then adds members to _. The reassignment makes the result UNKNOWN. The true answers are PRESENT for the documented methods. An ABSENT answer here is a false ABSENT."
     }
   ]
 }

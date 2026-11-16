@@ -2,12 +2,12 @@
 
 Status: labels frozen before the first extractor run (R-C-5, P-C-2, P-C-4). The extractor has not been run on these labels. Changing a label or a definition after a result is seen is not allowed. A label found wrong after a run is reported as a label error in its own commit, and both sets of numbers are shown.
 
-Labels file: `docs/contract_labels.json`. SHA-256 of that file: `c729f8bb3a9dceaa06e3c50017359c71a64fabd28acdfaec9081294fc8f6207e`.
+Labels file: `docs/contract_labels.json`. SHA-256 of that file: `60ce54d136cc81a5e91b7843823aa49ed557d79e55fbe473ae88ca90451afa5f`.
 
 ## What is labelled
 
-- 50 packages: 25 PyPI and 25 npm. Each package is pinned to one exact version and one artifact. For PyPI the artifact is the wheel the R-C-2 rule chooses (a `none-any` wheel when one exists, otherwise the first wheel in ascending filename order), with its SHA-256 from the registry. For npm the artifact is the tarball, with the `sha512` integrity from the registry. npm `shasum` (sha1) is recorded in the registry metadata and is not used.
-- 254 probes: 156 names labelled PRESENT and 98 names labelled ABSENT. A probe is one name in the form the contract emits: a bare top-level name, or `<module>.<name>` (PyPI module path, npm import specifier). A few probes use the qualified form.
+- 51 packages: 25 PyPI and 26 npm. Each package is pinned to one exact version and one artifact. For PyPI the artifact is the wheel the R-C-2 rule chooses (a `none-any` wheel when one exists, otherwise the first wheel in ascending filename order), with its SHA-256 from the registry. For npm the artifact is the tarball, with the `sha512` integrity from the registry. npm `shasum` (sha1) is recorded in the registry metadata and is not used.
+- 259 probes: 159 names labelled PRESENT and 100 names labelled ABSENT. A probe is one name in the form the contract emits: a bare top-level name, or `<module>.<name>` (PyPI module path, npm import specifier). A few probes use the qualified form.
 - Each package has an expected status: `complete`, or `unknown` with an expected typed reason.
 - Every label cites at least one official documentation or public API URL. Labels are drafted from documentation and public API, never from extractor output.
 - Absent names are plausible hallucinations an agent might write. They are reviewed by the owner before the run (absent_review = pending_owner until then).
@@ -23,9 +23,10 @@ The labels cover the hard cases the spec names. A `hard_case` field records whic
 - CommonJS (`module.exports` literal, `exports.x =`, chained, and TypeScript-compiled forms): npm:commander, npm:cookie, npm:dotenv, npm:ini, npm:js-yaml, npm:jsonwebtoken, npm:lru-cache, npm:mime-types, npm:qs, npm:semver, npm:xml2js
 - A UMD wrapper (tslib): npm:tslib
 - ESM exports maps: npm:colorette, npm:marked, npm:nanoid, npm:node-fetch, npm:query-string, npm:uuid
-- An esbuild CommonJS export helper (expected UNKNOWN, see the open question on this pattern in `.kiro/specs/seal-v2/design.md`): npm:immer
+- Reassigned `module.exports` (Q2, expected UNKNOWN): npm:lodash
+- An esbuild CommonJS export helper (Q5, expected UNKNOWN): npm:immer
 
-Expected UNKNOWN packages: pypi:pydantic, pypi:numpy, pypi:pyyaml, npm:zod, npm:immer.
+Expected UNKNOWN packages: pypi:pydantic, pypi:numpy, pypi:pyyaml, npm:zod, npm:immer, npm:lodash.
 
 Not covered by these labels: the `sdist_only`, `limit`, `network`, `no_digest`, and `not_in_snapshot` reasons. The parity test, the property tests (P-C-1 to P-C-7), and the fixtures test those. A 50-package label set cannot exercise them.
 
@@ -33,9 +34,9 @@ Not covered by these labels: the `sdist_only`, `limit`, `network`, `no_digest`, 
 
 Notation. A probe `p` is one (package, name) pair. `L(p)` is its label, PRESENT or ABSENT. `A(p)` is the extractor's answer: PRESENT or ABSENT when the package contract is complete, and UNKNOWN with its typed reason when it is not. A probe is *decided* when `A(p)` is PRESENT or ABSENT. A package is *decided* when its contract is complete.
 
-1. **Coverage (a).** The number of decided packages, divided by 50. Probe coverage (decided probes divided by 254) is also reported, for information.
+1. **Coverage (a).** The number of decided packages, divided by 51. Probe coverage (decided probes divided by 259) is also reported, for information.
 2. **Decided accuracy (b).** Among decided probes, the share with `A(p) = L(p)`. Target: at least 95%.
-3. **Strict agreement (c).** Over all 254 probes, the share with `A(p) = L(p)`. An UNKNOWN answer always counts as a miss. This is the number that a deployment should not read as more than it is.
+3. **Strict agreement (c).** Over all 259 probes, the share with `A(p) = L(p)`. An UNKNOWN answer always counts as a miss. This is the number that a deployment should not read as more than it is.
 4. **False ABSENT (hard stop).** A probe with `L(p) = PRESENT` and `A(p) = ABSENT`. Any count above 0 stops the phase. This is counted over every probe, including those of expected-UNKNOWN packages.
 5. **Wrong PRESENT (reported, not a stop).** A probe with `L(p) = ABSENT` and `A(p) = PRESENT`. It is reported with its count, and it does not stop the phase.
 6. **Expected-UNKNOWN agreement (reported).** For each package whose expected status is `unknown`, whether the extractor returns UNKNOWN with the expected typed reason. A package that returns a complete contract is a deviation. It is listed by name. Its probes are still counted in 2 to 5.
