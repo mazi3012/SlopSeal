@@ -202,6 +202,8 @@ class UnknownReason(Enum):
     LIMIT = "limit"
     PARSE_ERROR = "parse_error"
     NETWORK = "network"
+    NO_DIGEST = "no_digest"
+    NOT_IN_SNAPSHOT = "not_in_snapshot"
 
 @dataclass(frozen=True)
 class ContractComplete:   exports: tuple[str, ...]          # sorted, unique, both name forms
@@ -222,7 +224,7 @@ Existing tests: no test double implements `exports()`, and every existing intent
 ### 2.4 Artifact choice and digest
 
 - **PyPI.** The version endpoint `/pypi/<name>/<version>/json` is already fetched for the install-script check. Its `urls[]` lists the files, each with `filename`, `url`, and `digests`. The system picks a wheel (R-C-2) and reads `digests.sha256`.
-- **npm.** The packument entry `versions[<version>].dist` has `tarball`, `integrity`, and `shasum`. The system reads `integrity` only. A `shasum` without `integrity` is UNKNOWN (`parse_error`). SRI strings are `<algorithm>-<base64>`, space separated. The system picks the strongest of sha512, sha384, sha256 and decodes the base64 value.
+- **npm.** The packument entry `versions[<version>].dist` has `tarball`, `integrity`, and `shasum`. The system reads `integrity` only. A `shasum` without `integrity` is UNKNOWN (`no_digest`). SRI strings are `<algorithm>-<base64>`, space separated. The system picks the strongest of sha512, sha384, sha256 and decodes the base64 value.
 - The comparison uses `hmac.compare_digest`. The download is hashed while it is written, then compared, then opened. A digest is checked before any parsing.
 - The digest string comes from the registry, so it is untrusted until it has passed the format check in R-C-6. It is never used in a path before that.
 
