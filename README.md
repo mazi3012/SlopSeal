@@ -47,7 +47,7 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip` and `npm
 |--------------|-----------------|
 | Steering | `dependency-trust.md` holds the trust policy that the code loads at run time |
 | Specs | `.kiro/specs/seal/` holds requirements (EARS), design, and the property contract |
-| Hooks | `on-install.json` asks the user to confirm install commands. `on-steering-change.json` runs the property suite on policy edits |
+| Hooks | `on-install.json` blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
 | Properties | Hypothesis tests assert that unknown state always blocks. A pre-commit guard rejects a policy edit that fails them |
 
 ## Demo
@@ -112,7 +112,7 @@ In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, 
 - The intent check confirms that a declared API exists in the package's exports. It does not confirm that the package fits the purpose. The semantic layer that would address purpose is not in v1.
 - Measured on the 23-package fixture corpus, 9 of 10 attack packages were blocked, and 1 of 13 legitimate packages was flagged. The details are in `docs/L1_THRESHOLD_REVIEW.md`.
 - The PATH shim is advisory. A call to the real binary by absolute path skips it.
-- The on-install hook asks the user to confirm install commands. It does not verify them.
+- The on-install hook blocks agent install commands with exit 2. It does not verify packages. The PATH shim does. The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.
 - SlopSeal does not scan package source for vulnerabilities and does not police runtime behavior after install.
 
 ## Security

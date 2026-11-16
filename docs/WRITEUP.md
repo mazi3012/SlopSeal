@@ -35,11 +35,13 @@ how to work in it. One rule matters most here: the agent may tighten a policy va
 cannot loosen a value past a floor set in code (`src/slopseal/policy/invariants.py`). Changing a
 threshold is therefore a reviewed decision, not a side effect of an agent edit.
 
-**Hooks.** Two hooks are configured in `.kiro/hooks/`. The first is a pre-tool hook that
-reads each shell command and asks the user to confirm any command that installs packages. It
-does not verify the install. Verification happens in the PATH shim, and the hook is a
-safety net in front of it. The second hook runs `scripts/policy_checks.sh` whenever the
-policy file is saved. A policy edit that breaks a property is rejected.
+**Hooks.** Two hooks are configured in `.kiro/hooks/`, in the Kiro v1 JSON format. The first
+is a PreToolUse hook on the agent's shell tool. It blocks any shell command that installs
+packages, using exit code 2, which Kiro documents as the block for this event. It does not
+verify packages. Verification happens in the PATH shim. The second hook runs
+`scripts/policy_checks.sh` when the policy file is saved. That trigger works in the Kiro IDE
+and CLI. It does not run in a Kiro Web session, where the git pre-commit hook and CI run the
+same check. A policy edit that breaks a property is rejected.
 
 **Property-based tests.** The test suite uses Hypothesis. There are 114 `@given` properties
 across 18 files, and each runs 500 generated examples in CI. The properties assert things such
@@ -129,4 +131,4 @@ comparison. It sits in an optional `needle` extra, so the default install adds n
   would not count.
 - Replace the deterministic advisory-only shim with a check at the lockfile or the registry
   boundary, so absolute-path calls cannot skip it.
-- Fix the on-install hook so it calls the verdict pipeline instead of asking.
+- Let the install hook call the verdict pipeline, so a verified agent install can run. Today it blocks every install command the agent issues.

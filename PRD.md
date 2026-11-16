@@ -187,7 +187,7 @@ If no intent is supplied, steps 3 and 4 are skipped. The verdict is ALLOW when n
 | `.kiro/specs/seal/requirements.md` | Requirements | EARS requirements for install verification |
 | `.kiro/specs/seal/design.md` | Seal design | Verdict resolution, quarantine state machine, and the sub-agent path if Open Decision 1 allows it |
 | `.kiro/specs/seal/properties.md` | PBT formal contract | Fail-closed invariant and generator strategy |
-| `.kiro/hooks/on-install.json` | Install trigger | Runs the SlopSeal check on install commands. Intended mechanism: a PreToolUse hook matching shell commands for pip and npm. The exact matcher is confirmed during implementation. |
+| `.kiro/hooks/on-install.json` | Install trigger | A PreToolUse hook on the shell tool (matcher `^(execute_bash\|execute_pwsh)$`). Blocks agent install commands with exit 2, the block Kiro documents. Verification is in the PATH shim. |
 | `.kiro/hooks/on-steering-change.json` | Policy-change reporter | Runs the unit and property suite when trust policy changes. The git pre-commit hook rejects a failing edit. |
 | `.kiro/steering/product.md` | Product context | Product summary and non-negotiables that agents read |
 | `.kiro/steering/tech.md` | Tech and conventions | Stack, commands, dependency rules, commit conventions |
