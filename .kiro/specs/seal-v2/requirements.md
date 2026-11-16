@@ -40,7 +40,7 @@ Terms used below:
 
 **R-G-6 (fail closed).** If the hook cannot reach a decision, the system shall exit 2. That includes: an unreadable payload, a payload that does not close within the stdin timeout, a command that cannot be parsed, a policy, seal key, or snapshot error, an audit log that cannot be written, and a decision that does not finish within the hook deadline. When `tool_input.command` is missing or not a string, the system shall exit 2 for any install found in the payload, because it cannot know what will run.
 
-**R-G-7 (non-install).** When the command contains no install, the system shall exit 0, shall call no verdict, shall write nothing to the audit log, and shall write nothing to stdout or stderr. This is the v1 behavior and it is unchanged.
+**R-G-7 (non-install).** When the command contains no install, the system shall exit 0, shall call no verdict, shall write nothing to the audit log, and shall write nothing to stdout or stderr. This is the v1 behavior and it is unchanged. A setup failure on a non-install command does not change the exit code, because the hook does not load the pipeline for it. When the command contains an install and the pipeline cannot load or build, the system shall exit 2 (P-G-3).
 
 **R-G-8 (exit codes and streams).** The hook shall exit with 0 or 2 only. Exit 0 is reached only through R-G-2 or R-G-7. The hook shall write nothing to stdout.
 

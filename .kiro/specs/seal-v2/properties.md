@@ -40,6 +40,17 @@ Property 4 is the part that says "only ALLOW maps to 0". The rule for a command 
 | `gen_outcome_map` | An outcome (ALLOW, BLOCK, QUARANTINE) per package name | P-G-1 (4, 5) |
 | `gen_setup_failure` | One failure from the set above, injected at its point in the hook | P-G-1 (1, 3, 4, 6, 7) |
 
+**P-G-3 (a broken pipeline never allows an install).** For any command that contains an install, pinned or unpinned, and any failure that stops the pipeline from loading or running a verdict, the exit code is 2 and stdout is empty. The failures are: the gate module cannot be imported, the context build raises (policy, seal key, snapshot, or OS error), the decision raises, or a verdict call raises. No line reading `slopseal: ALLOW` is written to stderr. A command with no install is outside this property, because it never loads the pipeline (R-G-7).
+
+This is the broken-install case that R-G-7 keeps visible. Blocking every command on a broken install would stop the agent from running `ls` or tests, so only commands that contain an install are blocked.
+
+### Generators
+
+| Generator | Produces | Used by |
+|-----------|----------|---------|
+| `gen_install_command` | One or more installs, pinned or unpinned, for pip and npm, with wrappers and joiners | P-G-3 |
+| `gen_pipeline_failure` | One failure from the set above, injected at its point in the hook | P-G-3 |
+
 ## 2. Rate limit across layers (Phase 1)
 
 **P-G-2 (one install, one count).** For any sequence of installs, where each install is one of: a hook call then a shim call for the same package and version (both layers), a hook call alone, or a shim call alone, and where time moves forward by any amount, the number of counted attempts equals the number of counted installs predicted by this model:
@@ -62,6 +73,7 @@ A pair of hook and shim calls for one install therefore counts once. The oracle 
 |----------|--------------|
 | P-G-1 | R-G-1, R-G-2, R-G-3, R-G-4, R-G-5, R-G-6, R-G-7, R-G-8 |
 | P-G-2 | R-G-11, R-4.7 |
+| P-G-3 | R-G-6, R-G-7 |
 
 ## Pass criteria
 
