@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Changed
 
+- Live mode: a missing maintainer account age is a WARN, not a BLOCK (R-2.10). Existence, typosquat, slopsquat, CVE/OSV, malware, and install-script checks stay fail-closed. Offline behavior is unchanged. Audit verdicts include `warning_details`.
 - Offline is the default. Only `SLOPSEAL_OFFLINE_SNAPSHOT=0` selects live mode. Before, an unset variable selected a live source that blocked every check.
 - `npx`, `npm exec`, and `npm x` are verified like installs. Their package must be pinned (R-1.6).
 - Install hook blocks agent install commands with exit 2 (R-1.1). The documented Kiro block replaces an unsupported ask.

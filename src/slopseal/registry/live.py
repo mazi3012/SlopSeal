@@ -37,7 +37,7 @@ from slopseal.core.advisory import (
 )
 from slopseal.core.install_scripts import InstallScript, ScriptInventory, ScriptsUnknown
 from slopseal.core.license import LicenseInput, LicenseUnknown
-from slopseal.core.maintainer import MaintainerInput, MaintainersUnknown
+from slopseal.core.maintainer import MaintainerInput, MaintainersNotPublished
 from slopseal.core.types import (
     Ecosystem,
     RegistryMissing,
@@ -310,9 +310,9 @@ class LiveSource:
         return LicenseUnknown(f"license lookup is not supported for {eco.value}")
 
     def maintainers(self, eco: Ecosystem, name: str) -> MaintainerInput:
-        # The public registries do not publish maintainer account ages. The maintainer check
-        # therefore blocks in live mode. That is the fail-closed result, not a lookup failure.
-        return MaintainersUnknown("the public registry does not report maintainer account age")
+        # The public registries do not publish maintainer account ages. This is reported as
+        # "not published" (WARN), not as unknown data (BLOCK). No lookup is attempted.
+        return MaintainersNotPublished("the public registry does not report maintainer account age")
 
     # ---- lists -------------------------------------------------------------------------
 

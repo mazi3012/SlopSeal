@@ -25,7 +25,7 @@ from slopseal.audit.seal import load_or_create_key
 from slopseal.core.advisory import Advisories, AdvisoryUnknown, Severity
 from slopseal.core.install_scripts import InstallScript, ScriptsUnknown
 from slopseal.core.license import LicenseUnknown
-from slopseal.core.maintainer import MaintainersUnknown
+from slopseal.core.maintainer import MaintainersNotPublished
 from slopseal.core.types import Ecosystem, RegistryMissing, RegistryRecord, RegistryUnknown
 from slopseal.policy.loader import load_policy
 from slopseal.quarantine.state_machine import QuarantineStore
@@ -347,10 +347,12 @@ def test_pypi_license_from_field_or_classifier(fake: tuple[Fake, str]) -> None:
     assert source.license(Ecosystem.PYPI, "d") is None
 
 
-def test_maintainer_age_is_never_reported_so_the_check_is_unknown(fake: tuple[Fake, str]) -> None:
+def test_maintainer_age_is_reported_as_not_published_not_as_unknown(
+    fake: tuple[Fake, str],
+) -> None:
     _, base = fake
     result = _source(base).maintainers(Ecosystem.NPM, "lodash")
-    assert isinstance(result, MaintainersUnknown)
+    assert isinstance(result, MaintainersNotPublished)
 
 
 # ---- the verdict in live mode --------------------------------------------------------------
@@ -380,23 +382,3 @@ def test_live_slopsquat_name_blocks_at_the_existence_check(
     assert decision.outcome is Outcome.BLOCK
     assert decision.violation is not None
     assert decision.violation.check == "existence"
-
-
-def test_live_package_is_blocked_by_the_maintainer_check_in_v1(
-    fake: tuple[Fake, str], tmp_path: Path
-) -> None:
-    """Documented result: the registries do not publish maintainer account age, so live mode
-    blocks a package that passes every other check. This test pins that behavior."""
-    state, base = fake
-    state.routes["/pypi/requests/json"] = Route(body=_json_body(PYPI_REQUESTS))
-    state.routes["/pypi/requests/2.32.3/json"] = Route(
-        body=_json_body({"urls": PYPI_REQUESTS["releases"]["2.32.3"]})
-    )
-    state.routes["/osv"] = Route(body=_json_body({}))
-    decision = verify_install(
-        InstallRequest(Ecosystem.PYPI, "requests", "2.32.3"),
-        _context(tmp_path, _source(base, top_n={Ecosystem.PYPI: ("requests",)})),
-    )
-    assert decision.outcome is Outcome.BLOCK
-    assert decision.violation is not None
-    assert decision.violation.check == "maintainer"

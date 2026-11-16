@@ -42,7 +42,7 @@
 
 **R-2.9 (license).** When a package's license violates the license policy, the system shall return WARN or BLOCK as set by policy.
 
-**R-2.10 (maintainer).** When a package's maintainer reputation falls below the policy threshold, the system shall return WARN or BLOCK as set by policy.
+**R-2.10 (maintainer).** When a package's maintainer reputation falls below the policy threshold, the system shall return WARN or BLOCK as set by policy. When live mode reports that the registry does not publish maintainer account age, the system shall return WARN and attach the reason to the verdict and the audit entry. Unknown maintainer data from any other source shall BLOCK.
 
 **R-2.11 (near name).** When a package is within Levenshtein distance 3, Jaro-Winkler ≥ 0.92, or keyboard distance 1 of a top-N package, the system shall attach a WARN with check `near_name`, regardless of package age.
 

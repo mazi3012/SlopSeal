@@ -90,3 +90,18 @@ def test_r_2_10_invalid_configuration_is_rejected() -> None:
         check_maintainer(Maintainers(1, 1.0), min_account_age_days=-1, level=Level.WARN)
     with pytest.raises(ValueError, match="WARN or BLOCK"):
         check_maintainer(Maintainers(1, 1.0), min_account_age_days=MIN_AGE, level=Level.PASS)
+
+
+@given(reason=st.text(min_size=1, max_size=40), level=levels)
+def test_r_2_10_not_published_is_warn_and_unknown_still_blocks(reason: str, level: Level) -> None:
+    """Live mode reports 'not published' as WARN at any policy level. Unknown data still blocks."""
+    from slopseal.core.maintainer import MaintainersNotPublished
+
+    warned = check_maintainer(
+        MaintainersNotPublished(reason), min_account_age_days=MIN_AGE, level=level
+    )
+    assert warned.level is Level.WARN
+    blocked = check_maintainer(
+        MaintainersUnknown(reason), min_account_age_days=MIN_AGE, level=level
+    )
+    assert blocked.level is Level.BLOCK

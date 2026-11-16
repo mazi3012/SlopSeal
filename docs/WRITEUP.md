@@ -133,7 +133,7 @@ A one-level-deep check is on the post-hackathon roadmap.
 
 ## Live mode
 
-`--live` queries PyPI, npm, and OSV with the standard library. Every failed, malformed, or partial response becomes an explicit unknown, and unknown blocks. The public registries do not publish maintainer account age, so live mode blocks every package at the maintainer check. I chose to keep that block rather than weaken the check. Live mode is lower assurance than the offline snapshot, and `docs/THREAT_MODEL.md` T5 says so.
+`--live` queries PyPI, npm, and OSV with the standard library. Every failed, malformed, or partial response becomes an explicit unknown, and unknown blocks. The public registries do not publish maintainer account age. In live mode only, that is reported as WARN, not BLOCK, so a popular package such as `requests` 2.33.0 is allowed with a warning. Existence, typosquat, slopsquat, CVE/OSV, malware, and install-script checks stay fail-closed, and offline mode still blocks unknown maintainer data. Live mode is lower assurance than the offline snapshot, and `docs/THREAT_MODEL.md` T5 says so.
 
 ## What I would do next
 
