@@ -8,7 +8,7 @@ Built for Kiroween 2026, Frankenstein category. License: MIT.
 
 Product requirements: [PRD.md](PRD.md). Kiro write-up: [docs/WRITEUP.md](docs/WRITEUP.md). Demo runbook: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 
-> **Status:** v1 is feature-complete for the deterministic path. The deterministic checks, the PATH shim, the quarantine state machine, the rate limit, the signed audit log, and the CLI are built and tested. The semantic layer (L2) tested against Needle 3 and failed its pre-registered gate, so it is not in v1. Live registry access is not built, so live mode blocks every check. Use the offline snapshot. Nothing here is ready for production use.
+> **Status:** v1 is feature-complete for the deterministic path. The deterministic checks, the PATH shim, the quarantine state machine, the rate limit, the signed audit log, and the CLI are built and tested. The semantic layer (L2) tested against Needle 3 and failed its pre-registered gate, so it is not in v1. Live mode queries PyPI, npm, and OSV, but it blocks every package at the maintainer check, because the registries do not publish maintainer account age. Use the offline snapshot for demos. Nothing here is ready for production use.
 
 ## The problem
 
@@ -28,7 +28,7 @@ For each install, `verify_install(package, version, intent?)` runs in order:
 4. **Intent check.** If the agent declares the API it expects, SlopSeal compares it with the package's real exports. A mismatch returns QUARANTINE with one bounded retry, then escalation to a person.
 5. **Seal.** The decision goes to an append-only, hash-chained audit log with an HMAC-SHA256 seal on each line.
 
-SlopSeal never uses the calling agent's LLM. The verdict depends only on the policy and the signed offline snapshot.
+SlopSeal never uses the calling agent's LLM. In offline mode (the default), the verdict depends only on the policy and the checksummed snapshot. Live mode also depends on the registries' responses.
 
 | Exit code | Meaning |
 |-----------|---------|
@@ -47,12 +47,12 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip` and `npm
 |--------------|-----------------|
 | Steering | `dependency-trust.md` holds the trust policy that the code loads at run time |
 | Specs | `.kiro/specs/seal/` holds requirements (EARS), design, and the property contract |
-| Hooks | `on-install.json` asks the user to confirm install commands. `on-steering-change.json` runs the property suite on policy edits |
+| Hooks | `on-install.json` blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
 | Properties | Hypothesis tests assert that unknown state always blocks. A pre-commit guard rejects a policy edit that fails them |
 
 ## Demo
 
-The demo runs the deterministic path against the signed offline snapshot in a temporary state directory. It needs Python 3.11 or newer.
+The demo runs the deterministic path against the checksummed offline snapshot in a temporary state directory. It needs Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/mazi3012/SlopSeal.git
@@ -74,6 +74,7 @@ SLOPSEAL_OFFLINE_SNAPSHOT=1 slopseal check tinyfmt-kit --version 0.4.0        # 
 slopseal audit verify
 slopseal policy check
 slopseal policy diff .kiro/steering/dependency-trust.md .kiro/steering/dependency-trust.md
+SLOPSEAL_OFFLINE_SNAPSHOT=0 slopseal check requests --version 2.33.0   # live registries; see Limitations
 ```
 
 ## Repository map
@@ -105,14 +106,16 @@ Contributors and agents: read `CONTRIBUTING.md` and `AGENTS.md` first.
 
 ## Post-Hackathon Roadmap
 
-In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. Post-hackathon roadmap: replay (R-5.7.3), live registry proxy, SARIF output, local dashboard, MCP server, Windows support, other package managers (yarn, pnpm, cargo, gem, go get), and a semantic layer if a new pre-registered experiment passes.
+In v1: pip and npm checks, PATH shim, `verify_install`, quarantine, rate limit, audit log with signed seals, policy diff, offline snapshot. Post-hackathon roadmap: a one-level-deep check of transitive dependencies (T16), replay (R-5.7.3), live registry proxy, SARIF output, local dashboard, MCP server, Windows support, other package managers (yarn, pnpm, cargo, gem, go get), and a semantic layer if a new pre-registered experiment passes.
 
 ## Limitations
 
 - The intent check confirms that a declared API exists in the package's exports. It does not confirm that the package fits the purpose. The semantic layer that would address purpose is not in v1.
 - Measured on the 23-package fixture corpus, 9 of 10 attack packages were blocked, and 1 of 13 legitimate packages was flagged. The details are in `docs/L1_THRESHOLD_REVIEW.md`.
+- Transitive dependencies are not verified in v1. A package that passes can pull in dependencies that SlopSeal does not check, and their install-time code runs (THREAT_MODEL T16).
+- Live mode (`--live` or `SLOPSEAL_OFFLINE_SNAPSHOT=0`) queries PyPI, npm, and OSV over HTTPS, and treats every failure as unknown. It blocks every package at the maintainer check, because the registries do not publish maintainer account age. It cannot read exported symbols, so intent checks block, and its top-N list comes from the offline snapshot. It is lower assurance (THREAT_MODEL T5).
 - The PATH shim is advisory. A call to the real binary by absolute path skips it.
-- The on-install hook asks the user to confirm install commands. It does not verify them.
+- The on-install hook blocks agent install commands with exit 2. It does not verify packages. The PATH shim does. The policy-save hook runs in Kiro IDE and CLI sessions, not Kiro Web.
 - SlopSeal does not scan package source for vulnerabilities and does not police runtime behavior after install.
 
 ## Security

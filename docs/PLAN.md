@@ -12,7 +12,7 @@ The **Completed** column gives the UTC merge date of the pull request that finis
 | 2 | Nov 16 | 0 | `design.md` | Design reviewed against PRD | Nov 15, 2026 (PR #1) |
 | 3 | Nov 17 | 0 | `properties.md` final, spec review against PRD | Phase 0 exit criterion met | Nov 15, 2026 (PR #1) |
 | 4 | Nov 18 | 1 | Fixture corpus: 20 packages (5 of each class). Top-N snapshot dated Nov 18. | Corpus file committed | Nov 15, 2026 (PR #2). Corpus has 23 records (5 slopsquat, 5 typosquat, 5 legit-new, 8 legit-old). |
-| 5 | Nov 19 | 1 | Signed snapshot format, snapshot v0 | Snapshot verifies; tampered copy fails | Nov 15, 2026 (PR #2). Checksum manifest, not a signature (THREAT_MODEL section 6). |
+| 5 | Nov 19 | 1 | Checksummed snapshot format, snapshot v0 | Snapshot verifies; tampered copy fails | Nov 15, 2026 (PR #2). Checksum manifest, not a signature (THREAT_MODEL section 6). |
 | 6 | Nov 20 | 1 | L1 checks 2.1–2.4 | Unit tests pass on corpus | Nov 15, 2026 (PR #2) |
 | 7 | Nov 21 | 1 | L1 checks 2.5–2.11, PBT generators | Unit tests pass on corpus | Nov 15, 2026 (PR #2) |
 | 8 | Nov 22 | 1 | PBT suite, ≥500 cases. Sub-agent feasibility (Open Decision 1). | Phase 1 exit criterion met | Nov 15, 2026 (PR #2). Sub-agent path not used; moved to roadmap (Open Decision 1). |

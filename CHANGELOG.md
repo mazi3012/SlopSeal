@@ -5,7 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
-Nothing yet. Replay (R-5.7.3) and the other post-hackathon roadmap items are listed in the README.
+### Added
+
+- Live registry adapter (`slopseal.registry.live`): PyPI JSON API, npm registry, and OSV over `urllib`, with timeouts, a size cap, and explicit unknowns (R-P-3). `slopseal check --live` selects it.
+
+### Changed
+
+- Offline is the default. Only `SLOPSEAL_OFFLINE_SNAPSHOT=0` selects live mode. Before, an unset variable selected a live source that blocked every check.
+- `npx`, `npm exec`, and `npm x` are verified like installs. Their package must be pinned (R-1.6).
+- Install hook blocks agent install commands with exit 2 (R-1.1). The documented Kiro block replaces an unsupported ask.
+
+Replay (R-5.7.3) and the other post-hackathon roadmap items are listed in the README.
 
 ## [1.0.0] - 2026-11-15
 

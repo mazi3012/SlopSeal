@@ -35,11 +35,13 @@ how to work in it. One rule matters most here: the agent may tighten a policy va
 cannot loosen a value past a floor set in code (`src/slopseal/policy/invariants.py`). Changing a
 threshold is therefore a reviewed decision, not a side effect of an agent edit.
 
-**Hooks.** Two hooks are configured in `.kiro/hooks/`. The first is a pre-tool hook that
-reads each shell command and asks the user to confirm any command that installs packages. It
-does not verify the install. Verification happens in the PATH shim, and the hook is a
-safety net in front of it. The second hook runs `scripts/policy_checks.sh` whenever the
-policy file is saved. A policy edit that breaks a property is rejected.
+**Hooks.** Two hooks are configured in `.kiro/hooks/`, in the Kiro v1 JSON format. The first
+is a PreToolUse hook on the agent's shell tool. It blocks any shell command that installs
+packages, using exit code 2, which Kiro documents as the block for this event. It does not
+verify packages. Verification happens in the PATH shim. The second hook runs
+`scripts/policy_checks.sh` when the policy file is saved. That trigger works in the Kiro IDE
+and CLI. It does not run in a Kiro Web session, where the git pre-commit hook and CI run the
+same check. A policy edit that breaks a property is rejected.
 
 **Property-based tests.** The test suite uses Hypothesis. There are 114 `@given` properties
 across 18 files, and each runs 500 generated examples in CI. The properties assert things such
@@ -52,7 +54,7 @@ Both were restored afterward.
 
 The agent that wants a package is the party with an interest in installing it. It should not
 judge its own request. SlopSeal therefore never calls the agent's LLM. Every check is
-deterministic code that reads a signed, offline registry snapshot. The verdict depends only on
+deterministic code that reads a checksummed, offline registry snapshot. The verdict depends only on
 the policy, the snapshot, and the inputs. Given the same inputs, it returns the same verdict.
 
 The layers are:
@@ -122,6 +124,17 @@ use. The checksum matches Hugging Face's published LFS object ID.
 README says its output matches the upstream JAX reference exactly, and we did not reproduce that
 comparison. It sits in an optional `needle` extra, so the default install adds no dependency.
 
+## Transitive dependencies
+
+SlopSeal checks the packages named on the command line. It does not check the packages those
+packages depend on, and their install-time code runs. A package that passes every check can
+still bring in an unverified dependency. The threat is recorded as T16 in `docs/THREAT_MODEL.md`.
+A one-level-deep check is on the post-hackathon roadmap.
+
+## Live mode
+
+`--live` queries PyPI, npm, and OSV with the standard library. Every failed, malformed, or partial response becomes an explicit unknown, and unknown blocks. The public registries do not publish maintainer account age, so live mode blocks every package at the maintainer check. I chose to keep that block rather than weaken the check. Live mode is lower assurance than the offline snapshot, and `docs/THREAT_MODEL.md` T5 says so.
+
 ## What I would do next
 
 - Compare `needle-rs` output with the upstream reference, and pin the wheel hash.
@@ -129,4 +142,5 @@ comparison. It sits in an optional `needle` extra, so the default install adds n
   would not count.
 - Replace the deterministic advisory-only shim with a check at the lockfile or the registry
   boundary, so absolute-path calls cannot skip it.
-- Fix the on-install hook so it calls the verdict pipeline instead of asking.
+- Check one level of transitive dependencies, so a dependency pulled in by an allowed package is verified too (T16).
+- Let the install hook call the verdict pipeline, so a verified agent install can run. Today it blocks every install command the agent issues.

@@ -27,11 +27,11 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 
 ## 3. Trust boundaries
 
-1. Registry and OSV responses are **untrusted input**. In offline mode they are replaced by the signed snapshot.
+1. Registry and OSV responses are **untrusted input**. In offline mode they are replaced by the checksummed snapshot.
 2. Package metadata (name, description, README, install scripts) is **untrusted input**, including anything passed to L2.
 3. The intent declaration is **untrusted input** written by the agent.
 4. The policy file is **trusted only after the property suite passes** on it.
-5. The snapshot is **trusted only after signature and hash verification**.
+5. The snapshot is **trusted only after its checksums match `manifest.json`**.
 
 ## 4. Threats and mitigations
 
@@ -41,7 +41,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T2 | Near-miss name of a popular package | Near-name WARN, typosquat HARD_BLOCK on new packages | R-2.2, R-2.11 |
 | T3 | Known-vulnerable or known-malicious version | OSV advisory and malware lookups | R-2.6, R-2.7 |
 | T4 | Registry or OSV is down, slow, or returns partial data | Unknown is an explicit value; unknown means BLOCK | R-P-1, P-FC-2 |
-| T5 | Network attacker alters registry responses | Offline signed snapshot; live mode is documented as lower assurance | R-P-2 |
+| T5 | Network attacker alters registry responses | Offline checksummed snapshot is the default. Live mode (R-P-3) treats every failed, malformed, or partial response as unknown, and a check given unknown blocks. Live mode is lower assurance: responses are not verified | R-P-2, R-P-3 |
 | T6 | Agent weakens the policy to let an install through | Property suite on every policy change; pre-commit rejects failure; policy hash in every seal | R-PBT-2, P-FC-8 |
 | T7 | Agent tunes its intent to pass the API check | Check compares to the package's own exports; every retry intent is logged; escalation shows the diff | R-Q-1, design section 9 |
 | T8 | Prompt injection through package description or README into L2 | L2 gets data fields only, is advisory, can only move ALLOW to QUARANTINE | R-3.7, P-FC-5 |
@@ -52,6 +52,7 @@ Out of scope: an attacker who already has the signing key, root on the machine, 
 | T13 | Unexpected crash returns success | Failclosed wrapper turns any exception into BLOCK | design section 6 |
 | T14 | `--allow-unsafe` used silently | Requires a non-empty reason and writes an audit line before proceeding | R-1.5 |
 | T15 | Secrets leak through logs or output | No env dumps; exception detail goes to the log only; stdout is the payload only | tech.md conventions |
+| T16 | A dependency pulled in by an allowed package is installed unverified | Not mitigated in v1. The shim verifies only the packages named on the command line, not their transitive dependencies, and their install-time code is not checked. A one-level-deep dependency check is on the post-hackathon roadmap | none (roadmap) |
 
 ## 5. Data that leaves the machine (live mode)
 
@@ -67,12 +68,16 @@ This answers Open Decision 9. Offline mode sends nothing.
 
 Each request reveals that the developer is considering a given package. That is inherent to checking it.
 
+Live mode uses `urllib` with a 10-second timeout per request, a 10 MB response cap, and no retries. It sends a `slopseal` User-Agent and no credentials, cookies, or tokens. urllib follows HTTP redirects. Offline mode is the default: an unset `SLOPSEAL_OFFLINE_SNAPSHOT` means offline. Live mode runs only with `SLOPSEAL_OFFLINE_SNAPSHOT=0` or `--live`.
+
 ## 6. Accepted limits for v1
 
-- **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
+- **Transitive dependencies are not verified (T16).** A package that passes can pull in dependencies that SlopSeal never checks, and their install-time code runs. This is the largest gap after the shim boundary (T11).
+- **Live mode blocks every package in v1 (R-P-3).** The public registries do not publish maintainer account age, so the maintainer check always blocks. Live mode also has no exported symbols, so intent checks always block. Its top-N list comes from the checksummed snapshot. It rules out install-time code only for a version with a universal wheel on PyPI. It does not follow OSV pagination.
+- **Snapshot integrity is a checksum manifest, not a signature (Open Decision 6, resolved).** HMAC was rejected because the seal key is per machine, so a committed snapshot could not be checked by anyone else. Ed25519 would need a dependency. Snapshot files are checked against `manifest.json`. Anyone with write access to the repo can change a snapshot file and its manifest together, and verification will pass. The manifest protects against corruption and accidental edits, not against a malicious committer. A reviewer must treat any change to `src/slopseal/fixtures/` as a security-relevant change, which is why `CODEOWNERS` covers it.
 - **Seals are symmetric (HMAC-SHA256, key in `.slopseal/secret.key`).** Anyone who can verify a seal or snapshot can also forge one. A verifier must therefore be a trusted holder of the key. Third parties cannot independently verify a SlopSeal verdict in v1. Public verifiability (Ed25519) is a roadmap item. This weakens the "signed receipt" claim for outside auditors and is stated in the write-up. Key compromise lets an attacker rewrite history undetected, which is why key storage is part of Open Decision 6.
 
-- The shim can be bypassed by calling the real binary by absolute path. It protects agents and developers who go through PATH, and the Kiro hook covers agent shell calls. It does not stop a determined local user.
+- The shim can be bypassed by calling the real binary by absolute path. It protects agents and developers who go through PATH, and the Kiro hook blocks install commands in agent shell calls. It does not stop a determined local user.
 - Live mode trusts TLS to the registry and OSV. Only offline mode gives signed inputs.
 - The deterministic intent check proves the declared API exists. It does not prove the package fits the task. Only L2 addresses purpose, and it is gated.
 - A new malicious package with a unique name, no typosquat distance, and clean metadata can pass L1. Age and install-script checks reduce this risk and do not remove it.

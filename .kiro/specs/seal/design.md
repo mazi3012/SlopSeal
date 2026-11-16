@@ -49,7 +49,7 @@ Each module has one responsibility and a requirement list. Dependency direction 
 | 3 | `audit/` | JSONL log, seals. Replay is on the roadmap. | R-5.7.1, R-5.7.2 |
 | 2 | `core/` | L1 checks 2.1–2.11, one file per check | R-2.1..2.11 |
 | 2 | `policy/` | Load and validate policy, diff two policies | R-1.4, R-5.7.4 |
-| 1 | `fixtures/` | Snapshot loader and signature verification | R-P-2 |
+| 1 | `fixtures/` | Snapshot loader and checksum verification | R-P-2 |
 | 0 | `types` (in `verdict.py` until it grows) | Frozen dataclasses and enums shared by all layers | none |
 
 `core/` never imports `semantic/`. `semantic/` never imports `core/`. Both are composed by `verdict`.
@@ -84,8 +84,8 @@ Implementations:
 
 | Interface | Live | Offline (`SLOPSEAL_OFFLINE_SNAPSHOT=1`) | Test |
 |-----------|------|------------------------------------------|------|
-| `RegistryClient` | PyPI and npm over `urllib.request` | Signed snapshot | In-memory fake |
-| `AdvisoryClient` | OSV.dev over `urllib.request` | Signed OSV snapshot | In-memory fake |
+| `RegistryClient` | PyPI and npm over `urllib.request` | Checksummed snapshot | In-memory fake |
+| `AdvisoryClient` | OSV.dev over `urllib.request` | Checksummed OSV snapshot | In-memory fake |
 | `Clock` | System clock | Pinned to snapshot date | Fixed clock |
 | `SemanticBackend` | Needle via needle-rs | Same (local) | Stub with fixed scores |
 
@@ -286,7 +286,7 @@ Verification requires line 1 to be a genesis entry with `seq = 0` and the all-ze
 
 - **PATH shim** (`intercept/path_shim.py`): a small executable installed ahead of the real tool on PATH. It parses the install subcommand and package specs for pip and npm in v1, calls `verify_install` for each, and execs the real tool only if every decision is ALLOW. Unsupported subcommands pass through unchanged. For a command it cannot parse, it blocks, not passes (fail closed).
 - **API** (`intercept/api.py`): `verify_install(package, version=None, intent=None) -> Decision`. Same code path as the shim.
-- **Kiro hook** (`.kiro/hooks/on-install.json`): runs the CLI before shell commands that match pip or npm installs. The hook is a trigger, not a second implementation.
+- **Kiro hook** (`.kiro/hooks/on-install.json`): a PreToolUse hook that blocks agent shell commands which install packages (exit 2). It does not verify packages. The PATH shim does.
 - **Recursion guard:** the shim sets `SLOPSEAL_ACTIVE=1` when it execs the real tool, so a tool that calls back into the shim does not loop.
 
 ## 12. L2 and the sub-agent question
@@ -303,7 +303,7 @@ Prompt-injection posture: package descriptions and README text are untrusted. Th
 |-----------|---------|------|---------------|
 | Check returns BLOCK or HARD_BLOCK | BLOCK | 1 | `DependencyViolation` JSON on stderr |
 | Registry or advisories unknown | BLOCK | 1 | `DependencyViolation` with `check="registry_unknown"` |
-| Snapshot signature or hash fails | BLOCK | 1 | `DependencyViolation` with `check="snapshot_integrity"` |
+| Snapshot checksum fails | BLOCK | 1 | `DependencyViolation` with `check="snapshot_integrity"` |
 | Unexpected exception | BLOCK | 1 | `DependencyViolation` with `check="internal_error"`; detail in log only |
 | Policy missing or invalid | POLICY_ERROR | 78 | Plain message on stderr naming the file and the first error |
 | Quarantine | QUARANTINE | 75 | Payload JSON on stdout (so agents can parse it), summary on stderr |
