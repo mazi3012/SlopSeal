@@ -246,25 +246,28 @@ If `import resource` fails (not POSIX), the worker reports UNKNOWN with reason `
 
 ### 2.6 Python extraction
 
-Per module: the export set is the union of set A (`__all__`, when it is a literal, with its literal additions) and set B (the public top-level names), as R-C-2 defines. A non-literal change to `__all__` returns UNKNOWN (`dynamic_exports`) before any set is built. Dynamic patterns are detected in the same walk: module-level calls to `exec` and `eval`, a module-level `def __getattr__` or `__dir__`, a non-literal `__all__` write, a write to `globals()` or `vars()`. A function body is not walked for these patterns, because code inside a function does not run at import time.
+Two passes, both over `ast.parse` output. No code from the artifact runs.
 
-The package's qualified names are `<dotted module path>.<symbol>` for every module in the wheel. An `__init__.py` takes its package's dotted path. The bare names are the symbols of the top-level import packages and top-level single-file modules. The module paths themselves are names too. The result is the union, sorted and de-duplicated, and capped at 100,000 names (over the cap is UNKNOWN with reason `limit`).
+1. **Completeness pass.** `ast.walk` visits the whole tree, function bodies included. It returns UNKNOWN (`dynamic_exports`) for the first match of the R-C-2 list: any reference to `exec`, `eval`, `setattr`, `globals`, `vars`, `sys.modules`, or `__dict__`; a `global` statement; a `del` of a module name; a module-level `def __getattr__` or `def __dir__`; a module-level `for`, `with`, or `while` block; a module-level tuple target; a module-level augmented assignment; and a non-literal change to `__all__`. A reference inside a function is flagged the same way, because a function may run at import time.
+2. **Set collection.** Set B comes from the module body and from the bodies of module-level `if` and `try` blocks: `def`, `async def`, `class`, simple name assignments (including annotated and chained forms with plain names), and import bindings. Set A is the literal `__all__` with its literal additions. The export set of a module is the union of set A and set B.
 
-`.pyi` files add their names to the same module. A package with only `.pyi` files (a stub package) works the same way.
+Names. Each module's symbols are emitted as `<dotted module path>.<symbol>`, and each top-level symbol of a top-level module or package is also emitted as its bare name. Module paths are names too. The union is sorted, de-duplicated, and capped at 100,000 names. Over the cap is UNKNOWN with reason `limit`.
 
-A `from .x import *` is followed by taking the exports of module `x` once, where `x` is a `.py`, `.pyi`, or `__init__` file in the artifact. If `x` itself has a star import, or a dynamic pattern, or exists only as a compiled extension (`.so`, `.pyd`), the result is UNKNOWN (`dynamic_exports`).
+Star imports. `from .x import *` reads the exports of `x` once. If `x` has its own star import, a completeness flag, or exists only as a compiled extension (`.so`, `.pyd`), the result is UNKNOWN with reason `dynamic_exports`.
 
-Known cost of this design: many real packages use a computed `__all__` or a module `__getattr__` for lazy imports. They are UNKNOWN. That lowers coverage and is the price of never calling a real export absent.
+Cost. The rule flags every reference to `__dict__` and `sys`, including harmless ones such as `self.__dict__` inside a class. Those packages lose coverage. That is the price of Q1 and of never calling a real export absent.
 
 ### 2.7 npm extraction
 
-The worker removes comments and string contents with a small tokenizer, then scans the text. If the tokenizer cannot finish (an unterminated string or a regular expression literal it cannot classify), the file is UNKNOWN (`parse_error`).
+The stdlib has no JavaScript parser. The extractor therefore tokenizes each file, removes comments and string contents, and then matches the forms of R-C-3 on the token stream. The matching is conservative. Every token `exports` or `module` that is not the head of an exact modelled form gives UNKNOWN (`dynamic_exports`). So does every token `__export`, `__exportStar`, `__reExport`, or `__createBinding`, and every `Object.defineProperty` or `Object.assign` whose target is `exports` or `module`. A form that is only partly recognised is an unmodelled form. The tokenizer cannot finish on an unterminated string or on a regular-expression literal it cannot classify, which gives `parse_error`. Template literals are scanned as text, and any `exports` or `module` token inside a `${...}` is a reference.
 
-Entry files come from `exports` (every string leaf, with `types` leaves read as `.d.ts`), then `module`, `main`, and `types` or `typings`. A package with no `main` and no `exports` falls back to `index.js`, as Node does. Qualified names are `<import specifier>.<symbol>` (`pkg.parse`, `pkg/feature.run`, `@scope/pkg.parse`). Bare names are the symbols of the root entry. The specifier of a subpath is the package name followed by the subpath without `./`.
+Entry resolution. `exports` is read first: every `import`, `require`, and `default` leaf that is a JavaScript file, and every `types` leaf that is a declaration file. Then `module`, `main`, and `types` or `typings`, when `exports` is absent. Then `index.js`, when neither `exports` nor `main` is present. Each resolved entry is checked on its own, and the multi-entry rule of R-C-3 combines the results.
 
-Pattern notes. `.d.ts`: `export declare` and `export` of `function`, `const`, `let`, `var`, `class`, `interface`, `type`, `enum`, `namespace`, and `abstract class`; `export { a as b }`; `export default`; `export * from './x'` one hop; `export = name` followed one hop to a declaration, and otherwise UNKNOWN. `.js`: `module.exports = { a, b: 1, 'c': 2 }` with literal keys; `exports.x =`; `module.exports.x =`; `Object.defineProperty(exports, "x", ...)`; `__exportStar(require("./x"), exports)` one hop; ESM `export function|const|class|let|var`, `export { a as b }`, and `export * from` one hop. Anything that builds a name at run time (`exports[name] = ...`, `module.exports = factory()`, a spread of a non-literal) is UNKNOWN (`dynamic_exports`). Bundled UMD builds usually end here.
+Names. A subpath is an import specifier: the package name followed by the subpath without `./`. Qualified names are `<specifier>.<symbol>`, for example `semver.parse`. Bare names are the symbols of the root entry only. Scoped packages are not emitted in qualified form, because the specifier contains `/`. The union is capped as for Python.
 
-JavaScript is not parsed, so this is a text scan. It can read an export that is not live (for example code inside a dead branch). That raises the chance of a wrong PRESENT. It cannot cause a false ABSENT, because ABSENT needs a complete contract and the scan treats anything it cannot resolve as UNKNOWN.
+Declarations (`.d.ts`). `export declare`, `export function`, `export const`, `export let`, `export var`, `export class`, `export interface`, `export type`, `export enum`, and `export namespace` are modelled, as are `export { a as b }`, `export default`, and `export * from` one hop. `export = <anything>` gives UNKNOWN (Q3). `export default` adds the reserved name `default` (Q4).
+
+Cost. UMD wrappers, bundler helpers, and CommonJS built with `typeof module` checks are UNKNOWN. Many real packages are of those kinds. This lowers coverage, and the labels expect it for the hard cases.
 
 ### 2.8 Cache
 
@@ -318,23 +321,22 @@ Owner ruling: these values are fixed safety ceilings of the extractor. They are 
 
 `docs/REFERENCE.md` "Full limitations" (live exports are available only for artifacts the extractor can complete, and UNKNOWN blocks), `docs/THREAT_MODEL.md` (T5 status, T17, T18, T23 from planned to implemented, the data-sent table for the artifact download, section 6), `CHANGELOG.md`, and `.kiro/steering/structure.md` (`contract/`). Text that says live exports are always `None` is removed.
 
-### 2.14 Owner rulings and open questions
+### 2.14 Owner rulings
 
-Rulings applied in this step:
+All open questions from the previous step are closed. The rulings are:
 
-- **Typed reasons: seven.** `no_digest` and `not_in_snapshot` are added. A cause is never reported under another reason's label (glossary, R-C-5, P-C-2).
-- **npm cache key** is `<algorithm>-<hex>` of the registry digest. A cache entry is written only after the download is verified against that digest (R-C-6, P-C-6).
-- **Literal `__all__`** exports are the union of `__all__` and the public top-level names. A non-literal change gives UNKNOWN (`dynamic_exports`). The false-PRESENT risk is documented in R-C-2. A false PRESENT is reported. A false ABSENT stops the phase (P-C-4).
-- **Limits** are fixed safety ceilings. A future policy section may lower them and may never raise them (2.12).
-- **Payload keys** stay as they are. The structured Contract Diff goes into the receipt in Phase 3 (2.10).
-- **R-C-8, R-C-9, and P-C-4 to P-C-7** are accepted as written.
+- **General rule.** Completeness is opt-in. An extraction is complete only when every statement that can define or change an export matches a modelled form (the completeness rule, in `requirements.md`, section 2). Any other statement that writes to exports gives UNKNOWN (`dynamic_exports`). Over-flagging costs coverage. Under-flagging causes a false ABSENT. This replaces the earlier list of dynamic patterns in R-C-2, R-C-3, and R-C-5.
+- **Q1, Python module writes.** `sys.modules` aliasing, `setattr`, `globals()` writes, `vars()` and `__dict__` writes, `exec`, and `eval` give UNKNOWN (`dynamic_exports`). The scan covers function bodies as well.
+- **Q2, reassigned `module.exports`.** `module.exports = <anything that is not a plain object literal>` gives UNKNOWN. Later member writes are not tracked. Lodash is labelled expected UNKNOWN.
+- **Q3, unnamed exports.** A function, class, identifier, or call assigned to `module.exports`, and `export =` in a `.d.ts`, give UNKNOWN (`dynamic_exports`). No eighth reason is added.
+- **Q4, default.** `default` is a reserved contract name, added by `export default` and `exports.default =`. A claim on `default` is PRESENT if listed. It is ABSENT only when the extraction is complete and it is not listed. Python has no default export. Replaces the earlier rule that `export default` counts under the bare name of its declaration.
+- **Q5, bundler and compiler helpers.** `__export(`, `__exportStar(`, `__reExport(`, `__createBinding(`, `Object.defineProperty(exports, ...)` except `__esModule`, `Object.assign(module.exports, ...)`, and `Object.keys(...).forEach` writing to exports give UNKNOWN (`dynamic_exports`). Immer stays expected UNKNOWN.
+- **Two entry points.** A symbol is PRESENT when it is in any complete entry point. It is ABSENT only when every resolved entry point is complete and none lists it. Otherwise UNKNOWN (`dynamic_exports`).
+- **Limits.** Unchanged (section 2.12).
+- **Typed reasons.** Seven, unchanged. No eighth reason.
+- **Receipt.** The structured Contract Diff goes to the receipt in Phase 3 (section 2.10).
 
-Open questions. Each one can produce a false ABSENT, which stops the phase. Each needs a ruling before the extractor runs on the 50 labelled packages:
-
-1. **Module attribute writes.** R-C-2 lists writes to `globals()` and `vars()` as dynamic. It does not list writes through `sys.modules[...]`, `setattr(module, ...)`, or `module.__dict__[...]` at module level. A name bound that way is missed, and the contract reports it ABSENT. Proposal: add these writes to the dynamic list, so that they give UNKNOWN.
-2. **Members added to a `module.exports` value.** In CommonJS, `module.exports = _` followed by `_.map = map` exports `map`. This is the lodash, underscore, `ws`, and `minimatch` pattern. R-C-3 follows the one-hop name but not later member assignments, so `map` would be ABSENT. Proposal: any member write on a `module.exports` target that is not a literal `exports.x =` form makes the contract UNKNOWN (`dynamic_exports`). The spec should also state which names `module.exports = name` yields. Lodash is left out of the 50 labels for this reason.
-3. **Unnamed CommonJS export.** `module.exports = function ...` or `module.exports = new X()` has no literal name to read. R-C-3 says an unresolved export is UNKNOWN but does not name the reason. Proposal: `dynamic_exports`.
-4. **Default export.** R-C-2 and R-C-3 do not say whether `default` is a name in a contract. Proposal: `default` is never a contract name. An `export default` counts under the bare name of its declaration when it has one, and otherwise it is not an export name.
+Expected statuses in the labels were predicted before this rule was written. Under the rule, some `complete` predictions for CommonJS, UMD, and bundled packages may be wrong. A wrong prediction lowers coverage and does not change the accuracy figures. The owner decides before the first run whether those predictions are re-made. The labels are not changed for this reason in this step.
 
 ## 3. Phase 3 and later
 
