@@ -1,7 +1,10 @@
-# Bundled Default Policy
+---
+inclusion: always
+---
 
-SlopSeal works out of the box with this secure default policy. To customize it,
-create `.kiro/steering/dependency-trust.md` in your project.
+# Dependency Trust Policy
+
+This file is the trust policy for SlopSeal. The code reads the single fenced block below and ignores the prose. People read the prose to understand what each value does.
 
 ## How the policy is enforced
 
