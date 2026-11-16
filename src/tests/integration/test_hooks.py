@@ -201,15 +201,28 @@ BLOCKED_COMMANDS = [
 ]
 
 
+BLOCK_MESSAGE = (
+    "BLOCKED by SlopSeal: Direct installs are disabled. You must use the slopseal MCP tool "
+    "to verify the package first.\n"
+)
+
+
 @pytest.mark.parametrize("command", BLOCKED_COMMANDS)
 def test_install_commands_are_blocked_with_exit_2(command: str) -> None:
     result = _run_hook(_kiro_payload(command))
     assert result.returncode == 2, command
-    assert result.stderr.startswith("slopseal: this command is blocked by SlopSeal.")
-    assert "Do not retry" in result.stderr
-    assert "do not offer alternatives that skip verification" in result.stderr
-    assert "SlopSeal shim is on PATH" in result.stderr
-    assert "verify tool" in result.stderr
+    assert result.stderr == BLOCK_MESSAGE
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["npm install game-engine-pro-ultra", "pip install requests"],
+)
+def test_direct_install_exits_2_and_names_the_mcp_tool(command: str) -> None:
+    # R-1.8: agents must verify a package through the slopseal MCP tool, not a direct install.
+    result = _run_hook(_kiro_payload(command))
+    assert result.returncode == 2
+    assert "slopseal MCP tool" in result.stderr
 
 
 ALLOWED_COMMANDS = [
@@ -277,7 +290,7 @@ def test_non_string_command_scans_every_string() -> None:
 def test_unreadable_or_empty_payload_blocks(stdin: str) -> None:
     result = _run_hook(stdin)
     assert result.returncode == 2
-    assert "slopseal:" in result.stderr
+    assert result.stderr == BLOCK_MESSAGE
 
 
 def test_payload_that_is_not_utf8_blocks() -> None:
@@ -303,7 +316,7 @@ def test_stalled_stdin_blocks_within_the_timeout() -> None:
             process.stdin.close()
         process.kill()
     assert returncode == 2
-    assert "slopseal:" in stderr
+    assert stderr == BLOCK_MESSAGE
 
 
 def _matcher(filename: str) -> str:
