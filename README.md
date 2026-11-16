@@ -50,6 +50,43 @@ The PATH shim (`python -m slopseal.intercept.shims <dir>`) writes `pip`, `npm`, 
 | Hooks | `on-install.json` blocks agent shell commands that install packages (exit 2). `on-steering-change.json` runs the property suite when the policy is saved (Kiro IDE and CLI only) |
 | Properties | Hypothesis tests assert that unknown state always blocks. A pre-commit guard rejects a policy edit that fails them |
 
+## Install with Kiro Powers
+
+SlopSeal ships as a Kiro power. The repo root holds `POWER.md` (the description Kiro shows),
+`plugin.json` (the manifest Kiro requires), and `mcp.json` (how Kiro starts the server). The
+power adds one tool, `verify_install`, which runs the deterministic checks on an exact package
+version.
+
+Requirements: a Kiro IDE that supports Powers, and `uv` for the `uvx` launch command. Install
+`uv` first if `uvx --version` fails. The Kiro docs do not state a minimum IDE version for
+Powers, so check the Powers panel in your version.
+
+1. Get the SlopSeal folder on disk. Clone it, or download and unpack the repo:
+   `git clone https://github.com/mazi3012/SlopSeal.git`
+2. In Kiro, open the Powers panel and choose **Add Custom Power**.
+3. Choose **Import power from a folder**, then select the SlopSeal folder, the one that
+   contains `plugin.json`.
+4. Confirm that the power lists the `verify_install` tool. A power named `slopseal` appears
+   under installed powers.
+5. Test it. In a chat, mention a package install, for example "install tinyfmt-kit 0.4.0".
+   The power activates, and the agent calls `verify_install` before it installs.
+
+Notes:
+
+- The server starts with the SlopSeal folder as its working directory. It reads the trust
+  policy from `.kiro/steering/dependency-trust.md` in that folder and runs offline against the
+  checksummed snapshot. If the policy is missing, the tool reports no verdict, and the install
+  must not run.
+- The power does not install packages. The install still goes through the shell, and the
+  install hook and PATH shim still apply.
+- To run the server from a different folder, set `SLOPSEAL_POLICY_PATH` and
+  `SLOPSEAL_STATE_DIR` in `mcp.json` to absolute paths.
+- Without Kiro, the same server runs from a shell: `uvx --from . slopseal-mcp`, from the
+  SlopSeal folder. It reads JSON-RPC on stdin and writes it to stdout.
+
+I could not run the Kiro GUI, so the import step above is written from Kiro's Powers
+documentation and has not been tested in the IDE. The `uvx` launch command was tested over stdio.
+
 ## Demo
 
 The demo runs the deterministic path against the checksummed offline snapshot in a temporary state directory. It needs Python 3.11 or newer.

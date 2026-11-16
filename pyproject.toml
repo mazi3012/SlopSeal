@@ -45,6 +45,7 @@ Repository = "https://github.com/mazi3012/SlopSeal"
 
 [project.scripts]
 slopseal = "slopseal.cli:main"
+slopseal-mcp = "slopseal.mcp.server:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "slopseal.__version__" }
