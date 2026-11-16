@@ -8,7 +8,7 @@
       "matcher": "execute_bash",
       "action": {
         "type": "command",
-        "command": "sh -c 'python3 -m slopseal.hooks.on_install; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then echo \"BLOCKED: SlopSeal is not installed for this python3. Install it with: python3 -m pip install git+https://github.com/mazi3012/SlopSeal.git\" >&2; exit 2; else exit $rc; fi'"
+        "command": "sh -c '\"$1\" -m slopseal.hooks.on_install; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then echo \"BLOCKED: SlopSeal is not installed for \\\"$1\\\". Install it into that Python with: \\\"$1\\\" -m pip install git+https://github.com/mazi3012/SlopSeal.git\" >&2; exit 2; else exit $rc; fi' sh python3"
       },
       "timeout": 30
     }

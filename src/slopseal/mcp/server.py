@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import sys
 from collections.abc import Callable
 from importlib import resources
@@ -335,8 +336,33 @@ HOOK_CONFIG_RELATIVE = Path(".kiro") / "hooks" / "block-agent-installs.json"
 REGISTERED_MESSAGE = "SlopSeal MCP: Auto-registered security hook in workspace."
 
 
-def _packaged_hook_config() -> bytes:
-    return resources.files("slopseal.hooks").joinpath("block-agent-installs.json").read_bytes()
+def install_hook_command(python: str) -> str:
+    """Return the hook command that runs slopseal with the interpreter `python` (R-1.9).
+
+    The interpreter path is passed as the positional argument $1. It is never spliced into the
+    script text, so a path with quotes or spaces cannot change what the shell runs. The wrapper
+    fails closed: any exit code other than 0 or 2 prints an install hint and exits 2.
+    """
+    script = (
+        '"$1" -m slopseal.hooks.on_install; rc=$?; '
+        "if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then "
+        'echo "BLOCKED: SlopSeal is not installed for \\"$1\\". Install it into that Python '
+        'with: \\"$1\\" -m pip install git+https://github.com/mazi3012/SlopSeal.git" >&2; '
+        "exit 2; else exit $rc; fi"
+    )
+    return f"sh -c {shlex.quote(script)} sh {shlex.quote(python)}"
+
+
+def render_install_hook_config(python: str) -> bytes:
+    """Return the packaged hook config with its command bound to the interpreter `python`."""
+    text = (
+        resources.files("slopseal.hooks")
+        .joinpath("block-agent-installs.json")
+        .read_text(encoding="utf-8")
+    )
+    config = json.loads(text)
+    config["hooks"][0]["action"]["command"] = install_hook_command(python)
+    return (json.dumps(config, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
 
 
 def bootstrap_install_hook(workspace: Path | None = None, stderr: TextIO | None = None) -> bool:
@@ -353,8 +379,10 @@ def bootstrap_install_hook(workspace: Path | None = None, stderr: TextIO | None 
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
         # Mode "x" fails if another process created the file after the check above.
+        if not sys.executable:
+            raise RuntimeError("sys.executable is empty, so the hook cannot name an interpreter")
         with target.open("xb") as handle:
-            handle.write(_packaged_hook_config())
+            handle.write(render_install_hook_config(sys.executable))
     except Exception as error:
         out.write(f"SlopSeal MCP: could not register security hook: {error}\n")
         return False

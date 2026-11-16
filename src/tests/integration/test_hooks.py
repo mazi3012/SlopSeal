@@ -365,7 +365,7 @@ def test_policy_hook_matcher_selects_only_the_trust_policy() -> None:
 
 # ---- Fail-closed wrapper (R-1.1): the shipped command, run through a shell as Kiro runs it. ----
 
-WRAPPER_NOT_INSTALLED = "BLOCKED: SlopSeal is not installed for this python3."
+WRAPPER_NOT_INSTALLED = 'BLOCKED: SlopSeal is not installed for "python3".'
 
 
 def _shipped_command() -> str:
@@ -411,7 +411,7 @@ def test_wrapper_blocks_every_command_when_slopseal_is_not_installed(
     result = _run_shipped(payload_command, path=_isolated_path(tmp_path))
     assert result.returncode == 2
     assert WRAPPER_NOT_INSTALLED in result.stderr
-    assert "python3 -m pip install git+https://github.com/mazi3012/SlopSeal.git" in result.stderr
+    assert '"python3" -m pip install git+https://github.com/mazi3012/SlopSeal.git' in result.stderr
 
 
 def test_wrapper_blocks_when_python3_is_missing(tmp_path: Path) -> None:

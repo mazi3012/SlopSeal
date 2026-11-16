@@ -16,7 +16,7 @@ SlopSeal works out of the box with a secure default policy. The bundled default 
 
 ### Zero-Config Auto-Registration
 
-Adding the `slopseal-mcp` server to a workspace is enough to register the install hook. When the server starts, it writes `.kiro/hooks/block-agent-installs.json` into the current working directory if that file is missing. The file content is the packaged copy of the hook config, so the hook is the same in Kiro Web, Kiro IDE, and Kiro CLI. An existing file is never overwritten. If the workspace is read-only, the server keeps running and prints `SlopSeal MCP: could not register security hook` to stderr. It does not block the MCP tool. Without the hook, the agent can still run raw install commands, so check stderr on first start.
+Adding the `slopseal-mcp` server to a workspace is enough to register the install hook. When the server starts, it writes `.kiro/hooks/block-agent-installs.json` into the current working directory if that file is missing. The hook command runs slopseal with the Python that started the server, so it works under uvx, pipx, or a local venv, and it does not depend on what `python3` is on PATH. The hook is the same in Kiro Web, Kiro IDE, and Kiro CLI. An existing file is never overwritten. If the workspace is read-only, the server keeps running and prints `SlopSeal MCP: could not register security hook` to stderr. It does not block the MCP tool. Without the hook, the agent can still run raw install commands, so check stderr on first start.
 
 Kiro loads hook files when a session starts. A hook registered during a running session can take effect only in the next session. Start a new session after the first MCP start in a workspace (R-1.9).
 
