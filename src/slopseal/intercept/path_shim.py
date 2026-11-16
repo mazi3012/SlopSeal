@@ -26,6 +26,7 @@ Requirements: R-1.1, R-1.3, R-1.4. Layer 5.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -36,8 +37,8 @@ from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.intercept.parse import Blocked, Passthrough, parse
 from slopseal.policy.loader import PolicyError
-from slopseal.runtime import ECOSYSTEMS, build_context
-from slopseal.verdict import Decision, InstallRequest, Outcome, verify_install
+from slopseal.runtime import ECOSYSTEMS, build_context, offline
+from slopseal.verdict import Context, Decision, InstallRequest, Outcome, verify_install
 
 TOOLS = ("pip", "npm", "npx")
 EXIT_ALLOW = 0
@@ -122,13 +123,41 @@ def _run_real(tool: str, args: Sequence[str], env: Mapping[str, str]) -> int:
     return _exec_real(real, tool, args)
 
 
+def _log_resolution(
+    context: Context,
+    tool: str,
+    original: Sequence[str],
+    rewritten: Sequence[str],
+    pins: Sequence[tuple[str, str]],
+    outcome: str,
+) -> None:
+    """Audit the original and rewritten command (R-1.7). Raises OSError if it cannot be written."""
+    context.log.append(
+        "resolution",
+        ts=context.now,
+        fields={
+            "tool": tool,
+            "original_command": " ".join([tool, *original]),
+            "rewritten_command": " ".join([tool, *rewritten]),
+            "resolved": [{"package": name, "version": version} for name, version in pins],
+            "outcome": outcome,
+        },
+    )
+
+
 def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
     if not argv or argv[0] not in TOOLS:
         print(f"usage: path_shim {{{'|'.join(TOOLS)}}} [args...]", file=sys.stderr)
         return EXIT_SETUP
     tool, args = argv[0], list(argv[1:])
+    no_resolve = env.get("SLOPSEAL_NO_RESOLVE") == "1"
+    if args[:1] == ["--no-resolve"]:
+        no_resolve = True
+        args = args[1:]
+    # Resolve-then-pin runs only in live mode. Offline, an unpinned install stays refused.
+    resolve = not offline() and not no_resolve
 
-    parsed = parse(tool, args)
+    parsed = parse(tool, args, allow_unpinned=resolve)
     if isinstance(parsed, Passthrough):
         return _run_real(tool, args, env)
     if isinstance(parsed, Blocked):
@@ -151,13 +180,57 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         print(f"slopseal: {exc}; no install was run", file=sys.stderr)
         return EXIT_SETUP
 
+    eco = ECOSYSTEMS[parsed.ecosystem]
+    rewritten = list(args)
+    pins: list[tuple[str, str]] = []
+    placeable = len(parsed.positions) == len(parsed.specs)
+    for index, (name, version) in enumerate(parsed.specs):
+        if version is not None:
+            pins.append((name, version))
+            continue
+        if not placeable:
+            # Every unpinned spec must have a known position, or the rewrite cannot be placed.
+            # Refuse rather than verify a different command than the one that would run.
+            _json_line(
+                sys.stderr,
+                {
+                    "check": "shim",
+                    "package": name,
+                    "reason": "cannot place the resolved version in this command; refused",
+                    "remedy": None,
+                },
+            )
+            return EXIT_BLOCK
+        position = parsed.positions[index]
+        latest = context.source.latest_version(eco, name)
+        if latest is None:
+            _json_line(
+                sys.stderr,
+                {
+                    "check": "resolve",
+                    "package": name,
+                    "reason": f"could not resolve the latest version of {name}; refused",
+                    "remedy": None,
+                },
+            )
+            _log_unresolved(context, tool, args, name)
+            return EXIT_BLOCK
+        suffix = "==" if tool == "pip" else "@"
+        rewritten[position] = f"{args[position]}{suffix}{latest}"
+        pins.append((name, latest))
+
     decisions = [
-        verify_install(
-            InstallRequest(ecosystem=ECOSYSTEMS[parsed.ecosystem], package=name, version=version),
-            context,
-        )
-        for name, version in parsed.specs
+        verify_install(InstallRequest(ecosystem=eco, package=name, version=version), context)
+        for name, version in pins
     ]
+    if rewritten != args:
+        outcome = _outcome(decisions)
+        try:
+            _log_resolution(context, tool, args, rewritten, pins, outcome)
+        except OSError as exc:
+            # An install that cannot be audited does not run (fail closed).
+            print(f"slopseal: cannot write the audit log: {exc.strerror}", file=sys.stderr)
+            return EXIT_SETUP
 
     blocked = [d for d in decisions if d.outcome is Outcome.BLOCK]
     if blocked:
@@ -177,7 +250,21 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         )
         for warning in decision.warnings:
             print(f"slopseal: WARN {warning.check}: {warning.reason}", file=sys.stderr)
-    return _run_real(tool, args, env)
+    return _run_real(tool, rewritten, env)
+
+
+def _outcome(decisions: Sequence[Decision]) -> str:
+    if any(d.outcome is Outcome.BLOCK for d in decisions):
+        return "BLOCK"
+    if any(d.outcome is Outcome.QUARANTINE for d in decisions):
+        return "QUARANTINE"
+    return "ALLOW"
+
+
+def _log_unresolved(context: Context, tool: str, args: Sequence[str], name: str) -> None:
+    # The block is already decided, and the install does not run, even if this write fails.
+    with contextlib.suppress(OSError):
+        _log_resolution(context, tool, args, args, [(name, "unresolved")], "BLOCK")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
