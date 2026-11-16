@@ -33,10 +33,23 @@ class Maintainers:
 
 @dataclass(frozen=True)
 class MaintainersUnknown:
+    """Maintainer data could not be read. Fail closed: BLOCK."""
+
     reason: str
 
 
-MaintainerInput = Maintainers | MaintainersUnknown
+@dataclass(frozen=True)
+class MaintainersNotPublished:
+    """The source does not publish maintainer account age (live mode). WARN, not BLOCK.
+
+    Only the live registry adapter returns this. Offline snapshots and failed lookups return
+    Maintainers or MaintainersUnknown.
+    """
+
+    reason: str
+
+
+MaintainerInput = Maintainers | MaintainersUnknown | MaintainersNotPublished
 
 
 def check_maintainer(
@@ -52,6 +65,10 @@ def check_maintainer(
 
     if isinstance(info, MaintainersUnknown):
         return CheckResult(CHECK_ID, Level.BLOCK, f"maintainer data unknown: {info.reason}")
+    if isinstance(info, MaintainersNotPublished):
+        return CheckResult(
+            CHECK_ID, Level.WARN, f"maintainer account age not published: {info.reason}"
+        )
     if info.count < 0:
         return CheckResult(CHECK_ID, Level.BLOCK, "registry reported a negative maintainer count")
     if info.count > 0 and info.newest_account_age_days is None:

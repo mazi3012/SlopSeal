@@ -695,6 +695,7 @@ def _record(request: InstallRequest, ctx: Context, decision: Decision) -> Decisi
         "exit_code": decision.exit_code,
         "checks_run": list(decision.checks_run),
         "warnings": [w.check for w in decision.warnings],
+        "warning_details": [{"check": w.check, "reason": w.reason} for w in decision.warnings],
         "policy_hash": decision.policy_hash,
         "snapshot_id": decision.snapshot_id,
         "reason": decision.reason,
