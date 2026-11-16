@@ -128,12 +128,14 @@ The `description` in both copies of `block-agent-installs.json` changes to descr
 
 ### 1.9 Documents out of date after Phase 1
 
-The v1 spec is frozen by the owner's instruction, and the task scopes doc edits to `docs/REFERENCE.md` and the hook description. These statements remain and are listed in the PR:
+The v1 requirements are not changed. Each place that described the hook as non-verifying is now corrected, as listed below. The v1 design keeps its original sentence under a dated note.
 
-- `.kiro/specs/seal/design.md` section 11 ("It does not verify packages").
-- `docs/THREAT_MODEL.md` T11 and section 6 ("The hook does not verify packages").
-- `README.md` and `docs/WRITEUP.md` where they describe the hook as non-verifying.
-- `.kiro/steering/structure.md` import-direction text (the one exception in 1.2).
+- `.kiro/specs/seal/design.md` section 11: dated note, "Superseded by seal-v2 for the hook (2026-11-16)". The original sentence stays.
+- `docs/THREAT_MODEL.md` T11 and section 6: corrected to the verdict behavior.
+- `README.md`, "What the hook does": corrected.
+- `docs/WRITEUP.md`, hooks paragraph: corrected.
+- `.kiro/steering/structure.md`: `hooks/` added to the layout, and the one same-layer import (section 1.2) written down.
+- `docs/REFERENCE.md`: corrected in the hook commit.
 
 ## 2. Phase 2 and later
 

@@ -55,4 +55,4 @@ Terms used below:
 - v1 `design.md` section 11: "It does not verify packages." This no longer holds for verifiable installs.
 - v1 `THREAT_MODEL.md` T11: "The hook does not verify packages." Same.
 
-Both v1 statements stay as written until the owner decides to edit v1. The Phase 1 pull request lists every place that is now out of date.
+Both v1 statements are kept as written. `.kiro/specs/seal/design.md` section 11 carries a dated note that marks the statement superseded for the hook. The other places listed in `design.md` section 1.9 are corrected in the Phase 1 pull request (R-G-9).

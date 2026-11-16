@@ -37,12 +37,12 @@ threshold is therefore a reviewed decision, not a side effect of an agent edit.
 
 **Hooks.** Two hooks are configured in `.kiro/hooks/`, in the Kiro v1 JSON format. The first
 is `block-agent-installs.json`, a PreToolUse hook with matcher `execute_bash`. Kiro sends the
-tool call as JSON on stdin. `slopseal.hooks.on_install` reads `tool_input.command` and blocks
-any command that installs packages, using exit code 2, which Kiro documents as the block for
-this event. The check looks at command positions, so it sees installs behind `sudo`, `env`,
+tool call as JSON on stdin. `slopseal.hooks.on_install` reads `tool_input.command` and checks
+any command that installs packages. An install of pinned pip or npm packages runs the verdict
+pipeline, and the command runs only when every package is ALLOW. Any other install exits with
+code 2, which Kiro documents as the block for this event. The check looks at command positions, so it sees installs behind `sudo`, `env`,
 `bash -c`, and `&&`, `||`, `;`, `|`. It does not scan the description. It blocks when stdin is
-unreadable or does not arrive within 3 seconds. It does not verify packages. Verification
-happens in the PATH shim. The hook command is a `sh -c` wrapper that fails closed: if slopseal is missing from `python3`, it blocks with exit 2 and prints an install hint. The MCP server registers this hook itself on start, if the file is missing (R-1.9). A user who adds only the MCP server config gets the hook in the workspace. Kiro loads it at session start, so the first session after that start is the first one the hook covers. The hook is verified on Kiro IDE 1.4.178, the minimum supported
+unreadable or does not arrive within 3 seconds. The PATH shim runs the same verdict pipeline for installs typed in a user's terminal. The hook command is a `sh -c` wrapper that fails closed: if slopseal is missing from `python3`, it blocks with exit 2 and prints an install hint. The MCP server registers this hook itself on start, if the file is missing (R-1.9). A user who adds only the MCP server config gets the hook in the workspace. Kiro loads it at session start, so the first session after that start is the first one the hook covers. The hook is verified on Kiro IDE 1.4.178, the minimum supported
 version. It does not load on Kiro IDE 0.12.x. The second hook runs
 `scripts/policy_checks.sh` when the policy file is saved. That trigger works in the Kiro IDE
 and CLI. It does not run in a Kiro Web session, where the git pre-commit hook and CI run the
