@@ -36,9 +36,14 @@ cannot loosen a value past a floor set in code (`src/slopseal/policy/invariants.
 threshold is therefore a reviewed decision, not a side effect of an agent edit.
 
 **Hooks.** Two hooks are configured in `.kiro/hooks/`, in the Kiro v1 JSON format. The first
-is a PreToolUse hook on the agent's shell tool. It blocks any shell command that installs
-packages, using exit code 2, which Kiro documents as the block for this event. It does not
-verify packages. Verification happens in the PATH shim. The second hook runs
+is `block-agent-installs.json`, a PreToolUse hook with matcher `execute_bash`. Kiro sends the
+tool call as JSON on stdin. `scripts/hooks/on_install.py` reads `tool_input.command` and blocks
+any command that installs packages, using exit code 2, which Kiro documents as the block for
+this event. The check looks at command positions, so it sees installs behind `sudo`, `env`,
+`bash -c`, and `&&`, `||`, `;`, `|`. It does not scan the description. It blocks when stdin is
+unreadable or does not arrive within 3 seconds. It does not verify packages. Verification
+happens in the PATH shim. The hook is verified on Kiro IDE 1.4.178, the minimum supported
+version. It does not load on Kiro IDE 0.12.x. The second hook runs
 `scripts/policy_checks.sh` when the policy file is saved. That trigger works in the Kiro IDE
 and CLI. It does not run in a Kiro Web session, where the git pre-commit hook and CI run the
 same check. A policy edit that breaks a property is rejected.

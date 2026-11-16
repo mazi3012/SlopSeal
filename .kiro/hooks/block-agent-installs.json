@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "SlopSeal: block agent install commands",
+      "description": "Before the agent runs a shell command, pipes the hook payload to scripts/hooks/on_install.py. The script reads tool_input.command and exits 2 when the command installs packages (pip, npm, uv, poetry, conda, and other package managers, including through sudo, env, bash -c, and chained commands). Installs the user runs go through the SlopSeal PATH shim, which verifies each package.",
+      "trigger": "PreToolUse",
+      "matcher": "execute_bash",
+      "action": {
+        "type": "command",
+        "command": "python3 scripts/hooks/on_install.py"
+      },
+      "timeout": 30
+    }
+  ]
+}
