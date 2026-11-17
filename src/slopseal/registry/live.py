@@ -28,7 +28,7 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, assert_never
 
 from slopseal.contract.digest import (
     PublishedDigest,
@@ -276,11 +276,19 @@ class LiveSource:
         return ContractUnknown(UnknownReason.PARSE_ERROR, "no contract source for this ecosystem")
 
     def contract(self, eco: Ecosystem, name: str, version: str) -> ContractResult:
-        """Complete exports, or UNKNOWN with a typed reason, or a digest mismatch (R-C-8)."""
-        if eco not in (Ecosystem.PYPI, Ecosystem.NPM):
-            return ContractUnknown(
-                UnknownReason.PARSE_ERROR, "no contract source for this ecosystem"
-            )
+        """Complete exports, or UNKNOWN with a typed reason, or a digest mismatch (R-C-8).
+
+        The match covers every Ecosystem value. A new value is a type error until it has a case.
+        """
+        match eco:
+            case Ecosystem.PYPI | Ecosystem.NPM:
+                pass
+            case Ecosystem.CARGO | Ecosystem.RUBYGEMS | Ecosystem.GO:
+                return ContractUnknown(
+                    UnknownReason.PARSE_ERROR, "no contract source for this ecosystem"
+                )
+            case _:
+                assert_never(eco)
         try:
             plan = self._artifact_plan(eco, name, version)
         except (OSError, LiveFailure):
