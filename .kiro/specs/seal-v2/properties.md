@@ -167,3 +167,18 @@ These tests need `ContractUnknown` and the verdict wiring (tasks 2.4 and 2.6 to 
 - P-G-1 passes with 500 or more cases.
 - P-C-1 to P-C-7 pass with 500 or more cases, and each has at least one mutant that fails it.
 - No v1 property is changed, skipped, or given fewer examples.
+
+**P-C-8, JavaScript side (R-C-3, added at 2.6 ruling).** For a synthetic npm tarball built for each of Q1 to Q5, every probe gives UNKNOWN, never ABSENT, and the result is never a complete contract that omits a probe:
+
+- Q1, Python-only writes: not applicable to JavaScript.
+- Q2, reassigned exports: `module.exports = x`, `module.exports = function () {}`, `module.exports = new Thing()`, followed by `module.exports.x = ...`. Also `module.exports = { ... }` followed by `_.map = map` after `module.exports = _`.
+- Q3, unnamed exports: `module.exports = function ...` and `export = name` in a `.d.ts`.
+- Q4, default: `export default function f() {}` and `exports.default = value`. The probe `default` is PRESENT, never ABSENT.
+- Q5, helpers: `__export(exports, {...})`, `__exportStar(require("./x"), exports)`, `__reExport(...)`, `__createBinding(...)`, `Object.defineProperty(exports, "x", { get: ... })` (a literal name with a getter), `Object.assign(module.exports, {...})`, and `Object.keys(src).forEach((k) => { exports[k] = src[k]; })`.
+- Two entry points: an `import` entry that lists `a`, and a `require` entry that is unresolvable or uses an unmodelled form. `a` is PRESENT, and a probe that neither complete entry lists is UNKNOWN.
+
+*Tokenizer case.* A regular expression literal followed by `exports.x = 1` must either be read correctly (`x` is listed in a complete contract) or give UNKNOWN. It is never missed. The case is `const r = /"/; exports.a = 1; const s = "x";`: a tokenizer that reads every `/` as a division sees the `"` as a string and misses `exports.a`.
+
+*Mutants (R-C-3), each must fail this property:* (M-Q1 to M-Q5) each Q rule is removed; (M-ACC) the accounted-for rule is removed; (M-TWO) the two-entry rule is changed to "ABSENT if any complete entry lacks it"; (M-DIV) the tokenizer reads every `/` as a division; (M-Q4) the name `default` is not added by `export default` or `exports.default`.
+
+*Canary for npm (P-C-1, R-C-3).* A tarball whose package.json has `preinstall` and `postinstall` scripts, and whose main file (`index.js`) would write a marker directory with `os.mkdir` when run, is read by the npm extraction. The marker must never appear, and the extraction returns a result.
