@@ -24,6 +24,7 @@ src/
     audit/           log.py, seal.py
     policy/          loader.py, diff.py
     fixtures/        checksummed snapshot files
+    contract/        Contract Check (seal-v2 Phase 2): types, limits, digest, fetch, worker, runner, cache, pipeline, offline (R-C-1..R-C-9)
   tests/
     unit/            one file per module or check
     properties/      strategies.py and test_*.py named after property ids
@@ -48,6 +49,8 @@ PRD.md  README.md  AGENTS.md  CONTRIBUTING.md  SECURITY.md  CHANGELOG.md
 Layers, lowest first: `types` → `fixtures`, `policy` → `core` → `quarantine`, `semantic`, `audit` → `verdict` → `cli`, `intercept`.
 
 A module may import only from layers below it. `core` and `semantic` never import each other. A circular import is a design error: fix the layering, not the import.
+
+`contract/` is an adapter. `contract/types.py` and `contract/limits.py` are layer 0. The other `contract/` modules are layer 1. `quarantine/api_surface.py` imports `contract/types.py`, and `contract/` never imports `quarantine/`, `verdict`, or `registry/`. `contract/worker.py` imports nothing from `slopseal` (it runs as a separate program).
 
 One same-layer import is allowed: `hooks/gate.py` imports `intercept/parse.py`. `parse` is pure, so the hook and the PATH shim share one parser and cannot disagree about what a pinned install is (seal-v2 design, section 1.2).
 
