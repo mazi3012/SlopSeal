@@ -99,154 +99,212 @@ Every number is reported per ecosystem and in total, and per hard case.
 
 ## Run 1: the measured run (not frozen)
 
-This is the one measured run, recorded before the labels freeze. The owner reviews the numbers before the freeze.
+Run 1 was measured twice on the same labels. The **first run** was on commit `f272bfc`. The **current run** is after the owner's Run 1 review (rulings: empty declared strings are absent, and the root package's own name is not an export; decisions 1, 2, and 5 kept as they stand). The current run is on commit `545f393`, and its JSON is the source of every figure below.
 
-- **Command.** `python scripts/contract_eval.py --out run1.json` (harness commit `f272bfc`). The run started 2026-11-17 10:01:20 UTC and took about 16 s of wall time.
-- **Labels.** `docs/contract_labels.json`, unchanged since its last commit (`4591bab`). SHA-256 at the run: `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`. Not frozen. The freeze and its commit wait for the owner's review.
-- **Procedure step 1 (labels and this document committed before the run).** Met.
-- **Procedure step 4 (owner reviews each absent name before the run).** **Not met.** All 51 labels still read `absent_review: pending_owner`. Run 1 used the labels as drafted, so the 98 absent probes are provisional until that review is done.
-- **Procedure step 6 (post-run audit).** Complete where UNKNOWN was predicted: none. Predicted complete but actual UNKNOWN: 34 packages (listed in the table below). No label was changed.
+- **Labels.** `docs/contract_labels.json`, unchanged since commit `4591bab`. SHA-256 `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`. **Not frozen.**
+- **Absent review (procedure step 4).** **Not met.** All 51 labels still read `absent_review: pending_owner`. The 98 absent probes are provisional until the owner's review. The owner has left this pending on purpose.
+- **Post-run audit (procedure step 6).** Complete where UNKNOWN was predicted: none. Predicted complete but actual UNKNOWN: 33 packages (listed in "Where the rules are conservative over the labels"). No label was changed.
 - **Errors.** None. Every package returned a contract.
 
-### Headline
+### History: first run and current run
+
+| Metric | First run (`f272bfc`) | Current run (`545f393`) |
+|---|---|---|
+| Coverage, packages | 10 / 51 = 19.6% | 11 / 51 = 21.6% |
+| Probe coverage | 54 / 259 = 20.8% | 59 / 259 = 22.8% |
+| Decided accuracy | 53 / 54 = 98.1% | 59 / 59 = 100.0% |
+| Strict agreement | 53 / 259 = 20.5% | 59 / 259 = 22.8% |
+| False ABSENT | 0 | 0 |
+| Wrong PRESENT | 1 (`npm:cookie`, probe `cookie`) | 0 |
+| Expected-UNKNOWN agreement | 7 / 7 | 7 / 7 |
+| Expected complete but UNKNOWN | 34 of 44 | 33 of 44 |
+| Uncached median / max (ms) | 132.6 / 593.7 | 136.9 / 587.1 |
+| Cached median, complete (ms) | 0.165 | 0.18 |
+
+### What changed between the two runs
+
+- **`npm:cookie` (fixed).** The bare probe `cookie` was PRESENT because the root package name was an export. It is ABSENT now, which is correct: `cookie` does not export that symbol. The wrong PRESENT is gone.
+- **`npm:@types/jsonwebtoken` (fixed).** It gave `parse_error` ("unsafe entry path") from `"main": ""`. The empty string is now absent, so the `types` entry decides. The contract is complete, and all five probes agree.
+- **`npm:@types/ms` (not complete, and the label conflicts).** It moved from `parse_error` to UNKNOWN `dynamic_exports`, because its declaration file has `export = ms;` (Q3). The label expects complete. The rules govern (ruling 5).
+- **`npm:@types/semver` (not complete, and the label conflicts).** It moved from `parse_error` to UNKNOWN `dynamic_exports`. Its declaration file has `export import compareIdentifiers = identifiers.compareIdentifiers;` (line 97), which the declaration rules do not model. The label expects complete. The rules govern.
+- **`npm:@types/js-yaml`.** Still UNKNOWN. Its `./package.json` subpath is a JSON leaf (decision 2, kept).
+
+### Headline (current run)
 
 | Metric | Result |
 |---|---|
-| Coverage, packages (decided / 51) | 10 / 51 = 19.6% |
-| Probe coverage (decided / 259) | 54 / 259 = 20.8% |
-| Decided accuracy (target at least 95%) | 53 / 54 = 98.1% |
-| Strict agreement (over 259 probes) | 53 / 259 = 20.5% |
+| Coverage, packages (decided / 51) | 11 / 51 = 21.6% |
+| Probe coverage (decided / 259) | 59 / 259 = 22.8% |
+| Decided accuracy (target at least 95%) | 59 / 59 = 100.0% |
+| Strict agreement (over 259 probes) | 59 / 259 = 22.8% |
 | False ABSENT (any count is a stop) | **0** |
-| Wrong PRESENT (reported) | 1: `npm:cookie`, probe `cookie` (see decision 5) |
+| Wrong PRESENT (reported) | 0 |
 | Expected-UNKNOWN agreement | 7 / 7 with the expected reason; 0 complete |
-| Expected complete but UNKNOWN (coverage, not a stop) | 34 of 44 packages |
-| RECORD mismatches (parse_error on RECORD) | 0 wheels (none) |
+| Expected complete but UNKNOWN (coverage, not a stop) | 33 of 44 packages |
+| RECORD mismatches (`parse_error` on RECORD) | 0 |
 | Digest mismatches | 0 |
 | Label checks (filename and digest against the registry) | 51 of 51 match |
 
-The decided accuracy is 53 of 54 decided probes. The one miss is the wrong PRESENT for `cookie`. The strict agreement counts every UNKNOWN as a miss, so it is low by design.
-
-### By ecosystem
+### By ecosystem (current run)
 
 | Ecosystem | Packages | Decided packages | Probes | Decided probes | Decided accuracy | Strict agreement | False ABSENT | Wrong PRESENT |
 |---|---|---|---|---|---|---|---|---|
 | pypi | 25 | 4 | 136 | 18 | 100.0% | 13.2% | 0 | 0 |
-| npm | 26 | 6 | 123 | 36 | 97.2% | 28.5% | 0 | 1 |
-| **total** | 51 | 10 | 259 | 54 | 98.1% | 20.5% | 0 | 1 |
+| npm | 26 | 7 | 123 | 41 | 100.0% | 33.3% | 0 | 0 |
+| **total** | 51 | 11 | 259 | 59 | 100.0% | 22.8% | 0 | 0 |
 
-### By hard case
+### By hard case (current run)
 
 | Hard case | Packages | Decided packages | Probes | Decided probes | Decided accuracy | Strict agreement |
 |---|---|---|---|---|---|---|
-| commonjs | 11 | 5 | 55 | 31 | 96.8% | 54.5% |
+| commonjs | 11 | 5 | 55 | 31 | 100.0% | 56.4% |
 | literal___all__ | 9 | 3 | 49 | 13 | 100.0% | 26.5% |
 | reexport_heavy | 9 | 1 | 50 | 5 | 100.0% | 10.0% |
 | None | 7 | 0 | 37 | 0 | - | 0.0% |
 | esm_exports_map | 6 | 1 | 29 | 5 | 100.0% | 17.2% |
-| dts_only | 4 | 0 | 16 | 0 | - | 0.0% |
+| dts_only | 4 | 1 | 16 | 5 | 100.0% | 31.2% |
 | lazy_getattr | 2 | 0 | 9 | 0 | - | 0.0% |
 | cjs_reassigned_exports | 1 | 0 | 5 | 0 | - | 0.0% |
 | commonjs_umd | 1 | 0 | 4 | 0 | - | 0.0% |
 | esbuild_cjs_helper | 1 | 0 | 5 | 0 | - | 0.0% |
 
-The `None` row is the seven packages that have no hard case in the labels (requests, rich, attrs, jinja2, beautifulsoup4, colorama, certifi). All seven are expected complete, and none is decided. Every hard-case group has a false ABSENT count of 0.
+The `None` row is the seven packages with no hard case in the labels (requests, rich, attrs, jinja2, beautifulsoup4, colorama, certifi). All seven are expected complete, and none is decided.
 
 ### Latency (contract step, one artifact, live registries)
 
-- Uncached: median 132.6 ms, maximum 593.7 ms (`pypi:numpy`, a large wheel). The uncached time is the registry metadata, the download, the digest check, the archive check in the worker, and the extraction in the worker.
-- Cached (complete contracts only): median 0.165 ms, maximum 0.24 ms. The cache holds complete contracts only (R-C-6), so an UNKNOWN package repeats the full path on its second call, at about the uncached time.
-- These are contract-level times. The CLI adds process start-up and the policy checks: about 0.27 to 0.45 s per `slopseal check` in the smoke test.
+- Uncached: median 136.9 ms, maximum 587.1 ms (`pypi:numpy`, a large wheel). It covers the registry metadata, the download, the digest check, the archive check, and the extraction, each in the worker.
+- Cached, complete contracts: median 0.18 ms, maximum 0.26 ms. An UNKNOWN contract is not cached (R-C-6), so its second call repeats the full path at about the uncached time.
+- The CLI adds process start-up and policy checks: about 0.27 to 0.45 s per `slopseal check` in the smoke test.
 
-### What drives the coverage gap
+### Q1 breadth and the coverage impact (decision 1, kept)
 
-The probes that give UNKNOWN follow the rules as written. The reason is the first rule that fires, and a file can break more than one rule.
+Python rules stay as they are. Function and class bodies are included, and nothing is widened before the freeze. The first-firing message for the 21 UNKNOWN Python packages (current run) is:
 
-**Python (25 wheels; 4 decided).** Most expected-complete wheels fire the Q1 rule, which covers function and class bodies (ruled at the 2.6 review):
+| First-firing rule | Packages |
+|---|---|
+| Reference to a module namespace (`__dict__`, `sys.modules`) | 6 |
+| Reference to a builtin that changes names (`setattr`, `globals`, `vars`, `eval`, `exec`) | 4 |
+| Module-level `__getattr__` or `__dir__` | 4 |
+| Module-level statement not modelled | 4 |
+| `global` statement in a module file | 2 |
+| `__all__` annotated without a literal value | 1 |
 
-- `setattr(...)`, `globals()`, `vars()`, `eval`, or `exec` inside a function body. Examples: `requests/adapters.py:234` (`setattr(self, attr, value)`), `pydantic/__init__.py:408` (`globals()[attr_name]`), `jinja2/compiler.py:1948`, `pluggy/_hooks.py:157`.
-- `__dict__` or `sys.modules` inside any body. Examples: `requests/cookies.py:417` (`self.__dict__.copy()`), `typer/_typing.py:375` (`sys.modules[module_name]`), `rich/__init__.py:50`.
-- A module-level `__getattr__` or `__dir__`: `flask/__init__.py:46`, `sqlalchemy/__init__.py:286`, `marshmallow/__init__.py:23`.
-- A `global` statement in a function: `certifi/core.py:27`, `click/termui.py:737`, `attrs/_config.py:19`.
-- A module-level statement the model does not follow: `httpx`, `tqdm`, `urllib3`.
+The first-firing rule is the one the worker reports. A package can break more than one rule. The split between function-body and module-level references is **not measured**. Measuring it would mean changing the rule, which is not done before the freeze. The labelled numbers therefore show the cost of Q1 as written, not what a narrower Q1 would decide.
 
-**npm (26 packages; 6 decided).**
+### Where the rules are conservative over the labels (decision 5)
 
-- A `./package.json` subpath (a JSON leaf): dotenv, colorette, js-yaml, marked, immer, @types/js-yaml (6 packages). See decision 2.
-- A condition outside the list (`browser`, `react-native`, `worker`): nanoid, uuid, tslib.
-- Two entry points, one not complete: commander, lru-cache, query-string. The complete entry's names are PRESENT (R-C-3), and the rest are UNKNOWN.
-- An empty `main` (`""`): `@types/ms`, `@types/semver`, `@types/jsonwebtoken` give `parse_error` with "unsafe entry path". This is a bug. See decision 4. `@types/ms` would stay UNKNOWN after the fix (`export = ms`).
-- A rule on a form: `export { default }` re-export (lodash-es), a top-level `this` (xml2js), a read of `module.exports` (mime-types), and the lodash forms.
+The rules govern. The labels are predictions. This table lists every expected-complete package that the rules keep UNKNOWN in the current run, with the rule that fires first. Each one is a coverage cost, not a wrong answer: UNKNOWN blocks, and it never allows or claims ABSENT.
 
-### Decisions for the owner (not applied; a changed rule or fix needs a new run)
+| Package | Label expects | Rule that keeps it UNKNOWN (first firing) |
+|---|---|---|
+| pypi:requests | complete | reference to a builtin that changes names at run time |
+| pypi:pytest | complete | reference to a module namespace |
+| pypi:httpx | complete | module-level statement is not modelled |
+| pypi:flask | complete | module-level __getattr__ or __dir__ |
+| pypi:click | complete | reference to a module namespace |
+| pypi:rich | complete | global statement in a module file |
+| pypi:attrs | complete | reference to a module namespace |
+| pypi:typer | complete | reference to a module namespace |
+| pypi:sqlalchemy | complete | module-level __getattr__ or __dir__ |
+| pypi:tqdm | complete | module-level statement is not modelled |
+| pypi:jinja2 | complete | reference to a builtin that changes names at run time |
+| pypi:beautifulsoup4 | complete | reference to a module namespace |
+| pypi:urllib3 | complete | module-level statement is not modelled |
+| pypi:colorama | complete | reference to a builtin that changes names at run time |
+| pypi:certifi | complete | global statement in a module file |
+| pypi:tenacity | complete | reference to a module namespace |
+| pypi:marshmallow | complete | module-level __getattr__ or __dir__ |
+| pypi:pluggy | complete | reference to a builtin that changes names at run time |
+| npm:nanoid | complete | a condition or pattern the model does not resolve |
+| npm:@types/ms | complete | export = is not modelled (Q3) |
+| npm:@types/semver | complete | an export form that is not modelled in a declaration file |
+| npm:uuid | complete | a condition or pattern the model does not resolve |
+| npm:commander | complete | one entry point is not complete |
+| npm:dotenv | complete | an entry that is neither JavaScript nor a declaration file |
+| npm:colorette | complete | an entry that is neither JavaScript nor a declaration file |
+| npm:lru-cache | complete | one entry point is not complete |
+| npm:query-string | complete | one entry point is not complete |
+| npm:xml2js | complete | a top-level this is module.exports in CommonJS |
+| npm:js-yaml | complete | an entry that is neither JavaScript nor a declaration file |
+| npm:marked | complete | an entry that is neither JavaScript nor a declaration file |
+| npm:lodash-es | complete | an export list that names default (Q4 is only export default) |
+| npm:@types/js-yaml | complete | an entry that is neither JavaScript nor a declaration file |
+| npm:mime-types | complete | exports or module read or changed in a form the model does not follow |
 
-1. **Q1 breadth (Python).** Function and class bodies are included by ruling. Most of the coverage gap comes from this: harmless `setattr`, `__dict__`, and `global` in methods. Options: keep it; or narrow to module-level writes, with the function-body rule kept only for `global` and `sys.modules`. Narrowing it changes the Python numbers and needs a new run.
-2. **`./package.json` subpaths (npm).** Keep as UNKNOWN (current), or treat a JSON leaf as a non-JavaScript entry with no names. Six packages depend on this.
-3. **Conditions outside the list (npm).** Keep UNKNOWN (current), or ignore `browser`, `react-native`, and `worker` for a Node resolution. Three packages depend on this.
-4. **Empty `main`, `module`, `types`, `typings` (npm).** The current code gives `parse_error` for an empty string. That is a bug: Node treats an empty string as absent. Recommended fix: an empty string is absent. Read from the labelled tarballs (not run through the extractor): `@types/ms` has `export = ms;` (Q3), so it stays UNKNOWN after the fix, and its label (complete) conflicts with the rule. `@types/semver` and `@types/jsonwebtoken` use modelled `export` forms in their declaration files, so they may become complete; a run would have to show it. The fix changes the npm numbers, so it needs a new run. Not made here, so that Run 1 describes the code as committed.
-5. **Module path as a bare name (wrong PRESENT).** The spec counts the module path as an export name (R-C-2, R-C-3). For the root package, that makes its bare name PRESENT, so `cookie` is PRESENT for `npm:cookie`. Options: exclude the root package's own name from the bare names, or accept the wrong PRESENT as reported.
-6. **Expected statuses.** 34 of the 44 expected-complete packages are UNKNOWN under the rules as written. The expected statuses were predictions. The owner decides whether the rules or the predictions govern the next run.
-7. **Absent review.** The 98 absent labels are unreviewed (`pending_owner`). The freeze waits for that review.
+Three groups of these are the cases where the label predicts complete and the rule is stricter, and the owner should see them:
 
-No rule or code was changed to make the run look better. A second run is a new run: its numbers replace this one only after the owner decides items 1 to 5 and the labels are reviewed.
+- `npm:@types/ms` and `npm:@types/semver`: a declaration form the rules do not model (`export =`, `export import`). The rules are Q3 and the declaration rules as written.
+- `npm:@types/js-yaml`, `npm:marked`, `npm:colorette`, `npm:dotenv`, `npm:js-yaml`, `npm:immer`: a `./package.json` subpath (decision 2, kept UNKNOWN).
+- `npm:nanoid`, `npm:uuid`: a `browser`, `react-native`, or `worker` condition (decision 2, kept UNKNOWN).
+
+### Decisions (Run 1 review)
+
+| # | Decision | Status |
+|---|---|---|
+| 1 | Q1 breadth and the Python rules | Kept as written. Coverage impact documented above. |
+| 2 | Subpath leaves and non-standard conditions (`browser`, `react-native`, `worker`) | Kept UNKNOWN. Strict Node condition matching stays. |
+| 3 | Empty `main` string | Fixed: an empty declared string is absent (R-C-3). |
+| 4 | The root package name as a bare export (`cookie`) | Fixed: the root name is an export only when the package exports that symbol (R-C-2, R-C-3). |
+| 5 | Labels and expected statuses | The rules govern. Conservative rules are listed above. Absent review left pending. |
 
 ### Parity test (R-C-8)
 
-`test_contract_plumbing_snapshot_parity`: 23 of 23 snapshot versions pass. For each version the live path builds an artifact from the snapshot exports, verifies its digest, and runs both worker steps. The live contract contains every snapshot export, and live and offline agree on every probe.
+`test_contract_plumbing_snapshot_parity`: 23 of 23 snapshot versions pass, with the naming change in place.
 
-### Per-package results
+### Per-package results (current run)
 
 Expected and actual status for all 51 packages. The probe columns count the decided probes and the probes that agree with the label. Latency is per call, in milliseconds.
 
 | Package | Expected | Actual | Reason | Probes decided / total | Probe agreement | Uncached ms | Cached ms |
 |---|---|---|---|---|---|---|---|
-| pypi:requests | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 122.0 | 123.97 |
-| pypi:pytest | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 130.0 | 125.27 |
-| pypi:pydantic | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 132.3 | 129.56 |
-| pypi:numpy | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 593.7 | 557.05 |
-| pypi:httpx | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 122.3 | 117.52 |
-| pypi:flask | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 120.2 | 116.17 |
-| pypi:click | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 163.4 | 172.26 |
-| pypi:rich | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 126.1 | 124.12 |
-| pypi:attrs | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 122.3 | 133.53 |
-| pypi:typer | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 126.2 | 128.17 |
-| pypi:sqlalchemy | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 157.3 | 162.83 |
-| pypi:tqdm | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 122.8 | 121.8 |
-| pypi:pyyaml | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 119.0 | 121.44 |
-| pypi:jinja2 | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 138.4 | 134.34 |
-| pypi:beautifulsoup4 | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 126.8 | 124.1 |
-| pypi:python-dotenv | complete | complete | - | 5 / 5 | 5 / 5 | 125.5 | 0.24 |
-| pypi:tomli | complete | complete | - | 5 / 5 | 5 / 5 | 128.5 | 0.2 |
-| pypi:urllib3 | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 116.2 | 121.65 |
-| pypi:colorama | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 113.8 | 111.94 |
-| pypi:certifi | complete | unknown | dynamic_exports | 0 / 3 | 0 / 3 | 114.3 | 117.62 |
-| pypi:tenacity | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 131.8 | 127.97 |
-| pypi:marshmallow | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 118.6 | 115.39 |
-| pypi:tabulate | complete | complete | - | 3 / 3 | 3 / 3 | 140.3 | 0.2 |
-| pypi:pluggy | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 122.1 | 124.76 |
-| pypi:idna | complete | complete | - | 5 / 5 | 5 / 5 | 243.1 | 0.22 |
-| npm:semver | complete | complete | - | 6 / 6 | 6 / 6 | 150.3 | 0.19 |
-| npm:nanoid | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 144.3 | 133.2 |
-| npm:zod | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 144.4 | 148.27 |
-| npm:@types/ms | complete | unknown | parse_error | 0 / 3 | 0 / 3 | 132.6 | 144.6 |
-| npm:@types/semver | complete | unknown | parse_error | 0 / 5 | 0 / 5 | 141.4 | 136.68 |
-| npm:uuid | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 140.7 | 139.83 |
-| npm:commander | complete | unknown | dynamic_exports | 4 / 6 | 4 / 6 | 143.4 | 149.11 |
-| npm:dotenv | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 172.3 | 132.42 |
-| npm:colorette | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 130.1 | 135.54 |
-| npm:jsonwebtoken | complete | complete | - | 6 / 6 | 6 / 6 | 136.3 | 0.14 |
-| npm:tslib | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 131.8 | 133.03 |
-| npm:lru-cache | complete | unknown | dynamic_exports | 1 / 3 | 1 / 3 | 276.2 | 272.21 |
-| npm:immer | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 143.2 | 137.64 |
-| npm:query-string | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 125.9 | 131.16 |
-| npm:qs | complete | complete | - | 5 / 5 | 5 / 5 | 140.3 | 0.13 |
-| npm:xml2js | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 205.8 | 196.31 |
-| npm:ini | complete | complete | - | 6 / 6 | 6 / 6 | 131.3 | 0.13 |
-| npm:js-yaml | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 142.0 | 141.51 |
-| npm:marked | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 138.4 | 169.54 |
-| npm:node-fetch | complete | complete | - | 5 / 5 | 5 / 5 | 142.2 | 0.14 |
-| npm:lodash-es | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 187.6 | 196.41 |
-| npm:@types/js-yaml | complete | unknown | dynamic_exports | 0 / 3 | 0 / 3 | 138.0 | 129.97 |
-| npm:@types/jsonwebtoken | complete | unknown | parse_error | 0 / 5 | 0 / 5 | 132.6 | 134.02 |
-| npm:mime-types | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 129.1 | 137.15 |
-| npm:cookie | complete | complete | - | 3 / 3 | 2 / 3 | 138.7 | 0.11 |
-| npm:lodash | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 372.7 | 355.5 |
+| pypi:requests | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 124.7 | 121.89 |
+| pypi:pytest | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 127.3 | 135.77 |
+| pypi:pydantic | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 133.5 | 131.37 |
+| pypi:numpy | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 587.1 | 666.19 |
+| pypi:httpx | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 117.7 | 116.67 |
+| pypi:flask | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 119.1 | 114.38 |
+| pypi:click | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 164.9 | 165.41 |
+| pypi:rich | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 129.5 | 124.34 |
+| pypi:attrs | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 120.8 | 122.98 |
+| pypi:typer | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 123.5 | 125.6 |
+| pypi:sqlalchemy | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 165.9 | 172.03 |
+| pypi:tqdm | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 119.8 | 116.07 |
+| pypi:pyyaml | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 119.2 | 123.08 |
+| pypi:jinja2 | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 138.9 | 138.65 |
+| pypi:beautifulsoup4 | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 124.3 | 126.17 |
+| pypi:python-dotenv | complete | complete | - | 5 / 5 | 5 / 5 | 127.6 | 0.26 |
+| pypi:tomli | complete | complete | - | 5 / 5 | 5 / 5 | 131.5 | 0.2 |
+| pypi:urllib3 | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 119.1 | 120.03 |
+| pypi:colorama | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 117.4 | 119.22 |
+| pypi:certifi | complete | unknown | dynamic_exports | 0 / 3 | 0 / 3 | 120.7 | 122.4 |
+| pypi:tenacity | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 126.4 | 129.9 |
+| pypi:marshmallow | complete | unknown | dynamic_exports | 0 / 7 | 0 / 7 | 123.2 | 119.67 |
+| pypi:tabulate | complete | complete | - | 3 / 3 | 3 / 3 | 140.2 | 0.19 |
+| pypi:pluggy | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 124.2 | 121.79 |
+| pypi:idna | complete | complete | - | 5 / 5 | 5 / 5 | 234.7 | 0.24 |
+| npm:semver | complete | complete | - | 6 / 6 | 6 / 6 | 138.6 | 0.18 |
+| npm:nanoid | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 131.8 | 136.59 |
+| npm:zod | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 139.2 | 139.28 |
+| npm:@types/ms | complete | unknown | dynamic_exports | 0 / 3 | 0 / 3 | 135.1 | 141.67 |
+| npm:@types/semver | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 164.6 | 262.99 |
+| npm:uuid | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 140.8 | 133.54 |
+| npm:commander | complete | unknown | dynamic_exports | 4 / 6 | 4 / 6 | 148.9 | 146.81 |
+| npm:dotenv | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 131.7 | 139.46 |
+| npm:colorette | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 133.9 | 133.63 |
+| npm:jsonwebtoken | complete | complete | - | 6 / 6 | 6 / 6 | 137.0 | 0.12 |
+| npm:tslib | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 138.1 | 130.37 |
+| npm:lru-cache | complete | unknown | dynamic_exports | 1 / 3 | 1 / 3 | 275.9 | 268.04 |
+| npm:immer | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 149.5 | 141.68 |
+| npm:query-string | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 129.3 | 127.58 |
+| npm:qs | complete | complete | - | 5 / 5 | 5 / 5 | 137.9 | 0.12 |
+| npm:xml2js | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 196.8 | 206.39 |
+| npm:ini | complete | complete | - | 6 / 6 | 6 / 6 | 137.2 | 0.11 |
+| npm:js-yaml | complete | unknown | dynamic_exports | 0 / 4 | 0 / 4 | 147.2 | 148.0 |
+| npm:marked | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 150.7 | 141.09 |
+| npm:node-fetch | complete | complete | - | 5 / 5 | 5 / 5 | 146.9 | 0.14 |
+| npm:lodash-es | complete | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 197.9 | 200.58 |
+| npm:@types/js-yaml | complete | unknown | dynamic_exports | 0 / 3 | 0 / 3 | 136.9 | 142.83 |
+| npm:@types/jsonwebtoken | complete | complete | - | 5 / 5 | 5 / 5 | 139.4 | 0.19 |
+| npm:mime-types | complete | unknown | dynamic_exports | 0 / 6 | 0 / 6 | 131.8 | 134.2 |
+| npm:cookie | complete | complete | - | 3 / 3 | 3 / 3 | 143.4 | 0.11 |
+| npm:lodash | unknown / dynamic_exports | unknown | dynamic_exports | 0 / 5 | 0 / 5 | 353.7 | 362.91 |
