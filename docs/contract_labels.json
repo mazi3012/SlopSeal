@@ -1,7 +1,7 @@
 {
   "schema": "slopseal.contract_labels/1",
   "labelled_on": "2026-11-16",
-  "frozen_before_extractor_run": true,
+  "frozen_before_extractor_run": false,
   "metric_definitions": "docs/CONTRACT_EVAL.md",
   "labeller": "Drafted from official documentation and public API. Absent names are pending owner review.",
   "packages": [
@@ -1300,18 +1300,18 @@
       "hard_case": "commonjs",
       "present": [
         "load",
-        "dump"
-      ],
-      "absent": [
+        "dump",
         "safeLoad",
         "safeDump"
       ],
+      "absent": [],
       "absent_review": "pending_owner",
       "source_urls": [
-        "https://github.com/nodeca/js-yaml#readme"
+        "https://github.com/nodeca/js-yaml#readme",
+        "https://github.com/nodeca/js-yaml/blob/master/CHANGELOG.md"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
-      "notes": "safeLoad and safeDump were removed in js-yaml 4 (the pinned version)."
+      "notes": "present_but_throws (removed-API stub): safeLoad and safeDump are exported in the pinned 4.1.0 artifact (index.js: renamed(...) stubs that throw when called). The changelog lists them under Removed. PRESENT means exported, not that the call works."
     },
     {
       "id": "npm:marked",
