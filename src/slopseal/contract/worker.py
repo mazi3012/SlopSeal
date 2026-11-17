@@ -1111,6 +1111,8 @@ def _resolve_entries(manifest: dict[str, Any], prefix: str, present: set[str]) -
     else:
         for field in ("module", "main", "types", "typings"):
             value = manifest.get(field)
+            if value == "":
+                continue  # an empty string is absent, as Node treats it (R-C-3)
             if value is not None:
                 if not isinstance(value, str):
                     raise Unsafe(f"{field} is not a string")
@@ -1221,7 +1223,8 @@ def _analyze_member(
 
 
 def _entry_names(entry: _Entry, symbols: set[str]) -> set[str]:
-    out = {entry.spec}
+    # The root package's own name is not an export name (R-C-3). A subpath specifier is.
+    out: set[str] = set() if entry.root else {entry.spec}
     for symbol in symbols:
         out.add(f"{entry.spec}.{symbol}")
         if entry.root:

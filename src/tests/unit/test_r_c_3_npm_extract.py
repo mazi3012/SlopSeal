@@ -500,3 +500,37 @@ def test_r_c_3_a_probed_entry_beside_a_missing_one_keeps_partial_names() -> None
     assert result["status"] == "unknown"
     assert result["reason"] == "dynamic_exports"
     assert "v" in set(result["partial"])  # type: ignore[arg-type]
+
+
+# ---- Empty strings and the root name (R-C-3, ruled at the Run 1 review) --------------------------
+
+
+def test_r_c_3_an_empty_main_is_absent_and_types_decides_the_entry() -> None:
+    """The @types/semver shape: `"main": ""` and a declaration file. Only types counts."""
+    files = {"index.d.ts": "export declare function parse(v: string): string;\n"}
+    manifest = {"name": "pkg", "main": "", "types": "index.d.ts"}
+    names = _complete(files, manifest)
+    assert "parse" in names
+
+
+def test_r_c_3_an_empty_main_with_no_other_field_falls_back_to_index_js() -> None:
+    names = _complete({"index.js": "exports.a = 1;"}, {"name": "pkg", "main": ""})
+    assert "a" in names
+
+
+def test_r_c_3_an_empty_main_and_no_index_js_is_parse_error() -> None:
+    result = _unknown({"lib.js": "exports.a = 1;"}, {"name": "pkg", "main": ""})
+    assert result["reason"] == "parse_error"
+
+
+def test_r_c_3_the_root_package_name_is_not_an_export_unless_exported() -> None:
+    """npm:cookie: the bare probe `cookie` is ABSENT unless the package exports that symbol."""
+    names = _complete({"index.js": "exports.parse = 1;"}, {"name": "cookie", "main": "index.js"})
+    assert "cookie" not in names
+    assert "cookie.cookie" not in names
+    assert "cookie.parse" in names
+
+
+def test_r_c_3_a_symbol_with_the_package_name_is_an_export_when_exported() -> None:
+    names = _complete({"index.js": "exports.cookie = 1;"}, {"name": "cookie", "main": "index.js"})
+    assert "cookie" in names
