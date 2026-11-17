@@ -91,6 +91,10 @@ Tests for these properties build their artifacts in memory and serve them throug
 *Generators:* `gen_python_module` and `gen_js_module`, with symbols, optional literal `__all__`, optional re-exports, and optional injected dynamic patterns. The known list for a Python module includes public names that are not in `__all__`, and names in `__all__` that start with an underscore. Each of them must be PRESENT when the file has no dynamic pattern, which tests the union.
 *Mutants:* (a) a computed `__all__` is read as empty. (b) a module-level `__getattr__` is ignored. (c) `from .x import *` is dropped. (d) the JS scan stops at the first `module.exports` and misses `exports.y`. (e) the export set is `__all__` alone, so the union is dropped. (f) a name in `__all__` that starts with an underscore is dropped. Each must fail the property.
 
+**P-C-4 cases for `__all__` (ruled at 2.6).** Any load of `__all__` other than the target of a plain or annotated literal assignment gives UNKNOWN with reason `dynamic_exports`, for every probe. The cases are: an alias (`alias = __all__`), `__all__ += ["x"]` with a literal, `__all__.extend(["x"])`, `__all__.append("x")`, passing `__all__` to a call (`f(__all__)`), and a computed `__all__`. Each is placed at random in a file of modelled statements, and the result is never ABSENT for any probe.
+
+*Mutant M-ALL (P-C-4):* the `__all__` load rule is removed, so a load of `__all__` is read as an ordinary name. Each case must fail. The run is recorded with the other mutants.
+
 **P-C-5 (limits and hostile archives give UNKNOWN).** For any archive that breaks a limit of R-C-4 (size, expanded size, member count, wall time) or contains an unsafe member (absolute path, `..` segment, NUL byte, duplicate name, symlink, hardlink, device, fifo), the result is UNKNOWN with reason `limit` or `parse_error` (the typed reason matches the break), nothing is written outside the private temp dir, nothing is written for a member, and no member outside the archive is read.
 
 *Generators:* `gen_hostile_archive` (a zip or tar with one hostile property chosen by Hypothesis), `gen_bomb` (a highly compressible member).
