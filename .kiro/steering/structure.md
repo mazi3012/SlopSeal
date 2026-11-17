@@ -29,7 +29,7 @@ src/
     unit/            one file per module or check
     properties/      strategies.py and test_*.py named after property ids
     integration/     CLI and shim as subprocesses, demo path
-scripts/             build_snapshot.py, run_pbt.sh, record_demo.sh, install_shims.sh
+scripts/             build_snapshot.py, run_pbt.sh, record_demo.sh, install_shims.sh, contract_eval.py (the labelled Contract Check run)
 docs/                ARCHITECTURE.md, THREAT_MODEL.md, FAILURE_TAXONOMY.md, DEMO_SCRIPT.md, PLAN.md, adr/
 PRD.md  README.md  AGENTS.md  CONTRIBUTING.md  SECURITY.md  CHANGELOG.md
 ```
