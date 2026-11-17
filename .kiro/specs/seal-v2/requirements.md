@@ -113,7 +113,7 @@ The Python completeness check walks the whole file, including function bodies, a
 - With `exports` absent, the entries are `module` (JavaScript), `main` (JavaScript), and `types` or `typings` (declaration), each when it is a string. When none of them is present, the entry is `index.js`.
 - A declared entry that is not in the tarball gives UNKNOWN with reason `parse_error`. An entry path that is absolute, has a `..` segment, or contains a backslash or a NUL byte gives UNKNOWN with reason `parse_error`.
 
-*Names.* The qualified form of a name is `<specifier>.<symbol>`, where the specifier is the package name for the root entry and `<name>/<subpath>` for a literal subpath. The qualified form is emitted only when the specifier contains no `/`, so a scoped package or a subpath has no qualified form. The bare form, the symbol alone, is emitted for the root entry only. The specifier is also an export name. The union is capped as in R-C-2.
+*Names.* The qualified form of a name is `<specifier>.<symbol>`, emitted for every entry, where the specifier is the package name for the root entry and `<name>/<subpath>` for a literal subpath. The bare form, the symbol alone, is emitted for the root entry only. A symbol of a subpath therefore has its qualified form only, so a claim on it as `<name>/<subpath>.<symbol>` is PRESENT, and a bare claim is ABSENT, which is correct for the root package. The qualified form is emitted for a scoped package too. Without it, a subpath symbol could never be PRESENT: a false ABSENT. The specifier is also an export name. The union is capped as in R-C-2.
 
 *Completeness of each JavaScript entry.*
 

@@ -288,7 +288,7 @@ Everything else that holds an `exports` or `module` token gives `dynamic_exports
 - Some complete, some not: `ContractUnknown(dynamic_exports, partial=<union of the complete entries' names>)`. A declared API in `partial` is PRESENT in the intent check. Any other declared API is UNKNOWN. This is the exception of R-C-3 and R-C-5, and P-C-2 states it.
 - None complete: the reason of the single entry, or `dynamic_exports` when there are several entries.
 
-**Names and limits.** Per R-C-3: the qualified name is emitted only for a specifier with no `/`, and the bare name is emitted for the root entry only. A file over 5 MB gives `limit`. The worker runs under the shared wall limit of R-C-4.
+**Names and limits.** Per R-C-3: the qualified name `<specifier>.<symbol>` is emitted for every entry, including a subpath and a scoped package, and the bare name is emitted for the root entry only. A file over 5 MB gives `limit`. The worker runs under the shared wall limit of R-C-4.
 
 ### 2.8 Cache
 
