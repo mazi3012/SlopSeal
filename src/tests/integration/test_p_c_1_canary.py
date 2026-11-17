@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from slopseal.contract.runner import ArchiveOk, run_archive_check, run_extract
-from slopseal.contract.types import ContractComplete
+from slopseal.contract.types import ContractComplete, ContractUnknown
 
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="archive checks need POSIX limits")
 
@@ -48,7 +48,14 @@ def _canary_wheel(path: Path, marker: Path) -> Path:
 def _canary_npm(path: Path, marker: Path) -> Path:
     code = _canary(marker).encode()
     manifest = json.dumps(
-        {"name": "pkg", "version": "1.0.0", "scripts": {"postinstall": f"python3 -c {code!r}"}}
+        {
+            "name": "pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "preinstall": f"python3 -c {code!r}",
+                "postinstall": f"python3 -c {code!r}",
+            },
+        }
     ).encode()
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
@@ -88,4 +95,15 @@ def test_p_c_1_an_npm_package_with_canaries_never_runs_them() -> None:
         tarball = _canary_npm(directory / "pkg.tgz", marker)
         result = run_archive_check(tarball, "npm")
         assert result == ArchiveOk("package")
+        assert not marker.exists()
+
+
+def test_p_c_1_npm_extraction_never_runs_the_canaries() -> None:
+    """The npm extract mode reads the manifest and index.js. Nothing in them runs."""
+    with tempfile.TemporaryDirectory() as tmp:
+        directory = Path(tmp)
+        marker = directory / "MARKER"
+        tarball = _canary_npm(directory / "pkg.tgz", marker)
+        result = run_extract(tarball, "npm", "package")
+        assert isinstance(result, ContractComplete | ContractUnknown)
         assert not marker.exists()
