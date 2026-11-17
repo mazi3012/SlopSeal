@@ -86,10 +86,21 @@ def test_p_c_6_another_extractor_version_is_a_miss(version: str) -> None:
     )
 )
 def test_p_c_6_a_malformed_key_is_a_miss_and_never_touches_the_file_system(key: str) -> None:
+    """A `../` key can reach a decoy when contracts/ exists.
+
+    A valid decoy would be served if the format check were missing.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        decoy = root / "evil.json"
-        decoy.write_text(json.dumps({"key": "../evil"}), encoding="utf-8")
+        (root / cache.CACHE_DIR).mkdir()
+        fields: dict[str, object] = {
+            "schema": cache.SCHEMA,
+            "key": "../evil",
+            "extractor_version": cache.EXTRACTOR_VERSION,
+            "exports": ["evil"],
+        }
+        decoy = dict(fields, entry_sha256=cache._entry_hash(fields))
+        (root / "evil.json").write_text(json.dumps(decoy), encoding="utf-8")
         before = sorted(str(p.relative_to(root)) for p in root.rglob("*"))
         assert cache.load(root, key) is None
         assert sorted(str(p.relative_to(root)) for p in root.rglob("*")) == before
