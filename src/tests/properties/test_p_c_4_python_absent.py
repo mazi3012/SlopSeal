@@ -33,6 +33,8 @@ SYMBOL = st.from_regex(r"[a-z][a-z0-9]{0,7}", fullmatch=True).filter(
     lambda s: s != "pkg" and not keyword.iskeyword(s)
 )
 SYMBOLS = st.lists(SYMBOL, min_size=1, max_size=6, unique=True)
+# Underscore names are in set A only: a literal __all__ exports them, a plain binding does not.
+PRIVATE = st.lists(SYMBOL.map(lambda s: "_" + s), max_size=3, unique=True)
 LAYOUT = st.sampled_from(["defs", "assign", "literal_all"])
 # Each entry is a dynamic pattern from R-C-2 (the Python list). None of them is in the known list.
 DYNAMIC_PATTERNS = st.sampled_from(
@@ -47,12 +49,12 @@ DYNAMIC_PATTERNS = st.sampled_from(
 )
 
 
-def _module(symbols: list[str], layout: str) -> str:
+def _module(symbols: list[str], layout: str, private: list[str]) -> str:
     if layout == "defs":
         return "".join(f"def {symbol}():\n    pass\n" for symbol in symbols)
     if layout == "assign":
         return "".join(f"{symbol} = 1\n" for symbol in symbols)
-    return f"__all__ = {symbols!r}\n"
+    return f"__all__ = {symbols + private!r}\n"
 
 
 def _wheel(source: str) -> bytes:
@@ -72,32 +74,34 @@ def _extract(source: str) -> list[str]:
         return worker.extract_wheel(str(path), FILE_LIMIT, NAME_LIMIT)
 
 
-@given(symbols=SYMBOLS, layout=LAYOUT, probe=SYMBOL)
+@given(symbols=SYMBOLS, layout=LAYOUT, private=PRIVATE)
 def test_p_c_4_c_every_known_symbol_is_present_without_a_dynamic_pattern(
-    symbols: list[str], layout: str, probe: str
+    symbols: list[str], layout: str, private: list[str]
 ) -> None:
-    names = set(_extract(_module(symbols, layout)))
-    for symbol in symbols:
-        assert symbol in names, "a known symbol must be PRESENT (bare name)"
+    exported = symbols + private if layout == "literal_all" else symbols
+    names = set(_extract(_module(symbols, layout, private)))
+    for symbol in exported:
         assert f"pkg.{symbol}" in names, "a known symbol must be PRESENT (qualified name)"
+        if not symbol.startswith("_"):
+            assert symbol in names, "a known public symbol must be PRESENT (bare name)"
 
 
-@given(symbols=SYMBOLS, layout=LAYOUT, probe=SYMBOL)
+@given(symbols=SYMBOLS, layout=LAYOUT, private=PRIVATE, probe=SYMBOL)
 def test_p_c_4_a_absent_only_from_a_complete_contract(
-    symbols: list[str], layout: str, probe: str
+    symbols: list[str], layout: str, private: list[str], probe: str
 ) -> None:
     """A probe outside the known list is ABSENT: the extraction completed without it."""
-    names = set(_extract(_module(symbols, layout)))
+    names = set(_extract(_module(symbols, layout, private)))
     if probe in symbols:
         return
     assert probe not in names
     assert f"pkg.{probe}" not in names
 
 
-@given(symbols=SYMBOLS, layout=LAYOUT, pattern=DYNAMIC_PATTERNS)
+@given(symbols=SYMBOLS, layout=LAYOUT, private=PRIVATE, pattern=DYNAMIC_PATTERNS)
 def test_p_c_4_b_a_dynamic_file_is_unknown_for_every_probe(
-    symbols: list[str], layout: str, pattern: str
+    symbols: list[str], layout: str, private: list[str], pattern: str
 ) -> None:
-    source = _module(symbols, layout) + pattern
+    source = _module(symbols, layout, private) + pattern
     with pytest.raises(worker.Dynamic):
         _extract(source)
