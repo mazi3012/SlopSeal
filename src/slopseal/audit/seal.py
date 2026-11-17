@@ -20,6 +20,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from slopseal.fsutil import ensure_private_dir
+
 KEY_NAME = "secret.key"
 KEY_BYTES = 32
 
@@ -30,7 +32,7 @@ class SealKeyError(Exception):
 
 def load_or_create_key(root: Path) -> bytes:
     path = root / KEY_NAME
-    root.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(root)
     try:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:

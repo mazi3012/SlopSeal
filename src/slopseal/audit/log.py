@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from slopseal.audit.seal import canonical, seal_fields, sign, verify
+from slopseal.fsutil import ensure_private_dir
 
 GENESIS_PREV = "0" * 64
 GENESIS_EVENT = "genesis"
@@ -83,7 +84,7 @@ class AuditLog:
         Callers treat a failed append as a failed verdict: an ALLOW that is not logged is not
         returned (fail closed).
         """
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self._path.parent)
         fd = os.open(self._path, os.O_RDWR | os.O_CREAT, 0o600)
         with os.fdopen(fd, "r+", encoding="utf-8") as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)

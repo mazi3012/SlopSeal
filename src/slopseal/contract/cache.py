@@ -24,6 +24,7 @@ from pathlib import Path
 
 from slopseal.contract.digest import HEX_LENGTH, VerifiedDigest
 from slopseal.contract.types import ContractComplete, valid_name
+from slopseal.fsutil import ensure_private_dir
 
 CACHE_DIR = "contracts"
 EXTRACTOR_VERSION = "contract-extractor/0"
@@ -66,7 +67,7 @@ def store(root: Path, verified: VerifiedDigest, exports: tuple[str, ...]) -> Non
     }
     entry = dict(fields, entry_sha256=_entry_hash(fields))
     directory = root / CACHE_DIR
-    directory.mkdir(parents=True, exist_ok=True)
+    ensure_private_dir(directory)
     handle, temp_name = tempfile.mkstemp(dir=directory, prefix=".entry-", suffix=".json")
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
