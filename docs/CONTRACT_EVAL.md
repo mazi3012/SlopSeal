@@ -1,6 +1,6 @@
 # Contract Check: labels and metric definitions
 
-Status: labels are NOT frozen. They freeze at the first extractor run, and that run's commit records the final labels hash. Until then they may change, each change in its own commit with the hash updated here.
+Status: Run 1 is measured (see Run 1 below). The labels are **not frozen**: their freeze waits for the owner's decision on each absent name (see "Absent review"). The labels file has not changed since the run, and any change to a label after the run means a new run.
 
 Labels file: `docs/contract_labels.json`. SHA-256 of that file: `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`.
 
@@ -10,7 +10,7 @@ Labels file: `docs/contract_labels.json`. SHA-256 of that file: `d258bc486224aa0
 - 259 probes: 161 names labelled PRESENT and 98 names labelled ABSENT. A probe is one name in the form the contract emits: a bare top-level name, or `<module>.<name>` (PyPI module path, npm import specifier). A few probes use the qualified form.
 - Each package has an expected status: `complete`, or `unknown` with an expected typed reason.
 - Every label cites at least one official documentation or public API URL. Labels are drafted from documentation and public API, never from extractor output. Exceptions are listed under "Known limitations of the labels".
-- Absent names are plausible hallucinations an agent might write. They are reviewed by the owner before the run (absent_review = pending_owner until then).
+- Absent names are plausible hallucinations an agent might write. The owner's review of each one is recorded in "Absent review" below. The labels file still reads `absent_review: pending_owner` until the owner records a decision.
 
 ## Hard cases
 
@@ -96,6 +96,25 @@ Every number is reported per ecosystem and in total, and per hard case.
 
 - They show agreement with 51 hand-labelled packages, not accuracy on the registry. The parity test shows the plumbing, not accuracy.
 - Labels can be wrong. A wrong label on an absent name shows up as a wrong PRESENT. A wrong label on a present name shows up as a wrong ABSENT, which is a stop.
+
+## Absent review (98 names): agent evidence, owner decision pending
+
+This section is the evidence for the owner's review of the 98 absent labels. It is not an owner review. The agent checked each name in its pinned artifact by a plain text search: a name is a candidate export if it appears as an identifier in a source file of that version. Nothing here changes a label.
+
+Result of the check:
+
+| Class | Names | Meaning |
+|---|---|---|
+| No identifier hit | 73 | The name does not appear in any source file of the pinned artifact. |
+| Incidental hits only | 12 | The name appears, but only in comments, docstrings, or other modules, never as a definition or export. |
+| Internal name | 3 | Defined in the package but not a top-level export: `tabulate.table` (a local variable; `__all__` does not list it), and `qs.decode` and `qs.encode` (not in the module's exports). |
+| Dynamic package | 10 | The package defines a module-level `__getattr__` or `__dir__` (pydantic, numpy, flask, sqlalchemy, marshmallow). A name can be produced at run time, so a text search cannot clear it. A quoted mention of each name in the entry file was also checked, and none was found (the pydantic `Schema` hits are in comments). These ten need the owner's check against the package documentation. |
+
+The text search is a weak test for absence. Any name in a package with a dynamic `__getattr__` needs the owner's check of the documentation. Any owner decision that changes a label means the run is repeated.
+
+{section}
+
+Decision column: the owner enters `confirmed absent`, `label wrong: present`, or `label wrong: internal`. A label change after a decision means a new run (Procedure step 5 applies to any label change made after the run).
 
 ## Run 1: the measured run (not frozen)
 
