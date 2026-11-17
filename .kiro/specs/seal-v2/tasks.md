@@ -49,9 +49,10 @@ Order of work:
 - [ ] 2.8 npm export extraction [R-C-3]
 - [ ] 2.9 Cache [R-C-6]
 - [ ] 2.10 Contract Diff in the payload [R-C-7]
-- [ ] 2.11 Live wiring, the artifact download, and `test_contract_plumbing_snapshot_parity` [R-C-8]
+- [ ] 2.11 Live wiring, the artifact download, and `test_contract_plumbing_snapshot_parity` [R-C-8]. Decision 1 is option (a): `contract()` on the source, the live download and cache now, the extraction step a stub that returns `ContractUnknown(PARSE_ERROR, "extractor not implemented")`. **MERGE BLOCKER: remove the extractor stub** in the commit that lands each extractor. `grep "extractor not implemented"` must return nothing before any pull request is opened.
 - [ ] 2.12 Escalated retry returns BLOCK for UNKNOWN [R-C-9]
 - [ ] 2.13 Property tests P-C-1 to P-C-8, and the mutant run for each. P-C-8 covers the completeness rule (Q1 to Q5); its six mutants are listed in properties.md. Record the result of every mutant
+- Rulings recorded here. Decision 2 (escalated retry, R-C-9): confirmed. On UNKNOWN in `_escalated_again`, no escalation artifact, the state change (budget consumed) is kept, the audit entry carries the typed reason and the check name, and the BLOCK names the reason and a next step, with no artifact reference. Tests: UNKNOWN on retry gives exit 1, the typed reason, no artifact file, the consumed budget, and an audit entry with the reason.
 - [ ] 2.14 Run the extractor once against the 50 labelled packages. Report coverage, decided accuracy, and strict agreement, per ecosystem and per hard case. List every false ABSENT. **A false ABSENT stops the phase.**
 - [ ] 2.15 Docs: `docs/REFERENCE.md` "Full limitations", `docs/THREAT_MODEL.md` (T5, T17, T18, T23 from planned to implemented, the data-sent table, section 6), `CHANGELOG.md`, `.kiro/steering/structure.md`. Remove text that says live exports are always `None`
 - [ ] 2.16 Full check list. Stop and report: the diff summary per requirement, the mutant results per property, the three accuracy numbers, and the output of the checks. No push.
