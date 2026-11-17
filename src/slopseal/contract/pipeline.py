@@ -10,7 +10,7 @@ The order is fixed, and the tests check it (R-C-1, R-C-6, P-C-3, P-C-6):
 6. The extractor runs. It is injected, because it lands in a later step.
 7. Only a complete contract is written to the cache, and only with a VerifiedDigest.
 
-The extractor is a parameter. This step does not wire the pipeline to the live registry.
+The extractor is a parameter. A `cache_root` of None turns the cache off for that call.
 
 Requirements: R-C-1, R-C-4, R-C-6. Layer 1 (adapter).
 """
@@ -39,7 +39,8 @@ ArchiveCheck = Callable[[Path, str], ArchiveOk | ContractUnknown]
 Extract = Callable[[Path, str, str], ContractComplete | ContractUnknown]
 
 
-def _fetch_default(url: str, ecosystem: Ecosystem) -> bytes | ContractUnknown:
+def fetch_artifact(url: str, ecosystem: Ecosystem) -> bytes | ContractUnknown:
+    """The default artifact fetch: the allowlisted, size-capped download of fetch.py."""
     return download(url, ecosystem)
 
 
@@ -55,17 +56,18 @@ def obtain_contract(
     published: PublishedDigest | ContractUnknown,
     *,
     kind: str,
-    cache_root: Path,
+    cache_root: Path | None,
     extract: Extract,
-    fetch: Fetch = _fetch_default,
+    fetch: Fetch = fetch_artifact,
     archive_check: ArchiveCheck | None = None,
 ) -> ContractResult:
     if isinstance(published, ContractUnknown):
         return published
     check = archive_check if archive_check is not None else run_archive_check
-    cached = cache.load(cache_root, f"{published.algorithm}-{published.hexdigest}")
-    if cached is not None:
-        return cached
+    if cache_root is not None:
+        cached = cache.load(cache_root, f"{published.algorithm}-{published.hexdigest}")
+        if cached is not None:
+            return cached
     data = fetch(artifact_url, ecosystem)
     if isinstance(data, ContractUnknown):
         return data
@@ -79,6 +81,6 @@ def obtain_contract(
         if isinstance(checked, ContractUnknown):
             return checked
         result = extract(artifact, kind, checked.root)
-        if isinstance(result, ContractComplete):
+        if isinstance(result, ContractComplete) and cache_root is not None:
             cache.store(cache_root, verified, result.exports)
         return result
