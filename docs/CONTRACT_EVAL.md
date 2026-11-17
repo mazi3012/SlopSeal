@@ -1,6 +1,6 @@
 # Contract Check: labels and metric definitions
 
-Status: Run 1 is measured (see Run 1 below). The labels are **not frozen**: their freeze waits for the owner's decision on each absent name (see "Absent review"). The labels file has not changed since the run, and any change to a label after the run means a new run.
+Status: **labels frozen.** `docs/contract_labels.json` has `frozen_before_extractor_run: true`, set in commit `ae7d17d`. Frozen file SHA-256: `c290ee8855c538456919d56d4ab233fdbcaee64a559d2cac2a6bddfe485ffdca`. Run 1 used the same label content with the flag `false`, SHA-256 `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`; the only difference is the flag. Any change to a label after the run means a new run. The freeze does not mean the owner approved each absent name: all 98 absent labels still read `absent_review: pending_owner`, and the decision column in "Absent review" is still open.
 
 Labels file: `docs/contract_labels.json`. SHA-256 of that file: `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`.
 
