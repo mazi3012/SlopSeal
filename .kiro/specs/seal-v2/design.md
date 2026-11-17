@@ -259,17 +259,32 @@ Star imports. `from .x import *` reads the exports of `x` once. If `x` has its o
 
 Cost. The rule flags every reference to `__dict__` and `sys`, including harmless ones such as `self.__dict__` inside a class. Those packages lose coverage. That is the price of Q1 and of never calling a real export absent.
 
-### 2.7 npm extraction
+### 2.7 npm extraction (R-C-3)
 
-The stdlib has no JavaScript parser. The extractor therefore tokenizes each file, removes comments and string contents, and then matches the forms of R-C-3 on the token stream. The matching is conservative. Every token `exports` or `module` that is not the head of an exact modelled form gives UNKNOWN (`dynamic_exports`). So does every token `__export`, `__exportStar`, `__reExport`, or `__createBinding`, and every `Object.defineProperty` or `Object.assign` whose target is `exports` or `module`. A form that is only partly recognised is an unmodelled form. The tokenizer cannot finish on an unterminated string or on a regular-expression literal it cannot classify, which gives `parse_error`. Template literals are scanned as text, and any `exports` or `module` token inside a `${...}` is a reference.
+The stdlib has no JavaScript parser. The worker therefore runs a tokenizer over each entry file, in the extract mode of `worker.py`, and matches the modelled forms on the token stream. The matching is conservative: the requirement (R-C-3) gives the forms, the accounted-for rule, the tokenizer failures, the entry points, and the two-entry rule. This section gives the mechanism.
 
-Entry resolution. `exports` is read first: every `import`, `require`, and `default` leaf that is a JavaScript file, and every `types` leaf that is a declaration file. Then `module`, `main`, and `types` or `typings`, when `exports` is absent. Then `index.js`, when neither `exports` nor `main` is present. Each resolved entry is checked on its own, and the multi-entry rule of R-C-3 combines the results.
+**Tokenizer.** It produces tokens with a kind (identifier, keyword, punctuator, string, number, template, regular expression), a value, and a flag for a line break before the token. Comments and whitespace are dropped. Longest match is used for punctuators, so `==`, `===`, `=>`, and `+=` are not read as `=`. A string is read to its closing quote, and a newline ends it unterminated. A template literal is read as text, and each `${` pushes a marker on a brace stack, so the matching `}` resumes the template text. A `/` is decided by the previous token, as R-C-3 states. A regular expression is read to its unescaped `/` outside a character class, and then its flags. Any unterminated token gives `parse_error`.
 
-Names. A subpath is an import specifier: the package name followed by the subpath without `./`. Qualified names are `<specifier>.<symbol>`, for example `semver.parse`. Bare names are the symbols of the root entry only. Scoped packages are not emitted in qualified form, because the specifier contains `/`. The union is capped as for Python.
+**Accounted-for rule.** After tokenizing, each identifier token `exports` or `module` must be consumed by one modelled form. The scan keeps a set of consumed token indices. A form consumes its tokens, and every unconsumed `exports` or `module` gives `dynamic_exports`. Chained names consume each `exports.<name> =` in the chain.
 
-Declarations (`.d.ts`). `export declare`, `export function`, `export const`, `export let`, `export var`, `export class`, `export interface`, `export type`, `export enum`, and `export namespace` are modelled, as are `export { a as b }`, `export default`, and `export * from` one hop. `export = <anything>` gives UNKNOWN (Q3). `export default` adds the reserved name `default` (Q4).
+**Modelled forms.** Each form is a token pattern.
 
-Cost. UMD wrappers, bundler helpers, and CommonJS built with `typeof module` checks are UNKNOWN. Many real packages are of those kinds. This lowers coverage, and the labels expect it for the hard cases.
+- `exports . ID =` and `module . exports . ID =`, followed by zero or more `exports . ID =` or `module . exports . ID =` links. The names are the IDs. `default` is added (Q4).
+- `module . exports =` followed by `{`. The object literal is parsed: keys are identifiers or strings, a shorthand key is an identifier followed by `,` or `}`, and a value is skipped to the next top-level `,` or the matching `}`. A value that contains an `exports` or `module` token gives `dynamic_exports`. A key named `default`, a computed key, a spread, a method, an accessor, or a numeric key gives `dynamic_exports`. After the matching `}`, the next token must be `;`, end of file, or a token with a line break before it that does not continue the expression. Otherwise `dynamic_exports`.
+- `Object . defineProperty (` with `exports` as first argument and a string `"__esModule"` as second: the call is consumed through its matching `)`. Any other name, or `module . exports` as first argument, gives `dynamic_exports`.
+- ESM: `export` keyword forms, matched by the rules of R-C-3.
+
+Everything else that holds an `exports` or `module` token gives `dynamic_exports`. The helper identifiers `__export`, `__exportStar`, `__reExport`, and `__createBinding` give `dynamic_exports` wherever they appear.
+
+**Entry resolution.** Implemented in the worker, from `package.json` read at the root selected by the archive check. The field rules and the two-entry rule are in R-C-3. Entries are listed in a stable order, by resolved path.
+
+**Two entry points.** Each entry is extracted on its own, and the result is one of: a complete name set, or UNKNOWN with a reason. The package contract is then formed:
+
+- All entries complete: `ContractComplete` with the union of their names.
+- Some complete, some not: `ContractUnknown(dynamic_exports, partial=<union of the complete entries' names>)`. A declared API in `partial` is PRESENT in the intent check. Any other declared API is UNKNOWN. This is the exception of R-C-3 and R-C-5, and P-C-2 states it.
+- None complete: the reason of the single entry, or `dynamic_exports` when there are several entries.
+
+**Names and limits.** Per R-C-3: the qualified name is emitted only for a specifier with no `/`, and the bare name is emitted for the root entry only. A file over 5 MB gives `limit`. The worker runs under the shared wall limit of R-C-4.
 
 ### 2.8 Cache
 
