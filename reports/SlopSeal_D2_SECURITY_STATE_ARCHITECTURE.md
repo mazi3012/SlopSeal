@@ -1,8 +1,8 @@
-# D2: Security-State Ownership Architecture (revision 2, design, not implemented)
+# D2: Security-State Ownership Architecture (revision 3, design, not implemented)
 
 - Status: **design and threat model only.** No code, configuration, firewall, network, sandbox, or Kiro setting was changed. D2 is not implemented. D3 and the setup wizard are not started. PR #35 stays Draft. PRs #32, #33 and #34 are untouched.
 - Scope: Kiro IDE and Kiro CLI (first enforcement targets). Kiro Web is advisory in v1 and uses a remote service.
-- Revision 2 answers the four review points. Sections marked **[rev2]** are new or changed. The IDE/CLI test protocol is unchanged.
+- Revision 3 (documentation only) binds replayed requests to their original content and token (8.4), states audit recovery limits and requires a protected replica (6.6), makes enforcement status deterministic (7.4), defines the artifact route (7.5), and binds anchor receipts to the installation (6.5). Sections marked **[rev2]** and **[rev3]** are new or changed. The IDE/CLI test protocol is unchanged.
 
 Evidence labels: **[tested]** measured by a probe in this Kiro Web session or in a throwaway test on this machine; **[code]** read from the repository; **[doc]** official documentation; **[design]** proposal, untested.
 
@@ -51,7 +51,7 @@ Root in the agent's environment defeats option 1 completely. On Kiro Web the age
  |   - policy pin          (only here)                                          |
  |   - audit log           (written here; anchored, section 6)                  |
  |   - rate-limit state    (only here)                                          |
- |   - artifact grants     (issued here, verified by the gateway, section 7.2)  |
+ |   - artifact grants     (issued here, verified by the gateway, section 7.5)  |
  +------|--------------------------------------------|-------------------------+
         | Channel 2: anchor (append, receipt)        | Channel 3: gateway-to-service
         v                                            v  (separate credential)
@@ -138,13 +138,13 @@ Recovery is never automatic and never triggered by the agent.
 
 1. Compute the verdict.
 2. Build the audit record, seal it, and append it to the local log, uncommitted.
-3. Send the record's head to the anchor sink. Wait for a **signed receipt** that names the same `seq`, `head_hash`, and `key_id`.
+3. Send the record's head to the anchor sink. Wait for a **signed receipt** that names the same `installation_id`, `seq`, `head_hash`, and `key_id` (section 6.5).
 4. On a valid receipt, commit the record locally and return the result.
-5. Only then return ALLOW, and only then issue an artifact grant (section 7.2).
+5. Only then return ALLOW, and only then issue an artifact grant (section 7.5).
 
 No ALLOW leaves the service before step 4. The gateway serves no bytes before step 4.
 
-The sink's receipt is signed with the sink's own key (Ed25519 in the target design, per D3). A receipt that fails signature verification is a failure, not a success.
+The sink's receipt is signed with the sink's own key (Ed25519 in the target design, per D3). The signed payload is the canonical JSON of `{installation_id, key_id, seq, head_hash, sink_id, issued_at}`. The service verifies the signature and then checks that `installation_id`, `key_id`, `seq`, and `head_hash` equal the values it sent. A receipt that fails any of these checks is a failure, not a success (section 6.2, "Invalid receipt"). Section 6.6 gives the acceptance test for a validly signed receipt that belongs to another installation.
 
 ### 6.2 Failure definitions and required behaviour
 
@@ -153,7 +153,7 @@ The sink's receipt is signed with the sink's own key (Ed25519 in the target desi
 | **Unavailable** | No response, timeout, connection refused, or 5xx within the anchor timeout | **Degraded.** Return NO VERDICT for every request (including BLOCK), so the state is visible. Keep the record in a pending queue. Retry with bounded backoff. The degraded state is reported in the MCP status line |
 | **Rejected** | 4xx, a sequence conflict, or an explicit refusal | **Halted.** Return NO VERDICT for every request. Do not retry automatically. Operator must investigate. Written to the local log as an event |
 | **Inconsistent head** | The sink returns a head for a `seq` that differs from what the service holds, a `seq` that goes backwards, or a receipt for a different `installation_id` | **Halted, integrity alarm.** Return NO VERDICT. Never auto-repair. Operator runs `slopseal-svc verify` |
-| **Invalid receipt** | Signature fails, or the receipt is missing fields | Treated as **Rejected** |
+| **Invalid receipt** | Signature fails, the receipt is missing fields, or any of `installation_id`, `key_id`, `seq`, `head_hash` differs from what the service sent. A validly signed receipt for another installation is in this class | Treated as **Rejected** (Halted, section 6.2) |
 | **Recovered** | Sink available again after Degraded | Replay the pending queue in `seq` order. Each replayed record must receive its own receipt. Duplicates are rejected by `seq`. Then return to Normal |
 
 ### 6.3 The rules in one place
@@ -167,6 +167,42 @@ The sink's receipt is signed with the sink's own key (Ed25519 in the target desi
 
 - An attacker who controls the sink can present a consistent but false history. The sink is therefore a separate identity with append-only storage and its own receipt key, and its operator is separate from the service operator where possible.
 - Anchoring proves that a record existed when the sink accepted it. It does not prove that every real install passed through the service. Bypasses (D1) are closed by network controls, not by the log.
+
+### 6.5 Receipt binding to the installation [rev3]
+
+Every receipt is checked against the installation it claims to belong to. The verifier does not trust a signature by itself: a receipt is accepted only when all of these match the service's own state:
+
+| Field | Source of the expected value | Check |
+|---|---|---|
+| `installation_id` | Local installation record, confirmed at startup against the sink (section 5.2) | Must equal |
+| `key_id` | Current seal key id | Must equal |
+| `seq` | The record that was sent | Must equal |
+| `head_hash` | The head the service computed for that `seq` | Must equal |
+| signature | Sink receipt key, from the sink's pinned public key | Must verify over the canonical payload in section 6.1 |
+
+A receipt signed by the sink for a **different** installation has a valid signature and still fails the `installation_id` check. The same sink can hold several installations, so the signature alone identifies only the sink, not the installation.
+
+### 6.6 Audit recovery and data durability [rev3]
+
+**What the anchor sink preserves.** The sink stores, for each `seq`, the installation id, the key id, and the head hash (receipts). It does **not** store the audit records themselves. A head hash is a fingerprint: it lets anyone check that a record they hold is the one that was chained at that position, but it cannot produce the record's content.
+
+**Consequences, stated without qualification:**
+
+1. The anchored sequence numbers and head hashes do **not** preserve the audit records. They prove integrity; they do not provide content.
+2. If the local audit log is lost and no other copy exists, the lost records **cannot be reconstructed** from the sink. The sink can establish only the final anchored head (and the head hash for each earlier sequence number), not what the records said.
+3. The sink alone does **not** preserve or reconstruct the complete audit history. Do not describe it as a backup.
+
+**Required protection: a protected replica.** A complete copy of every sealed record must be written, after each commit, to a replica that the agent cannot write or read, held by a different identity from the service where possible. The replica is append-only, and it holds the sealed records exactly as committed (not an unanchored or pending copy). The replica is part of the audit integrity design, so its presence and its verification are preflight checks (section 7.4).
+
+**Recovery procedure (with a replica):**
+
+1. Operator restores the sealed records from the replica into a new local log.
+2. The verifier checks each record's chain and seal, and then checks the head hash for every `seq` against the sink.
+3. Only when every check passes does the service return to Normal. Any mismatch is Halted (section 6.2).
+
+**Permanent local-log loss without a replica** is not recoverable. The service refuses to issue verdicts (section 5.2, "Missing, with a sink record present"). The operator may archive the installation as retired (section 5.4). The retired installation keeps its final anchored head as proof that the chain ended at that head. The lost records are not reconstructed, and the history before the final head cannot be shown to the auditor in full.
+
+**Durability limit.** A replica is not an unlimited guarantee. Loss of the replica together with the local log is permanent loss of content, and it is the operator's responsibility to keep the replica on separate storage.
 
 ## 7. Host privilege, separation, and the production installation model [rev2]
 
@@ -209,8 +245,69 @@ Before the service reports ENFORCED, the installer must confirm, and record each
 4. Yama `ptrace_scope` is at least 1.
 5. The anchor sink is reachable only through the service's credential.
 6. The agent cannot reach the service through any route other than the verdict socket.
+7. A protected audit replica exists, is written after every commit, and its head hashes match the sink (section 6.6).
+8. The approved artifact route works and the agent has no direct registry route (section 7.5).
 
-Any failed check means the status is NOT ENFORCED (or PARTIALLY ENFORCED if the verdict path works and no escalation route is reachable). The installer never escalates privileges to fix a failed check. It prints the change a human must make.
+Each check is recorded as PASS, FAIL, or NOT RUN. The overall status is then derived only by the rules in section 7.4. The installer never escalates privileges to fix a failed check. It prints the change a human must make.
+
+### 7.4 Deterministic enforcement status [rev3]
+
+The status is a pure function of the preflight and probe results. No wording in a result or a log may override it.
+
+**Check classes:**
+
+| Class | Checks | Meaning of a failure |
+|---|---|---|
+| **Class A: security-critical** | A1 no sudo, su, or polkit route for the agent account (7.1, rows 1–2). A2 no Docker group or socket route (7.1, row 3). A3 service writable executables and shared groups closed, and the key, state, and service sockets unreadable by the agent except the verdict socket (7.1, rows 4 and 6). A4 `ptrace_scope` at least 1 and no `CAP_SYS_PTRACE` for the agent (7.1, row 5). A5 anchor integrity: sink reachable, receipts verify, `installation_id`, `key_id`, `seq`, and head match (6.5), and the anchor is not writable by the agent (7.1, row 7). A6 no direct registry route from the agent: every probe to a registry, by any client, fails (7.5 and the probe matrix). A7 policy pin matches. A8 verdict socket binding (`SO_PEERCRED`) active. A9 Kiro escape routes that run commands outside the sandbox are disabled where Kiro allows (7.1, row 8; protocol tests N5 and N6) | **Any failure or NOT RUN → NOT ENFORCED** |
+| **Class B: coverage and durability** | B1 protected audit replica present and head-verified (6.6). B2 approved artifact route answers for an ALLOW grant (7.5). B3 probes that cannot run on this host (for example IPv6 on a host with no IPv6), where the probe class has no route to a registry in the other probes | **Any failure → PARTIALLY ENFORCED at most** |
+
+**Outcomes:**
+
+| Status | Rule (all must hold) |
+|---|---|
+| **ENFORCED** | Every Class A check PASS **and** every Class B check PASS. No probe is NOT RUN |
+| **PARTIALLY ENFORCED** | Every Class A check PASS, **and** at least one Class B check is FAIL or NOT RUN, and no Class A check is FAIL or NOT RUN. Each failed or unrun Class B check is named in the status |
+| **NOT ENFORCED** | Any Class A check FAIL or NOT RUN, **or** any condition in section 7.4.1 holds |
+
+**7.4.1 Conditions that always produce NOT ENFORCED**, regardless of the other checks:
+1. The agent can escalate privileges (any A1 or A2 route is open, or unknown).
+2. The agent can read protected state (the seal key, the audit log, the rate-limit state, or the service identity's files).
+3. The agent can reach the service through a route other than the verdict socket, or can reach the anchor or the gateway credential.
+4. The agent can obtain package bytes that did not pass through a grant (direct registry access succeeds, or the gateway serves bytes without a grant).
+5. An anchor state is Degraded or Halted (section 6.2).
+6. The status cannot be determined (a probe error is recorded as NOT RUN, so this also applies whenever A-class evidence is missing).
+
+**Kiro Web (advisory in v1):** the remote-service variant can reach at most PARTIALLY ENFORCED, labelled advisory. It cannot reach ENFORCED in v1.
+
+**Reporting:** every status shows which Class A and Class B checks passed, which failed, and which were not run. A PARTIALLY ENFORCED status lists the named Class B gaps. A NOT ENFORCED status lists the first failing Class A check or the 7.4.1 condition that applies.
+
+### 7.5 Approved artifact route [rev3]
+
+The agent must be able to get approved artifacts, and it must not get them any other way.
+
+**Route:**
+
+1. The agent calls `verify` on the verdict API with its session token. For an ALLOW verdict, the response includes a **grant**: `{grant_id, verdict_id, ecosystem, name, version, artifact_digest, token_id, expires_at}` with a MAC from the service. The grant is delivered only over the verdict socket (or TLS on Web), never in the MCP status text.
+2. The agent sends `GET /artifact` to the gateway with the grant in a header and the **session token** in a second header. Both are required.
+3. The gateway verifies the grant MAC with the gateway credential, checks that `token_id` equals the token presented, checks expiry (120 seconds), checks that the grant has not been used (it records `grant_id` at first use), and checks that the request matches `ecosystem`, `name`, and `version`.
+4. The gateway fetches the upstream artifact over its own egress path, verifies its SHA-256 against `artifact_digest`, and streams the bytes only if all checks pass.
+5. The gateway marks `grant_id` as used before it streams bytes, so a dropped connection cannot be retried with the same grant.
+
+**Why the agent gets no direct registry route:** the agent network has no egress to the registries (A6). The only artifact path the agent can reach is the gateway, and the gateway serves only with a grant.
+
+**Limits:**
+
+- A grant is a bearer value for one artifact, for 120 seconds, for one session. If a grant leaks within that window, the same session's token is still needed to use it, so the leak does not give a new session access.
+- The gateway index protocol that a package manager needs (R-GW-6, pip simple API and npm registry) is not built. Until it is, the route serves one artifact per request and no package manager can use it directly. That protocol work is a dependency of this route being usable, not of its security.
+- The route is narrow only if the agent's network really has no registry egress, which is probe A6.
+
+### 7.6 Acceptance tests for the route
+
+| ID | Test |
+|---|---|
+| AC-32 | An ALLOW verdict returns a grant. The gateway serves the matching bytes once. A second use of the same grant is refused |
+| AC-33 | The gateway refuses a grant presented with a different session token, a different package, a different version, or a different digest, and refuses an expired grant. Each refusal is logged |
+| AC-34 | The gateway refuses a request with no grant, even when the session token is valid |
 
 ## 8. Session tokens, gateway credentials, and channel security [rev2]
 
@@ -238,7 +335,7 @@ No credential in this table can be converted into another. The session token is 
 | Revocation | Operator command, and automatic on: pin mismatch, key rotation, Halted anchor state, more than 20 authentication failures in 10 minutes |
 | Binding (IDE/CLI) | Unix socket with `SO_PEERCRED`. The request must come from the agent account's uid, in addition to the token |
 | Binding (Web) | TLS with server authentication. Web token is bound to the session only and is advisory in v1 |
-| Replay | Each request carries a random request id and a timestamp. The service keeps the request ids seen in the last 10 minutes. A repeated id returns the cached verdict and **does not** count against the rate limit again |
+| Replay | Bound to the original request, token, and content. See section 8.4 |
 | Logging | Tokens never appear in logs, verdicts, MCP responses, or error text. Only the token id (a prefix of the keyed hash) is logged |
 
 ### 8.3 Operation allow-lists
@@ -260,7 +357,38 @@ No credential in this table can be converted into another. The session token is 
 
 Each forbidden call returns a denial and writes a `DENIED_OPERATION` event. The MCP tool has no operation for any bold entry, so the agent cannot ask for it.
 
-### 8.4 Grants (gateway and artifact)
+### 8.4 Request binding and replay [rev3]
+
+A request id on its own is not an identity. Anyone who learns an id could reuse it for a different request. So each id is bound to the token and to the exact content of the request it first named.
+
+**Canonical request.** The service builds the canonical request as UTF-8 JSON with sorted keys and no insignificant whitespace, containing:
+
+- `op` (the operation name, for example `verify`)
+- `ecosystem` (normalized, for example `pypi`)
+- `name` (normalized package name)
+- `version` (exact string)
+- `purpose`, `expected_api`, `quarantine_id` (absent fields are written as `null`)
+- `token_id` (the id of the presenting session token)
+- `timestamp` (the client's request time)
+
+`request_hash = SHA-256(canonical request)`. The hash covers every parameter that can change the verdict or the quota, so no security-relevant field can differ without changing the hash.
+
+**Replay record.** For each accepted request the service stores `{request_id, token_id, request_hash, verdict_id, timestamp, expires_at}`. The record is kept for the replay window, and no longer.
+
+**Rules.**
+
+| Incoming request with a known `request_id` | Decision | Quota | Audit |
+|---|---|---|---|
+| Same `token_id` and same `request_hash` | **Return the cached verdict.** The verdict is the one already issued (the same `verdict_id`) | Not counted again | `REPLAY_CACHED` |
+| Same `token_id`, different `request_hash` | **Reject** with `REPLAY_CONFLICT`. Nothing is evaluated | Not counted | `REPLAY_CONFLICT` |
+| Different `token_id` (any hash) | **Reject** with `REPLAY_DENIED`. Nothing is evaluated | Not counted | `REPLAY_DENIED` |
+| Unknown `request_id` | Evaluate normally | Counted once | Normal verdict record |
+
+**Freshness.** A request is accepted only if its `timestamp` is within ±2 minutes of the service clock and no older than the replay window (10 minutes). Older requests are rejected with `REQUEST_STALE`, not evaluated and not counted. This is what keeps the replay record small: a request id can be forgotten after the window only because a request that old can no longer be accepted.
+
+**Limits.** A cached verdict returned for an identical request reveals the verdict, not new information. A replayed grant is governed by section 7.5, not by this rule.
+
+### 8.5 Grants (gateway and artifact)
 
 - A grant is `{verdict_id, ecosystem, name, version, artifact_digest, expires_at}` plus a MAC from the service.
 - The gateway verifies the grant with the gateway credential. The agent cannot create a grant, and a grant does not work for another package, version, or digest.
@@ -282,14 +410,16 @@ Each forbidden call returns a denial and writes a `DENIED_OPERATION` event. The 
 | Token invalid, expired, revoked, or wrong binding | Deny with no verdict |
 | Approval signature invalid | Reject; quarantine stays open |
 | Policy hash differs from the pin | Refuse verdicts: `POLICY_PIN_MISMATCH` |
-| Request id replayed | Return the cached verdict; no new count |
+| Request id replayed, identical token and content | Return the cached verdict; no new count (8.4) |
+| Request id replayed, altered content or different token | Reject (`REPLAY_CONFLICT` or `REPLAY_DENIED`); nothing evaluated; no count (8.4) |
+| Request outside the freshness window | Reject (`REQUEST_STALE`); nothing evaluated; no count (8.4) |
 
 ## 10. Rate-limit protection
 
 - Counters live in the service, keyed to the session token's installation and token id.
 - Credit entries live in the service too.
 - A missing or unreadable counter store blocks, and the service never recreates an empty store while a sink record exists (the same rule as the key).
-- Replays do not count again (section 8.2). Restarts do not reset counts.
+- Identical replays do not count again, and altered or cross-token replays are refused without counting (section 8.4). Restarts do not reset counts.
 - Requirements R-4.7 and R-G-11 carry over unchanged.
 
 ## 11. Migration strategy (unchanged from revision 1, with the bootstrap step added)
@@ -316,7 +446,7 @@ Each forbidden call returns a denial and writes a `DENIED_OPERATION` event. The 
 | AC-4 | Missing key blocks | Remove key with audit state present: next verdict refused, no key created |
 | AC-5 | Service down blocks every install path | Stop service: hook, MCP, gateway all refuse |
 | AC-6 | No secret in MCP responses or env | Scan MCP responses and the MCP environment for key bytes and state paths |
-| AC-7 | Token replay, expiry, and revocation | Replayed request id returns cached verdict, no new count; expired and revoked tokens refused |
+| AC-7 | Token expiry and revocation | Expired and revoked tokens refused. Replay behaviour is tested by AC-26 to AC-29 |
 | AC-8 | Anchor detects truncation | Truncate the log: verifier reports mismatch |
 | AC-9 | Decision equivalence after migration | Equivalence corpus: identical outcomes |
 | AC-10 | Legacy logs labelled | Legacy log reports `unanchored` |
@@ -335,6 +465,15 @@ Each forbidden call returns a denial and writes a `DENIED_OPERATION` event. The 
 | **AC-23** | **Gateway credential is not a session token.** Present the session token to the gateway and the anchor channel. | Both refuse. The gateway credential presented to the verdict API is refused |
 | **AC-24** | **Grant is narrow.** Reuse a grant for another package, version, digest, or a second time, and after 120 seconds. | Each refused. Each refusal logged |
 | **AC-25** | **Peer binding.** Connect to the verdict socket from a different uid holding a valid token. | Refused by `SO_PEERCRED` |
+| **AC-26** | **Identical replay returns the cached verdict.** Send one `verify` request, then send the same request id, token, and content again. | Same `verdict_id` returned. Quota counted once. Audit `REPLAY_CACHED` |
+| **AC-27** | **Altered-request replay is rejected.** Same request id and same token, with a different version (or any field in the canonical request). | Refused with `REPLAY_CONFLICT`. Nothing evaluated. Quota not counted. Audit `REPLAY_CONFLICT` |
+| **AC-28** | **Cross-token replay is rejected.** Same request id, identical content, but a different session token. | Refused with `REPLAY_DENIED`. Nothing evaluated. Audit `REPLAY_DENIED` |
+| **AC-29** | **Stale request is rejected.** Send a request with a timestamp older than the 10-minute window, and one more than 2 minutes in the future. | Both refused with `REQUEST_STALE`. Nothing evaluated, nothing counted |
+| **AC-30** | **Receipt for another installation is rejected.** The sink returns a receipt with a valid signature whose `installation_id` belongs to a different installation. | Treated as Invalid receipt, so Halted (section 6.2). No ALLOW. Quota and log unchanged |
+| **AC-31** | **Permanent local-log loss.** (a) With a verified protected replica: delete the local audit log, keep the key and the sink record. (b) Without a replica: same deletion. | (a) Service refuses, operator restores from the replica, the verifier checks the chain and every head against the sink, then the service returns to Normal. (b) Service refuses with `AUDIT_RECORDS_UNRECOVERABLE`. The report's limits apply: lost records are not reconstructed, and only the final anchored head is established |
+| **AC-35** | **Status is deterministic.** Use four preflight fixtures: (1) all checks pass; (2) only a Class B check fails (for example the replica); (3) a Class A check fails while every Class B check passes; (4) a Class A check is NOT RUN with every Class B check passing. Also (5) a direct registry probe succeeds. | (1) ENFORCED. (2) PARTIALLY ENFORCED, naming the failed Class B check. (3) and (4) NOT ENFORCED, naming the Class A check. (5) NOT ENFORCED under section 7.4.1, condition 4. The same input always yields the same status |
+
+The artifact-route tests AC-32, AC-33 and AC-34 are defined in section 7.6 and are part of this list.
 
 ### 12.2 Test environments
 
@@ -357,9 +496,9 @@ Each forbidden call returns a denial and writes a `DENIED_OPERATION` event. The 
 | Phase | Goal | Depends on | Exit |
 |---|---|---|---|
 | D2-a | Revision 2 approved; IDE/CLI protocol executed on throwaway accounts | Review; throwaway accounts | Results recorded in the protocol report |
-| D2-b | Installer preflight (section 7.3) and production model checks (AC-20, AC-21, AC-25) on a VM | D2-a | Preflight passes only on a correctly configured host |
-| D2-c | Service skeleton (M1), `init` and sink records (M2) | D2-b | AC-9, AC-12, AC-13, AC-14 green |
-| D2-d | Clients switched; fail-closed; anchor paths (M3, M4) | D2-c | AC-5, AC-15 to AC-19, AC-22 to AC-24 green |
+| D2-b | Installer preflight (section 7.3), deterministic status (7.4), and production model checks (AC-20, AC-21, AC-25, AC-35) on a VM | D2-a | Preflight passes only on a correctly configured host; status matches AC-35 fixtures |
+| D2-c | Service skeleton (M1), `init` and sink records (M2), protected replica (6.6) | D2-b | AC-9, AC-12, AC-13, AC-14, AC-31 green |
+| D2-d | Clients switched; fail-closed; anchor paths (M3, M4); request binding (8.4); artifact route (7.5) | D2-c | AC-5, AC-15 to AC-19, AC-22 to AC-24, AC-26 to AC-30, AC-32 to AC-34 green |
 | D2-e | Local state removed; legacy labelling (M5, M6) | D2-d | AC-1 to AC-8, AC-10, AC-11 green |
 | D3 | Approval channel (Ed25519 ADR first, also for sink receipts) | D2-c and the ADR | AC-17, AC-18 green for signed receipts; F-02 Part B closed |
 | W | Web remote service, advisory | D2-c; Web testing with administrator access | Status shown as advisory |
@@ -369,6 +508,8 @@ ENFORCED is not claimed on any surface before D2-e, and only for IDE and CLI in 
 
 ## 15. Decisions still open
 
-1. Anchor sink choice (section 13.4).
-2. Approval key enrolment (section 13.5).
+1. Anchor sink choice (section 13, open question 4).
+2. Approval key enrolment (section 13, open question 5).
 3. Whether sudo with a cached credential must be disabled for the agent account, or the agent account must have no sudo at all (recommended: no sudo at all).
+4. Where the protected audit replica is hosted (section 6.6). It must not be on the agent's host, and it must be a different identity from the service where possible.
+5. The `sink_id` format and the sink's receipt key enrolment (sections 6.1 and 6.5).
