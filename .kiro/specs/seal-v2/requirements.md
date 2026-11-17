@@ -55,6 +55,20 @@ Terms used below:
 
 **R-U-1 (decision messages).** Every message the hook writes to stderr, and every MCP tool result text, shall state the decision in the fixed wording of `src/slopseal/messages.py`. The categories are: verification in progress, ALLOW, BLOCK, QUARANTINE, rate limited, error, and unverifiable form. A message shall not describe an unverifiable form as a security risk. Metadata (package names, reasons, advisory identifiers) shall appear only as JSON string values, as R-G-10 requires. Messages shall not change an exit code, an outcome, a check name, a structured MCP field, or any decision (R-1.8, R-G-2 to R-G-8). The hook description shall state these categories (R-G-9).
 
+## 1b. Package source gateway (proposed, ADR 0004)
+
+**R-GW-1 (serve only ALLOW).** The gateway shall serve a package artifact only when `verify_install` returns ALLOW for that exact ecosystem, normalized name, and version. BLOCK, QUARANTINE, and RATE_LIMITED shall return HTTP 403 with a JSON body that names the outcome, the check, and the next step. No artifact bytes shall be sent.
+
+**R-GW-2 (digest before bytes).** The gateway shall send artifact bytes only when their SHA-256 equals the digest the registry published for that artifact. A missing published digest, or a mismatch, shall fail closed (no bytes).
+
+**R-GW-3 (no verdict, no bytes).** Any failure to produce a verdict, to resolve the artifact, or to fetch it upstream shall return an error status and no artifact bytes. An unexpected exception in the request handler shall return HTTP 503.
+
+**R-GW-4 (loopback by default).** The gateway shall bind to a loopback address. A non-loopback address shall be refused unless the owner passes an explicit flag.
+
+**R-GW-5 (counted and audited).** Every gateway request that reaches verification shall count against the install rate limit (R-4.7) and be written to the audit log, exactly as `verify_install` does for any caller.
+
+**R-GW-6 (not a protocol proxy yet).** The MVP serves one artifact per request at `/v1/<ecosystem>/<name>/<version>/artifact`. It does not speak the pip simple index or the npm registry protocol. That protocol work and the live upstream adapter are out of scope for this MVP.
+
 ## 2. Contract Check (Phase 2, not implemented)
 
 **Purpose.** In live mode the registries do not publish exported symbols, so `exports()` returns nothing and every intent check blocks (R-Q-2). The Contract Check reads the exports from the artifact itself, statically, so that an intent check can answer PRESENT, ABSENT, or UNKNOWN. Offline mode is unchanged: it still reads the checksummed snapshot.

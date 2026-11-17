@@ -35,3 +35,4 @@ What gets easier, what gets harder, what was rejected.
 |----|-------|--------|
 | 0001 | Policy as a fenced TOML block in the steering file | Accepted |
 | 0002 | Zero mandatory runtime dependencies | Accepted |
+| 0004 | Verifying package gateway: the package source is the boundary | Proposed |
