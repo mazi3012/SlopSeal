@@ -38,8 +38,9 @@ import stat
 import sys
 import tarfile
 import zipfile
-from collections.abc import Iterator, Mapping
-from typing import IO
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
+from typing import IO, Any
 
 CHUNK = 1 << 16
 MAX_NAME_LENGTH = 256
@@ -450,6 +451,804 @@ def extract_wheel(path: str, max_file_bytes: int, max_names: int) -> list[str]:
     return sorted(names)
 
 
+# ---- npm export extraction (R-C-3) ----------------------------------------------------------
+#
+# A tokenizer and a token-level matcher for the modelled forms. There is no JavaScript parser in
+# the standard library, so every rule here is a token pattern, and anything that is not a pattern
+# gives Dynamic. The tokenizer raises TokError when it cannot finish; the caller maps that to
+# parse_error.
+
+
+class TokError(Exception):
+    """The tokenizer cannot finish: an unterminated token, or a slash it cannot classify."""
+
+
+@dataclass(frozen=True)
+class _Tok:
+    kind: str  # "id", "str", "num", "re", or "p"
+    value: str
+    nl: bool  # a line break comes before this token
+    regex_after: bool = False  # for ")": a slash after it starts a regular expression
+
+
+_JS_EXTS = (".js", ".cjs", ".mjs")
+_DTS_EXTS = (".d.ts", ".d.mts", ".d.cts")
+_CONDITIONS = frozenset({"import", "require", "node", "default", "types"})
+_REGEX_AFTER_WORDS = frozenset(
+    {
+        "return",
+        "typeof",
+        "instanceof",
+        "in",
+        "of",
+        "new",
+        "delete",
+        "void",
+        "throw",
+        "case",
+        "do",
+        "else",
+        "yield",
+        "await",
+    }
+)
+_HELPERS = frozenset({"__export", "__exportStar", "__reExport", "__createBinding"})
+_PUNCTUATORS = sorted(
+    [
+        ">>>=", "...", "===", "!==", "**=", "<<=", ">>=", ">>>", "&&=", "||=", "??=",
+        "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "++", "--", "+=", "-=",
+        "*=", "%=", "&=", "|=", "^=", "**", "<<", ">>",
+        "{", "}", "(", ")", "[", "]", ";", ",", "<", ">", "+", "-", "*", "%", "&",
+        "|", "^", "!", "~", "?", ":", "=", ".", "@", "#",
+    ],
+    key=len,
+    reverse=True,
+)  # fmt: skip
+_IDENT = re.compile(r"(?:[^\W\d]|\$)[\w$]*")
+_NUMBER = re.compile(r"(?:\d|\.\d)[\w.]*")
+_WS = frozenset(" \t\r\n\f\v\ufeff\u00a0\u2028\u2029")
+_LINE_BREAKS = frozenset("\r\n\u2028\u2029")
+
+
+def _template_piece(text: str, j: int) -> tuple[int, str]:
+    """Scan template text from j. Returns (index after it, "end" or "sub")."""
+    n = len(text)
+    while True:
+        if j >= n:
+            raise TokError("unterminated template literal")
+        if text[j] == "\\":
+            j += 2
+            continue
+        if text[j] == "`":
+            return j + 1, "end"
+        if text.startswith("${", j):
+            return j + 2, "sub"
+        j += 1
+
+
+def _regex_allowed(toks: list[_Tok]) -> bool:
+    if not toks:
+        return True
+    prev = toks[-1]
+    if prev.kind == "id":
+        return prev.value in _REGEX_AFTER_WORDS
+    if prev.kind in ("str", "num", "re"):
+        return False
+    if prev.value == ")":
+        return prev.regex_after
+    if prev.value == "}":
+        raise TokError("a slash after a closing brace cannot be classified")
+    return prev.value not in ("]", "++", "--")
+
+
+def tokenize(text: str) -> list[_Tok]:
+    """Tokens of a JavaScript or TypeScript file. Comments are dropped. Strings and template text
+    are kept as one token each, with no value that matters to the rules. Regular expressions are
+    one token. Raises TokError when a token does not end, or a slash cannot be classified."""
+    toks: list[_Tok] = []
+    braces: list[str] = []  # "{" or "T" (a template substitution)
+    parens: list[bool] = []  # per open "(": preceded by if, while, for, or with
+    n = len(text)
+    i = 0
+    nl = False
+    if text.startswith("#!"):
+        while i < n and text[i] not in _LINE_BREAKS:
+            i += 1
+    while i < n:
+        c = text[i]
+        if c in _WS:
+            if c in _LINE_BREAKS:
+                nl = True
+            i += 1
+            continue
+        if text.startswith("//", i):
+            while i < n and text[i] not in _LINE_BREAKS:
+                i += 1
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            if end < 0:
+                raise TokError("unterminated block comment")
+            if "\n" in text[i:end] or "\r" in text[i:end]:
+                nl = True
+            i = end + 2
+            continue
+        if c in "'\"":
+            j = i + 1
+            while True:
+                if j >= n or text[j] in _LINE_BREAKS:
+                    raise TokError("unterminated string literal")
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == c:
+                    break
+                j += 1
+            toks.append(_Tok("str", text[i + 1 : j], nl))
+            nl = False
+            i = j + 1
+            continue
+        if c == "`" or (c == "}" and braces and braces[-1] == "T"):
+            if c == "}":
+                # The closing brace of a substitution is a real token, so brace depth stays exact.
+                braces.pop()
+                toks.append(_Tok("p", "}", nl))
+                nl = False
+            j, piece = _template_piece(text, i + 1)
+            if piece == "end":
+                toks.append(_Tok("str", "", nl))
+            else:
+                toks.append(_Tok("p", "${", nl))
+                braces.append("T")
+            nl = False
+            i = j
+            continue
+        if c == "/":
+            if _regex_allowed(toks):
+                j = i + 1
+                in_class = False
+                while True:
+                    if j >= n or text[j] in _LINE_BREAKS:
+                        raise TokError("unterminated regular expression")
+                    ch = text[j]
+                    if ch == "\\":
+                        j += 2
+                        continue
+                    if in_class:
+                        if ch == "]":
+                            in_class = False
+                    elif ch == "[":
+                        in_class = True
+                    elif ch == "/":
+                        break
+                    j += 1
+                j += 1
+                while j < n and (text[j].isalnum() or text[j] in "_$"):
+                    j += 1
+                toks.append(_Tok("re", "", nl))
+                nl = False
+                i = j
+                continue
+            if text.startswith("/=", i):
+                toks.append(_Tok("p", "/=", nl))
+                i += 2
+            else:
+                toks.append(_Tok("p", "/", nl))
+                i += 1
+            nl = False
+            continue
+        if c == "_" or c == "$" or c.isalpha():
+            m = _IDENT.match(text, i)
+            if m is None:  # pragma: no cover - the character class above guarantees a match
+                raise TokError("bad identifier")
+            toks.append(_Tok("id", m.group(0), nl))
+            nl = False
+            i = m.end()
+            continue
+        if c.isdigit() or (c == "." and i + 1 < n and text[i + 1].isdigit()):
+            m = _NUMBER.match(text, i)
+            if m is None:  # pragma: no cover
+                raise TokError("bad number")
+            toks.append(_Tok("num", m.group(0), nl))
+            nl = False
+            i = m.end()
+            continue
+        for punct in _PUNCTUATORS:
+            if text.startswith(punct, i):
+                if punct == "?." and i + 2 < n and text[i + 2].isdigit():
+                    continue
+                break
+        else:
+            raise TokError("unexpected character")
+        if punct == "{":
+            braces.append("{")
+        elif punct == "}":
+            if braces:
+                braces.pop()
+        elif punct == "(":
+            previous = toks[-1] if toks else None
+            parens.append(
+                previous is not None
+                and previous.kind == "id"
+                and previous.value in ("if", "while", "for", "with")
+            )
+        elif punct == ")":
+            flag = parens.pop() if parens else False
+            toks.append(_Tok("p", ")", nl, regex_after=flag))
+            nl = False
+            i += 1
+            continue
+        toks.append(_Tok("p", punct, nl))
+        nl = False
+        i += len(punct)
+    return toks
+
+
+def _is_p(toks: list[_Tok], k: int, value: str) -> bool:
+    return k < len(toks) and toks[k].kind == "p" and toks[k].value == value
+
+
+def _is_id(toks: list[_Tok], k: int, value: str | None = None) -> bool:
+    return k < len(toks) and toks[k].kind == "id" and (value is None or toks[k].value == value)
+
+
+def _after_dot(toks: list[_Tok], k: int) -> bool:
+    return k > 0 and _is_p(toks, k - 1, ".")
+
+
+def _name_token(toks: list[_Tok], k: int) -> str:
+    """An identifier or a string used as a name, or Dynamic."""
+    if k < len(toks) and toks[k].kind in ("id", "str"):
+        return toks[k].value
+    raise Dynamic("a name the model does not follow")
+
+
+def _object_literal(toks: list[_Tok], b: int, names: set[str]) -> int:
+    """Parse `{ ... }` at b (a module.exports literal, Q2 and Q5). Returns the index after it."""
+    n = len(toks)
+    j = b + 1
+    while True:
+        if j >= n:
+            raise Dynamic("module.exports literal is not closed")
+        if _is_p(toks, j, "}"):
+            j += 1
+            break
+        tok = toks[j]
+        if tok.kind not in ("id", "str"):
+            raise Dynamic("a computed key, a spread, or another form in module.exports")
+        key = tok.value
+        if tok.kind == "id" and key in ("exports", "module"):
+            raise Dynamic("exports or module used inside the literal")
+        if key == "default":
+            raise Dynamic("a key named default is not a rule that adds default (Q4)")
+        if _is_p(toks, j + 1, ":"):
+            k = j + 2
+            depth = 0
+            while True:
+                if k >= n:
+                    raise Dynamic("module.exports literal is not closed")
+                value_tok = toks[k]
+                if value_tok.kind == "p" and value_tok.value == "${":
+                    raise Dynamic("a template substitution inside module.exports")
+                if value_tok.kind == "id" and value_tok.value in ("exports", "module"):
+                    raise Dynamic("exports or module used inside the literal")
+                if value_tok.kind == "p" and value_tok.value in ("(", "[", "{"):
+                    depth += 1
+                elif value_tok.kind == "p" and value_tok.value in (")", "]", "}"):
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif depth == 0 and value_tok.kind == "p" and value_tok.value == ",":
+                    break
+                k += 1
+            names.add(key)
+            j = k
+        elif tok.kind == "id" and (_is_p(toks, j + 1, ",") or _is_p(toks, j + 1, "}")):
+            names.add(key)
+            j += 1
+        else:
+            raise Dynamic("a method, an accessor, or another form in module.exports")
+        if _is_p(toks, j, ","):
+            j += 1
+            continue
+        if _is_p(toks, j, "}"):
+            continue
+        raise Dynamic("module.exports literal is not well formed")
+    # The statement must end here: a semicolon, end of file, or a new line that starts a statement.
+    if j < n:
+        tail = toks[j]
+        if not (
+            (tail.kind == "p" and tail.value in (";", "}"))
+            or (tail.nl and tail.kind in ("id", "str", "num", "re"))
+        ):
+            raise Dynamic("module.exports literal is part of a larger expression")
+    return j
+
+
+def _declarator_has_list(toks: list[_Tok], k: int) -> bool:
+    """True when a top-level comma follows at k, before the statement ends (multi-declarator)."""
+    depth = 0
+    n = len(toks)
+    while k < n:
+        tok = toks[k]
+        if tok.kind == "p" and tok.value in ("(", "[", "{", "${"):
+            depth += 1
+        elif tok.kind == "p" and tok.value in (")", "]", "}"):
+            if depth == 0:
+                return False
+            depth -= 1
+        elif depth == 0 and tok.kind == "p" and tok.value == ";":
+            return False
+        elif depth == 0 and tok.kind == "p" and tok.value == ",":
+            return True
+        elif depth == 0 and tok.nl and tok.kind == "id" and k > 0 and tok.value in _STATEMENT_WORDS:
+            return False
+        k += 1
+    return False
+
+
+_STATEMENT_WORDS = frozenset({"export", "import", "const", "let", "var", "function", "class"})
+
+
+def _export_list(toks: list[_Tok], j: int, names: set[str], *, relative_only: bool) -> int:
+    """`{ a, b as c } [from "./x"]` starting at the "{" at j. Returns the index after the list."""
+    n = len(toks)
+    if not _is_p(toks, j, "{"):
+        raise Dynamic("an export list must start with {")
+    j += 1
+    while True:
+        if j >= n:
+            raise Dynamic("export list is not closed")
+        if _is_p(toks, j, "}"):
+            j += 1
+            break
+        exported = _name_token(toks, j)
+        j += 1
+        if _is_id(toks, j, "as"):
+            exported = _name_token(toks, j + 1)
+            j += 2
+        if exported == "default":
+            raise Dynamic("an export list that names default (Q4 is only export default)")
+        names.add(exported)
+        if _is_p(toks, j, ","):
+            j += 1
+        elif not _is_p(toks, j, "}"):
+            raise Dynamic("export list is not well formed")
+    if _is_id(toks, j, "from"):
+        if j + 1 >= n or toks[j + 1].kind != "str":
+            raise Dynamic("export from needs a string")
+        spec = toks[j + 1].value
+        if relative_only and not spec.startswith(("./", "../")):
+            raise Dynamic("a re-export from a bare package name is not modelled")
+        j += 2
+    return j
+
+
+def _analyze_js(toks: list[_Tok], read_star: Callable[[str], set[str]] | None) -> set[str]:
+    """Names of one JavaScript entry under the accounted-for rule. Raises Dynamic on any gap."""
+    names: set[str] = set()
+    consumed: set[int] = set()
+    n = len(toks)
+    depths = _brace_depths(toks)
+    for i, tok in enumerate(toks):
+        if i in consumed or tok.kind != "id":
+            continue
+        value = tok.value
+        if value in _HELPERS:
+            raise Dynamic(f"bundler helper {value} (Q5)")
+        if value == "this" and depths[i] == 0:
+            raise Dynamic("a top-level this is module.exports in CommonJS")
+        if value == "export" and not _after_dot(toks, i):
+            consumed |= _esm_export(toks, i, names, read_star)
+            continue
+        if (
+            value == "Object"
+            and _is_p(toks, i + 1, ".")
+            and _is_id(toks, i + 2, "defineProperty")
+            and _is_p(toks, i + 3, "(")
+            and _is_id(toks, i + 4, "exports")
+            and _is_p(toks, i + 5, ",")
+            and i + 6 < n
+            and toks[i + 6].kind == "str"
+            and toks[i + 6].value == "__esModule"
+        ):
+            close = _matching_close(toks, i + 3)
+            for k in range(i + 7, close):
+                if toks[k].kind == "id" and toks[k].value in ("exports", "module"):
+                    raise Dynamic("exports used in the __esModule call")
+            consumed |= set(range(i, close + 1))
+            continue
+        head = None
+        is_module = False
+        if value == "exports" and not _after_dot(toks, i):
+            head = i
+        elif (
+            value == "module"
+            and not _after_dot(toks, i)
+            and _is_p(toks, i + 1, ".")
+            and _is_id(toks, i + 2, "exports")
+        ):
+            head = i + 2
+            is_module = True
+        else:
+            if value in ("exports", "module"):
+                raise Dynamic("exports or module in a form the model does not follow")
+            continue
+        if _is_p(toks, head + 1, "="):
+            if is_module and _is_p(toks, head + 2, "{"):
+                end = _object_literal(toks, head + 2, names)
+                consumed |= set(range(i, end))
+                continue
+            raise Dynamic(
+                "module.exports is assigned a value that is not a plain object literal (Q2, Q3)"
+            )
+        if _is_p(toks, head + 1, ".") and _is_id(toks, head + 2) and _is_p(toks, head + 3, "="):
+            names.add(toks[head + 2].value)  # Q4: `default` is a plain name here
+            consumed |= set(range(i, head + 4))
+            continue
+        raise Dynamic("exports or module read or changed in a form the model does not follow")
+    return names
+
+
+def _brace_depths(toks: list[_Tok]) -> list[int]:
+    """The brace depth before each token. A "${" opens a depth, and its "}" closes it."""
+    depths: list[int] = []
+    depth = 0
+    for tok in toks:
+        if tok.kind == "p" and tok.value == "}":
+            depth = max(depth - 1, 0)
+        depths.append(depth)
+        if tok.kind == "p" and tok.value in ("{", "${"):
+            depth += 1
+    return depths
+
+
+def _matching_close(toks: list[_Tok], open_index: int) -> int:
+    depth = 0
+    for k in range(open_index, len(toks)):
+        if toks[k].kind == "p" and toks[k].value in ("(", "[", "{", "${"):
+            depth += 1
+        elif toks[k].kind == "p" and toks[k].value in (")", "]", "}"):
+            depth -= 1
+            if depth == 0:
+                return k
+    raise Dynamic("unclosed call")
+
+
+def _esm_export(
+    toks: list[_Tok], i: int, names: set[str], read_star: Callable[[str], set[str]] | None
+) -> set[int]:
+    """One ESM export statement at i. Adds its names. Returns the token indices it consumed."""
+    n = len(toks)
+    if _is_id(toks, i + 1, "default"):
+        names.add("default")
+        return {i, i + 1}
+    if _is_p(toks, i + 1, "{"):
+        end = _export_list(toks, i + 1, names, relative_only=True)
+        if _is_p(toks, end, ";"):
+            end += 1
+        return set(range(i, end))
+    if _is_p(toks, i + 1, "*"):
+        if not (_is_id(toks, i + 2, "from") and i + 3 < n and toks[i + 3].kind == "str"):
+            raise Dynamic("export * as, or an export * without from, is not modelled")
+        spec = toks[i + 3].value
+        if not spec.startswith(("./", "../")):
+            raise Dynamic("export * from a bare package name is not modelled")
+        if read_star is None:
+            raise Dynamic("export * from a second hop (R-C-3)")
+        names.update(read_star(spec))
+        end = i + 4
+        if _is_p(toks, end, ";"):
+            end += 1
+        return set(range(i, end))
+    if _is_id(toks, i + 1, "const") or _is_id(toks, i + 1, "let") or _is_id(toks, i + 1, "var"):
+        if not _is_id(toks, i + 2):
+            raise Dynamic("a destructuring export is not modelled")
+        if _declarator_has_list(toks, i + 3):
+            raise Dynamic("more than one declarator in an export is not modelled")
+        names.add(toks[i + 2].value)
+        return {i, i + 1, i + 2}
+    k = i + 1
+    if _is_id(toks, k, "async") and _is_id(toks, k + 1, "function"):
+        k += 1
+    if _is_id(toks, k, "function"):
+        k += 1
+        if _is_p(toks, k, "*"):
+            k += 1
+        if not _is_id(toks, k):
+            raise Dynamic("an anonymous export function is not modelled")
+        names.add(toks[k].value)
+        return set(range(i, k + 1))
+    if _is_id(toks, k, "class") and _is_id(toks, k + 1):
+        names.add(toks[k + 1].value)
+        return {i, k, k + 1}
+    raise Dynamic("an export form that is not modelled")
+
+
+def _analyze_dts(toks: list[_Tok], read_star: Callable[[str], set[str]] | None) -> set[str]:
+    """Names of one declaration file (R-C-3, .d.ts). Raises Dynamic on any gap."""
+    names: set[str] = set()
+    n = len(toks)
+    for i, tok in enumerate(toks):
+        if tok.kind != "id":
+            continue
+        if tok.value == "declare" and _is_id(toks, i + 1, "module"):
+            raise Dynamic("a declare module block is not modelled")
+        if tok.value != "export" or _after_dot(toks, i):
+            continue
+        if _is_p(toks, i + 1, "="):
+            raise Dynamic("export = is not modelled (Q3)")
+        if _is_id(toks, i + 1, "as"):
+            raise Dynamic("export as namespace is not modelled")
+        if _is_p(toks, i + 1, "{"):
+            _export_list(toks, i + 1, names, relative_only=True)
+            continue
+        if _is_p(toks, i + 1, "*"):
+            if not (_is_id(toks, i + 2, "from") and i + 3 < n and toks[i + 3].kind == "str"):
+                raise Dynamic("export * as is not modelled")
+            spec = toks[i + 3].value
+            if not spec.startswith(("./", "../")):
+                raise Dynamic("export * from a bare package name is not modelled")
+            if read_star is None:
+                raise Dynamic("export * from a second hop (R-C-3)")
+            names.update(read_star(spec))
+            continue
+        if _is_id(toks, i + 1, "default"):
+            names.add("default")
+            continue
+        j = i + 1
+        if _is_id(toks, j, "declare"):
+            j += 1
+        if _is_id(toks, j, "const") and _is_id(toks, j + 1, "enum"):
+            j += 1
+        if _is_id(toks, j, "abstract") and _is_id(toks, j + 1, "class"):
+            j += 1
+        keyword = toks[j].value if j < n and toks[j].kind == "id" else ""
+        if keyword in _DTS_DECLARATIONS and _is_id(toks, j + 1):
+            names.add(toks[j + 1].value)
+            continue
+        raise Dynamic("an export form that is not modelled in a declaration file")
+    return names
+
+
+_DTS_DECLARATIONS = frozenset(
+    {"const", "let", "var", "function", "class", "interface", "type", "enum", "namespace"}
+)
+
+
+@dataclass(frozen=True)
+class _Entry:
+    spec: str  # the specifier: the package name, or name/subpath
+    member: str  # the tarball member of the entry file
+    root: bool  # the root entry: its symbols also get bare names
+    dts: bool  # a declaration file
+
+
+def _member_name(prefix: str, leaf: object) -> str:
+    """The tarball member of a package-relative path, or Unsafe for an unsafe path (R-C-3)."""
+    if not isinstance(leaf, str):
+        raise Unsafe("entry is not a string")
+    if leaf.startswith("/") or "\\" in leaf or "\x00" in leaf:
+        raise Unsafe("unsafe entry path")
+    parts = [part for part in leaf.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        raise Unsafe("unsafe entry path")
+    return "/".join(([prefix] if prefix else []) + parts)
+
+
+def _leaf_is_dts(leaf: str) -> bool:
+    if leaf.endswith(_DTS_EXTS):
+        return True
+    if leaf.endswith(_JS_EXTS):
+        return False
+    raise Dynamic("an entry that is neither JavaScript nor a declaration file")
+
+
+def _leaves(target: object) -> list[str]:
+    """The leaf strings of an exports target: strings, fallback lists, and condition objects."""
+    if target is None:
+        return []
+    if isinstance(target, str):
+        return [target]
+    if isinstance(target, list):
+        found: list[str] = []
+        for item in target:
+            found.extend(_leaves(item))
+        return found
+    if isinstance(target, dict):
+        found = []
+        for key, value in target.items():
+            if not isinstance(key, str) or "*" in key or key not in _CONDITIONS:
+                raise Dynamic("a condition or pattern the model does not resolve")
+            found.extend(_leaves(value))
+        return found
+    raise Unsafe("exports target has an unexpected type")
+
+
+def _subpaths(exports: object) -> dict[str, object]:
+    if isinstance(exports, (str, list)):
+        return {".": exports}
+    if isinstance(exports, dict):
+        if all(isinstance(key, str) and key.startswith(".") for key in exports):
+            return dict(exports)
+        if any(isinstance(key, str) and key.startswith(".") for key in exports):
+            raise Unsafe("exports mixes subpaths and conditions")
+        return {".": exports}
+    raise Unsafe("exports has an unexpected type")
+
+
+def _resolve_entries(manifest: dict[str, Any], prefix: str) -> list[_Entry]:
+    """The entry points of the package (R-C-3, entry points)."""
+    if "typesVersions" in manifest:
+        raise Dynamic("typesVersions is not modelled")
+    name = manifest.get("name")
+    if not isinstance(name, str) or not name:
+        raise Unsafe("package.json has no name")
+    entries: dict[str, _Entry] = {}
+
+    def add(spec: str, leaf: str, root: bool) -> None:
+        member = _member_name(prefix, leaf)
+        entries.setdefault(member, _Entry(spec, member, root, _leaf_is_dts(leaf)))
+
+    exports = manifest.get("exports")
+    if exports is not None:
+        for subpath, target in _subpaths(exports).items():
+            if "*" in subpath:
+                raise Dynamic("a wildcard subpath is not modelled")
+            spec = name if subpath == "." else f"{name}/{subpath[2:]}"
+            for leaf in _leaves(target):
+                add(spec, leaf, subpath == ".")
+    else:
+        for field in ("module", "main", "types", "typings"):
+            value = manifest.get(field)
+            if value is not None:
+                if not isinstance(value, str):
+                    raise Unsafe(f"{field} is not a string")
+                add(name, value, True)
+        if not entries:
+            add(name, "index.js", True)
+    if not entries:
+        raise Unsafe("no entry point")
+    return list(entries.values())
+
+
+def _join_inside(prefix: str, base: str, relative: str) -> str:
+    """A path relative to base, kept inside the package prefix (R-C-3). Otherwise Dynamic."""
+    parts = base.split("/") if base else []
+    for segment in relative.split("/"):
+        if segment in ("", "."):
+            continue
+        if segment == "..":
+            if not parts:
+                raise Dynamic("a relative star import leaves the package")
+            parts.pop()
+        else:
+            parts.append(segment)
+    target = "/".join(parts)
+    if prefix and not (target == prefix or target.startswith(prefix + "/")):
+        raise Dynamic("a relative star import leaves the package")
+    return target
+
+
+def _read_member(archive: tarfile.TarFile, info: tarfile.TarInfo, max_file_bytes: int) -> bytes:
+    stream = archive.extractfile(info)
+    if stream is None:
+        raise Unsafe("member has no data")
+    with stream:
+        data = stream.read(max_file_bytes + 1)
+    if len(data) > max_file_bytes:
+        raise Limit("source file is larger than the limit")
+    return data
+
+
+def _regular_members(archive: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
+    """Regular files of the tarball, by normalized member name. Links and devices were refused
+    by the archive check before this runs."""
+    members: dict[str, tarfile.TarInfo] = {}
+    for info in archive.getmembers():
+        if info.isreg():
+            members[info.name.removeprefix("./")] = info
+    return members
+
+
+def _analyze_member(
+    archive: tarfile.TarFile,
+    members: dict[str, tarfile.TarInfo],
+    member: str,
+    max_file_bytes: int,
+    prefix: str,
+    allow_star: bool,
+) -> set[str]:
+    info = members.get(member)
+    if info is None:
+        raise Unsafe("an entry file is missing from the tarball")
+    text = _read_member(archive, info, max_file_bytes).decode("utf-8")
+    toks = tokenize(text)
+    analyse = _analyze_dts if member.endswith(_DTS_EXTS) else _analyze_js
+    base = member.rsplit("/", 1)[0] if "/" in member else ""
+
+    def reader(relative: str) -> set[str]:
+        target = _join_inside(prefix, base, relative)
+        for candidate in (
+            target,
+            target + ".js",
+            target + ".cjs",
+            target + ".mjs",
+            target + ".d.ts",
+            target + "/index.js",
+            target + "/index.d.ts",
+        ):
+            if candidate in members:
+                return _analyze_member(
+                    archive, members, candidate, max_file_bytes, prefix, allow_star=False
+                )
+        raise Dynamic("a star import target is outside the artifact")
+
+    return analyse(toks, reader if allow_star else None)
+
+
+def _entry_names(entry: _Entry, symbols: set[str]) -> set[str]:
+    out = {entry.spec}
+    for symbol in symbols:
+        out.add(f"{entry.spec}.{symbol}")
+        if entry.root:
+            out.add(symbol)
+    return out
+
+
+def extract_npm(path: str, root: str, max_file_bytes: int, max_names: int) -> dict[str, object]:
+    """The contract of an npm artifact: complete, or UNKNOWN (with partial names for two entry
+    points). Standard library only. Raises Unsafe, Limit, Dynamic, or TokError."""
+    with tarfile.open(path, "r:*") as archive:
+        members = _regular_members(archive)
+        manifest_name = f"{root}/package.json" if root else "package.json"
+        manifest_info = members.get(manifest_name)
+        if manifest_info is None:
+            raise Unsafe("no package.json at the selected root")
+        manifest = json.loads(_read_member(archive, manifest_info, max_file_bytes).decode("utf-8"))
+        if not isinstance(manifest, dict):
+            raise Unsafe("package.json is not an object")
+        entries = _resolve_entries(manifest, root)
+        outcomes: list[tuple[_Entry, set[str] | None, tuple[str, str] | None]] = []
+        for entry in entries:
+            try:
+                symbols = _analyze_member(
+                    archive, members, entry.member, max_file_bytes, root, allow_star=True
+                )
+                outcomes.append((entry, symbols, None))
+            except Dynamic as exc:
+                outcomes.append((entry, None, ("dynamic_exports", str(exc))))
+            except Limit as exc:
+                outcomes.append((entry, None, ("limit", str(exc))))
+            except (Unsafe, TokError, UnicodeDecodeError) as exc:
+                outcomes.append((entry, None, ("parse_error", str(exc) or "entry cannot be read")))
+    complete = [(entry, symbols) for entry, symbols, failed in outcomes if symbols is not None]
+    names: set[str] = set()
+    for entry, symbols in complete:
+        names |= _entry_names(entry, symbols)
+    if len(names) > max_names:
+        raise Limit("export count is larger than the limit")
+    if len(complete) == len(outcomes):
+        return {"status": "complete", "exports": sorted(names)}
+    if complete:
+        # Two entry points, not all complete (R-C-3): the complete entries' names are kept.
+        return {
+            "status": "unknown",
+            "reason": "dynamic_exports",
+            "detail": "one entry point is not complete",
+            "partial": sorted(names),
+        }
+    if len(outcomes) == 1:
+        _, _, failed = outcomes[0]
+        reason, detail = failed or ("parse_error", "entry cannot be read")
+        return {"status": "unknown", "reason": reason, "detail": detail[:200]}
+    return {
+        "status": "unknown",
+        "reason": "dynamic_exports",
+        "detail": "no entry point is complete",
+    }
+
+
 # ---- entry point ----------------------------------------------------------------------------
 
 
@@ -471,7 +1270,7 @@ def _apply_limits(cpu: int, address: int, open_files: int) -> str | None:
 
 
 def _main_extract(argv: list[str]) -> int:
-    kind, path = argv[0], argv[1]
+    kind, path, root = argv[0], argv[1], argv[2]
     max_file_bytes, max_names = int(argv[3]), int(argv[4])
     cpu, address, open_files = int(argv[5]), int(argv[6]), int(argv[7])
     limit_detail = _apply_limits(cpu, address, open_files)
@@ -479,9 +1278,15 @@ def _main_extract(argv: list[str]) -> int:
         _emit({"status": "unknown", "reason": "limit", "detail": limit_detail})
         return 0
     try:
-        if kind != "wheel":
-            raise Unsafe("extraction is implemented for wheels only")
-        names = extract_wheel(path, max_file_bytes, max_names)
+        if kind == "wheel":
+            payload: dict[str, object] = {
+                "status": "complete",
+                "exports": extract_wheel(path, max_file_bytes, max_names),
+            }
+        elif kind == "npm":
+            payload = extract_npm(path, root, max_file_bytes, max_names)
+        else:
+            raise Unsafe("unknown artifact kind")
     except Dynamic as exc:
         _emit({"status": "unknown", "reason": "dynamic_exports", "detail": str(exc)})
         return 0
@@ -494,18 +1299,20 @@ def _main_extract(argv: list[str]) -> int:
     except Unsafe as exc:
         _emit({"status": "unknown", "reason": "parse_error", "detail": str(exc)})
         return 0
-    except (
-        OSError,
-        zipfile.BadZipFile,
-        SyntaxError,
-        ValueError,
-        RecursionError,
-        KeyError,
-        IndexError,
-    ):
+    except (TokError, tarfile.TarError, TypeError, AttributeError, OSError):
+        _emit(
+            {"status": "unknown", "reason": "parse_error", "detail": "artifact could not be read"}
+        )
+        return 0
+    except (zipfile.BadZipFile, SyntaxError, ValueError, RecursionError, KeyError, IndexError):
         _emit({"status": "unknown", "reason": "parse_error", "detail": "module could not be read"})
         return 0
-    _emit({"status": "complete", "exports": names})
+    except Exception:  # last resort: the worker always answers with JSON (R-C-3, P-C-1)
+        _emit(
+            {"status": "unknown", "reason": "parse_error", "detail": "artifact could not be read"}
+        )
+        return 0
+    _emit(payload)
     return 0
 
 

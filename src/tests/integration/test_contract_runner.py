@@ -6,6 +6,7 @@ Requirements: R-C-4. Property: P-C-5 (the subprocess path). Skipped on non-POSIX
 from __future__ import annotations
 
 import io
+import json
 import os
 import stat
 import subprocess
@@ -97,6 +98,7 @@ def _wrapper(directory: Path, body: str) -> Path:
         "import importlib.util, sys\n"
         f"_spec = importlib.util.spec_from_file_location('worker', {str(_REAL_WORKER)!r})\n"
         "worker = importlib.util.module_from_spec(_spec)\n"
+        "sys.modules['worker'] = worker\n"
         "_spec.loader.exec_module(worker)\n" + body,
         encoding="utf-8",
     )
@@ -259,7 +261,7 @@ def test_r_c_2_too_many_names_from_the_subprocess_is_limit(monkeypatch: pytest.M
         assert result.reason is UnknownReason.LIMIT
 
 
-def test_r_c_2_extraction_of_an_npm_kind_is_refused_here() -> None:
+def test_r_c_3_a_placeholder_npm_tarball_is_parse_error_from_the_subprocess() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         artifact = Path(tmp) / "pkg.tgz"
         artifact.write_bytes(b"placeholder")
@@ -298,3 +300,28 @@ def test_r_c_4_extraction_inside_a_live_budget_completes() -> None:
             result = run_extract(wheel, "wheel")
     assert isinstance(result, ContractComplete)
     assert "parse" in result.exports
+
+
+# R-C-3: an npm two-entry contract crosses the subprocess boundary with its partial names.
+
+
+def test_r_c_3_partial_names_from_the_subprocess_are_kept() -> None:
+    import tarfile
+
+    files = {"esm.js": "export const a = 1;", "cjs.js": "module.exports = function () {};"}
+    manifest = {"name": "pkg", "exports": {".": {"import": "./esm.js", "require": "./cjs.js"}}}
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        path = base / "pkg.tgz"
+        members = {"package/package.json": json.dumps(manifest)}
+        members.update({f"package/{name}": body for name, body in files.items()})
+        with tarfile.open(path, "w:gz") as archive:
+            for member, body in members.items():
+                data = body.encode("utf-8")
+                info = tarfile.TarInfo(member)
+                info.size = len(data)
+                archive.addfile(info, io.BytesIO(data))
+        result = run_extract(path, "npm", "package")
+    assert isinstance(result, ContractUnknown)
+    assert result.reason is UnknownReason.DYNAMIC_EXPORTS
+    assert "a" in result.partial

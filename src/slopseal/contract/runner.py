@@ -144,7 +144,15 @@ def _message(output: bytes, what: str) -> dict[str, Any] | ContractUnknown:
         except ValueError:
             return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} gave an unknown reason")
         detail = message.get("detail")
-        return ContractUnknown(reason, _short(detail if isinstance(detail, str) else ""))
+        partial = message.get("partial", [])
+        if not isinstance(partial, list) or not all(isinstance(name, str) for name in partial):
+            return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} gave invalid partial names")
+        try:
+            return ContractUnknown(
+                reason, _short(detail if isinstance(detail, str) else ""), tuple(partial)
+            )
+        except ValueError:
+            return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} gave invalid partial names")
     return message
 
 
