@@ -8,7 +8,8 @@ filled in with a "safe" default.
 Limits, stated in docs/THREAT_MODEL.md:
 - No retries. A failed request is reported as unknown.
 - Responses are untrusted input. They are parsed, not executed.
-- Exports are not published by the registries, so the API-surface check is always unknown.
+- Exports come from the Contract Check (`contract()`, R-C-8). Until the extractor lands, the
+  extraction step is a stub, so every live export answer is unknown.
 - Maintainer account age is not published, so the maintainer check is always unknown.
 - The top-N list comes from the checksummed snapshot. It is not a live ranking.
 - Install-time code is ruled out only for a version with a universal (`none-any`) wheel on
@@ -26,8 +27,22 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import Any, Final
+from pathlib import Path
+from typing import Any, Final, assert_never
 
+from slopseal.contract.digest import (
+    PublishedDigest,
+    published_from_npm_integrity,
+    published_from_pypi,
+)
+from slopseal.contract.pipeline import fetch_artifact, obtain_contract
+from slopseal.contract.runner import run_extract
+from slopseal.contract.types import (
+    ContractComplete,
+    ContractResult,
+    ContractUnknown,
+    UnknownReason,
+)
 from slopseal.core.advisory import (
     Advisories,
     Advisory,
@@ -77,6 +92,7 @@ class LiveFailure(Exception):
 _FAILURES = (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, LiveFailure)
 
 Fetch = Callable[[str, bytes | None], bytes | None]
+ArtifactFetch = Callable[[str, Ecosystem], bytes | ContractUnknown]
 
 # Marks a 404. Kept apart from None, which is what a body of `null` parses to.
 _NOT_FOUND: Final = object()
@@ -116,6 +132,11 @@ def _time(text: object) -> datetime:
     return parsed
 
 
+def _extract(artifact: Path, kind: str, root: str) -> ContractComplete | ContractUnknown:
+    """The extraction step (R-C-8): the worker extract mode, for wheels and npm (R-C-2, R-C-3)."""
+    return run_extract(artifact, kind, root)
+
+
 def _npm_path(name: str) -> str:
     # Scoped names keep "@" and encode "/" as %2F, as the npm registry expects.
     return urllib.parse.quote(name, safe="@")
@@ -136,8 +157,14 @@ class LiveSource:
         pypi_base: str = PYPI_BASE,
         npm_base: str = NPM_BASE,
         osv_url: str = OSV_URL,
+        artifact_fetch: ArtifactFetch | None = None,
+        cache_root: Path | None = None,
     ) -> None:
         self._top: dict[Ecosystem, tuple[str, ...]] = dict(top_n or {})
+        self._artifact_fetch: ArtifactFetch = (
+            artifact_fetch if artifact_fetch is not None else fetch_artifact
+        )
+        self._cache_root = cache_root
         self._fetch: Fetch = (
             fetch if fetch is not None else (lambda url, body: _http(url, body, timeout))
         )
@@ -209,7 +236,79 @@ class LiveSource:
         return None
 
     def exports(self, eco: Ecosystem, name: str, version: str) -> tuple[str, ...] | None:
-        return None  # The registries do not publish exported symbols. Unknown blocks intent checks.
+        result = self.contract(eco, name, version)
+        return result.exports if isinstance(result, ContractComplete) else None
+
+    # ---- contract (R-C-8) --------------------------------------------------------------
+
+    def _artifact_plan(
+        self, eco: Ecosystem, name: str, version: str
+    ) -> tuple[str, str, PublishedDigest | ContractUnknown] | ContractUnknown:
+        """The artifact URL, its kind, and its published digest, from the registry metadata."""
+        if eco is Ecosystem.PYPI:
+            data = self._json(self._pypi_version_url(name, version))
+            if data is _NOT_FOUND:
+                return ContractUnknown(UnknownReason.PARSE_ERROR, "version is not in the registry")
+            files = data["urls"]
+            wheels = sorted(
+                (f for f in files if str(f["filename"]).endswith(".whl")),
+                key=lambda f: str(f["filename"]).encode("utf-8"),
+            )
+            if not wheels:
+                if any(f.get("packagetype") == "sdist" for f in files):
+                    return ContractUnknown(
+                        UnknownReason.SDIST_ONLY, "version has only an sdist, not a wheel"
+                    )
+                return ContractUnknown(UnknownReason.PARSE_ERROR, "version has no wheel or sdist")
+            universal = [f for f in wheels if _UNIVERSAL_WHEEL.search(str(f["filename"]))]
+            chosen = (universal or wheels)[0]
+            digests = chosen.get("digests") or {}
+            return str(chosen["url"]), "wheel", published_from_pypi(digests)
+        if eco is Ecosystem.NPM:
+            data = self._json(self._npm_url(name))
+            if data is _NOT_FOUND:
+                return ContractUnknown(UnknownReason.PARSE_ERROR, "package is not in the registry")
+            manifest = data["versions"].get(version)
+            if manifest is None:
+                return ContractUnknown(UnknownReason.PARSE_ERROR, "version is not in the registry")
+            dist = manifest["dist"]
+            return str(dist["tarball"]), "npm", published_from_npm_integrity(dist.get("integrity"))
+        return ContractUnknown(UnknownReason.PARSE_ERROR, "no contract source for this ecosystem")
+
+    def contract(self, eco: Ecosystem, name: str, version: str) -> ContractResult:
+        """Complete exports, or UNKNOWN with a typed reason, or a digest mismatch (R-C-8).
+
+        The match covers every Ecosystem value. A new value is a type error until it has a case.
+        """
+        match eco:
+            case Ecosystem.PYPI | Ecosystem.NPM:
+                pass
+            case Ecosystem.CARGO | Ecosystem.RUBYGEMS | Ecosystem.GO:
+                return ContractUnknown(
+                    UnknownReason.PARSE_ERROR, "no contract source for this ecosystem"
+                )
+            case _:
+                assert_never(eco)
+        try:
+            plan = self._artifact_plan(eco, name, version)
+        except (OSError, LiveFailure):
+            return ContractUnknown(UnknownReason.NETWORK, "registry metadata is unavailable")
+        except _FAILURES:
+            return ContractUnknown(
+                UnknownReason.PARSE_ERROR, "registry metadata has an unexpected shape"
+            )
+        if isinstance(plan, ContractUnknown):
+            return plan
+        url, kind, published = plan
+        return obtain_contract(
+            eco,
+            url,
+            published,
+            kind=kind,
+            cache_root=self._cache_root,
+            extract=_extract,
+            fetch=self._artifact_fetch,
+        )
 
     # ---- install-time code -------------------------------------------------------------
 

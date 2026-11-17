@@ -28,6 +28,7 @@ from enum import Enum
 from typing import Any
 
 from slopseal.audit.log import AuditLog
+from slopseal.contract.types import ContractDigestMismatch, ContractUnknown, UnknownReason
 from slopseal.core.allow_deny import check_allow_deny
 from slopseal.core.cve import check_cve
 from slopseal.core.distance import levenshtein
@@ -43,7 +44,13 @@ from slopseal.core.signatures import Signature, check_slopsquat
 from slopseal.core.types import CheckResult, Ecosystem, Level
 from slopseal.core.typosquat import check_typosquat
 from slopseal.policy.loader import Policy
-from slopseal.quarantine.api_surface import ApiSurface, check_api_surface
+from slopseal.quarantine.api_surface import (
+    ApiSurface,
+    ApiSurfaceResult,
+    check_contract,
+    mismatch_block,
+    unknown_block,
+)
 from slopseal.quarantine.payload import (
     MISMATCH_API_ABSENT,
     build_escalation_artifact,
@@ -271,16 +278,16 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
     # ---- 4. intent: declared API must be exported by the exact version -------------------
     if request.intent is not None and request.intent.expected_api is not None:
         api = request.intent.expected_api
-        surface = check_api_surface(source.exports(eco, name, version), api)
-        if surface.outcome is ApiSurface.UNKNOWN:
-            results.append(
-                CheckResult(
-                    "api_surface",
-                    Level.BLOCK,
-                    "exported symbols for this version are unknown",
-                )
-            )
+        contract_result = source.contract(eco, name, version)
+        if isinstance(contract_result, ContractDigestMismatch):
+            results.append(mismatch_block(contract_result))
             return _verdict_block(request, ctx, version, results, snapshot_id, retry)
+        surface = check_contract(contract_result, api)
+        if surface.outcome is ApiSurface.UNKNOWN:
+            results.append(unknown_block(surface))
+            return _verdict_block(
+                request, ctx, version, results, snapshot_id, retry, extra=_unknown_extra(surface)
+            )
         if surface.outcome is ApiSurface.ABSENT:
             return _quarantine(
                 request,
@@ -393,6 +400,7 @@ def _verdict_block(
     results: list[CheckResult],
     snapshot_id: str | None,
     retry: QuarantineState | None,
+    extra: dict[str, Any] | None = None,
 ) -> Decision:
     blocking = sorted(
         (r for r in results if r.level >= Level.BLOCK),
@@ -411,6 +419,7 @@ def _verdict_block(
         quarantine_id=retry.quarantine_id if retry else None,
         policy_hash=ctx.policy.policy_hash,
         snapshot_id=snapshot_id,
+        extra=extra or {},
     )
     if retry is not None:
         ctx.store.save(replace(retry, state=QState.BLOCKED, reason=violation.reason))
@@ -608,8 +617,28 @@ def _escalated_again(
         expired_now = True
     else:
         expired_now = False
-    exports = ctx.source.exports(request.ecosystem, request.package, version)
-    surface = check_api_surface(exports, state.declared_api)
+    result = ctx.source.contract(request.ecosystem, request.package, version)
+    if isinstance(result, ContractDigestMismatch):
+        # R-C-9: a mismatch blocks (exit 1) and writes no escalation artifact.
+        mismatch = mismatch_block(result)
+        return _block(
+            request, ctx, mismatch.check, mismatch.reason, quarantine_id=state.quarantine_id
+        )
+    if isinstance(result, ContractUnknown):
+        # R-C-9: any unknown contract blocks (exit 1), including one with partial names. It never
+        # becomes api_absent, and no escalation artifact is written for it. The state was saved
+        # above if the window expired.
+        unknown = ApiSurfaceResult(ApiSurface.UNKNOWN, state.declared_api, (), result.reason)
+        violation = unknown_block(unknown)
+        return _block(
+            request,
+            ctx,
+            violation.check,
+            f"{violation.reason}; {_UNKNOWN_NEXT_STEP}",
+            quarantine_id=state.quarantine_id,
+            unknown_reason=result.reason,
+        )
+    surface = check_contract(result, state.declared_api)
     alternatives = tuple(
         (alt, f"exports {state.declared_api} directly")
         for alt in ctx.source.alternatives(request.ecosystem, state.declared_api, request.package)
@@ -645,6 +674,20 @@ def _escalated_again(
         extra={"mismatch_type": MISMATCH_API_ABSENT, "escalated": True},
     )
     return _record(request, ctx, decision)
+
+
+_UNKNOWN_NEXT_STEP = (
+    "next step: choose a version whose exports can be read, or review this package by hand"
+)
+
+
+def _unknown_extra_reason(reason: UnknownReason | None) -> dict[str, Any]:
+    """The typed reason for the audit line, present only when the contract is UNKNOWN."""
+    return {} if reason is None else {"unknown_reason": reason.value}
+
+
+def _unknown_extra(surface: ApiSurfaceResult) -> dict[str, Any]:
+    return _unknown_extra_reason(surface.reason)
 
 
 def _write_artifact(ctx: Context, quarantine_id: str, artifact: dict[str, Any]) -> None:
@@ -684,6 +727,7 @@ def _block(
     check: str,
     reason: str,
     quarantine_id: str | None = None,
+    unknown_reason: UnknownReason | None = None,
 ) -> Decision:
     violation = CheckResult(check, Level.BLOCK, reason)
     decision = Decision(
@@ -696,6 +740,7 @@ def _block(
         quarantine_id=quarantine_id,
         policy_hash=ctx.policy.policy_hash,
         snapshot_id=ctx.source.snapshot_id,
+        extra=_unknown_extra_reason(unknown_reason),
     )
     return _bypass_or_record(request, ctx, decision)
 
@@ -721,6 +766,8 @@ def _record(request: InstallRequest, ctx: Context, decision: Decision) -> Decisi
         fields["quarantine_id"] = decision.quarantine_id
     if decision.violation is not None:
         fields["blocked_by"] = decision.violation.check
+    if "unknown_reason" in decision.extra:
+        fields["unknown_reason"] = decision.extra["unknown_reason"]
     if decision.bypassed:
         fields["bypass"] = {"reason": decision.extra.get("bypass_reason", "")}
     ctx.log.append("verdict", ts=ctx.now, fields=fields)

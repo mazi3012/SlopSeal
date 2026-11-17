@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Added
 
+- Contract Check (seal-v2 Phase 2): in live mode an intent with `--expected-api` checks the package's exports. The artifact is downloaded only for that check, verified against the registry digest, and read statically in a worker subprocess with CPU, memory, file-size, and wall-time limits. PyPI wheels (R-C-2) and npm tarballs (R-C-3) are extracted. An export list that cannot be read completely is UNKNOWN with a typed reason, and UNKNOWN blocks. The contract cache (R-C-6) stores complete contracts under the state directory. Measured on 51 labelled packages: 11 decided, 59 of 59 decided probes agree, no false ABSENT, no wrong PRESENT. See `docs/CONTRACT_EVAL.md`, Run 1.
 - Verdict-aware install hook (R-G-1 to R-G-10, P-G-1): `slopseal.hooks.on_install` runs the verdict pipeline for each pinned pip or npm package in an agent's shell command. ALLOW exits 0 and the command runs. BLOCK and QUARANTINE exit 2 with the check, the reason, and a fix or next step. Unpinned versions, URLs, other package managers, environment assignments before an install, and any error exit 2. The v2 spec is in `.kiro/specs/seal-v2/`.
 - Resolve-then-pin in live mode (R-1.7): an unpinned `pip install x` or `npm install x` is pinned to the verified latest version. The original and rewritten commands are audited. `--no-resolve` or `SLOPSEAL_NO_RESOLVE=1` keeps the refusal.
 - `slopseal audit html`: a single self-contained HTML receipt of the audit log. Each verdict shows its badge, checks, warnings, policy hash, and seal status. Light and dark mode. Stdlib only, no scripts or external requests, and all log text is escaped (R-5.7.1, R-5.7.2).
@@ -14,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Fixed
 
+- Live mode did not pass the state directory to the contract cache, so complete contracts were never cached (R-C-6). The state directory is now the cache root.
 - Rate limit counted an allowed install twice when the install hook and the PATH shim both verified it. One install now counts once, whichever layers run (R-G-11, R-4.7, P-G-2). The limit of 10 per minute is unchanged.
 
 ### Changed

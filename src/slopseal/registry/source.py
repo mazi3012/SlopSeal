@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
+from slopseal.contract.offline import offline_contract
+from slopseal.contract.types import ContractResult
 from slopseal.core.advisory import AdvisoryResult
 from slopseal.core.install_scripts import ScriptInventory
 from slopseal.core.license import LicenseInput
@@ -30,6 +32,7 @@ class RegistrySource(Protocol):
     def registry_result(self, eco: Ecosystem, name: str) -> RegistryResult: ...
     def latest_version(self, eco: Ecosystem, name: str) -> str | None: ...
     def exports(self, eco: Ecosystem, name: str, version: str) -> tuple[str, ...] | None: ...
+    def contract(self, eco: Ecosystem, name: str, version: str) -> ContractResult: ...
     def install_scripts(self, eco: Ecosystem, name: str, version: str) -> ScriptInventory: ...
     def advisories(self, eco: Ecosystem, name: str, version: str) -> AdvisoryResult: ...
     def license(self, eco: Ecosystem, name: str) -> LicenseInput: ...
@@ -56,6 +59,9 @@ class OfflineSource:
 
     def exports(self, eco: Ecosystem, name: str, version: str) -> tuple[str, ...] | None:
         return self._snapshot.exports(eco, name, version)
+
+    def contract(self, eco: Ecosystem, name: str, version: str) -> ContractResult:
+        return offline_contract(self._snapshot, eco, name, version)
 
     def install_scripts(self, eco: Ecosystem, name: str, version: str) -> ScriptInventory:
         return self._snapshot.install_scripts(eco, name, version)

@@ -137,6 +137,232 @@ The v1 requirements are not changed. Each place that described the hook as non-v
 - `.kiro/steering/structure.md`: `hooks/` added to the layout, and the one same-layer import (section 1.2) written down.
 - `docs/REFERENCE.md`: corrected in the hook commit.
 
-## 2. Phase 2 and later
+## 2. Phase 2: Contract Check (not implemented)
 
-Not designed. Phase 4 ships R-G-12, the depth-1 transitive check, which is not implemented. T16 stays open until then (see `requirements.md`, glossary and R-G-12). Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).
+Requirements: R-C-1 to R-C-9 (`requirements.md`, section 2). Properties: P-C-1 to P-C-7. Threats: T17, T18, T23, and a note on T5.
+
+### 2.1 Flow
+
+```
+ verify_install(request with intent.expected_api)            [verdict.py, step 4]
+        │
+        ▼
+ source.contract(eco, name, version)                          [RegistrySource, new method]
+        │
+        ├─ OfflineSource ── snapshot ──► Complete(exports) | Unknown(network)       [R-C-8]
+        │
+        └─ LiveSource
+              1. pick artifact from registry metadata (already fetched)
+                    PyPI: a wheel, else Unknown(sdist_only)                          [R-C-2]
+                    npm:  dist.tarball
+              2. read the published digest ── unusable ──► Unknown(parse_error)      [R-C-1]
+              3. cache lookup by verified digest ── hit ──► Complete(exports)        [R-C-6]
+              4. download to a temp dir (50 MB cap, host allowlist)
+                    fail ──► Unknown(network | limit)
+              5. hash the file, compare ── mismatch ──► DigestMismatch               [R-C-1, T23]
+              6. run the worker subprocess (limits, no code from the artifact)       [R-C-4]
+                    status complete ──► Complete(exports), stored in the cache
+                    status unknown  ──► Unknown(reason)
+              7. delete the temp dir
+        │
+        ▼
+ check_contract(result, declared_api)
+        │
+        ├─ DigestMismatch  ──► CheckResult(contract_digest, HARD_BLOCK) ──► BLOCK exit 1
+        ├─ Unknown(reason) ──► CheckResult(api_surface, BLOCK, reason)   ──► BLOCK exit 1
+        ├─ Complete, symbol absent ──► QUARANTINE exit 75 (api_absent) with the contract diff
+        └─ Complete, symbol present ──► continue to ALLOW
+```
+
+### 2.2 Modules
+
+| Module | Layer | Role |
+|--------|-------|------|
+| `contract/model.py` (new) | adapter | `ContractComplete`, `ContractUnknown`, `ContractDigestMismatch`, `UnknownReason` |
+| `contract/digest.py` (new) | adapter | Parse the published digest (PyPI hex, npm SRI). Hash a file. Constant-time compare |
+| `contract/fetch.py` (new) | adapter | Download an artifact to a temp dir with the size cap, timeout, and host allowlist |
+| `contract/cache.py` (new) | adapter | Read and write `contracts/<algorithm>-<hex>.json` |
+| `contract/worker.py` (new) | adapter | The subprocess program. One file, standard library only, imports nothing from `slopseal` |
+| `contract/runner.py` (new) | adapter | Start the worker, enforce the wall time, parse its JSON output |
+| `registry/live.py` | adapter | `contract()` calls the runner. `exports()` is derived from it |
+| `registry/source.py` | adapter | The `RegistrySource` protocol gains `contract()`. `OfflineSource.contract()` reads the snapshot |
+| `quarantine/api_surface.py` | 3 | `check_contract()` maps a result to PRESENT, ABSENT, or UNKNOWN. `check_api_surface()` stays as it is |
+| `quarantine/contract_diff.py` (new) | 3 | Nearest real symbol, using `core.distance.levenshtein` (layer 2, below) |
+| `quarantine/payload.py` | 3 | Adds the diff entries to `missing_evidence` and caps `found_apis` |
+| `verdict.py` | 4 | Step 4 and `_escalated_again` call `contract()` |
+
+`contract/` sits beside `registry/` and follows the same import rule: it may import `core.types`, and `registry/live.py` imports it. `worker.py` is the one exception, because it runs as a separate program and must not import anything it does not need. `core/` and `semantic/` do not import `contract/`. `structure.md` lists `contract/` when the code lands.
+
+**Wiring status (R-C-8).** `LiveSource.contract()` runs the registry metadata request, the artifact choice, the digest read, the cache lookup, the download, digest verification, the archive check, the cache write (complete contracts only), and then the extraction step. The extraction step runs the worker's extract mode: the R-C-2 wheel extractor for PyPI, and the R-C-3 npm extractor for npm. `LiveSource.exports()` returns the tuple for a complete contract and `None` otherwise, so it is derived from `contract()`. A live answer that is not complete is UNKNOWN, and nothing in the live path is a stub.
+
+### 2.3 Types and the interface
+
+```python
+class UnknownReason(Enum):
+    SDIST_ONLY = "sdist_only"
+    DYNAMIC_EXPORTS = "dynamic_exports"
+    LIMIT = "limit"
+    PARSE_ERROR = "parse_error"
+    NETWORK = "network"
+    NO_DIGEST = "no_digest"
+    NOT_IN_SNAPSHOT = "not_in_snapshot"
+
+@dataclass(frozen=True)
+class ContractComplete:   exports: tuple[str, ...]          # sorted, unique, both name forms
+@dataclass(frozen=True)
+class ContractUnknown:    reason: UnknownReason; detail: str  # detail is short and holds no package text
+@dataclass(frozen=True)
+class ContractDigestMismatch: algorithm: str; detail: str
+
+ContractResult = ContractComplete | ContractUnknown | ContractDigestMismatch
+```
+
+`ContractUnknown` gains one field, `partial: tuple[str, ...] = ()`. It is set only by the npm two-entry rule (R-C-3): the names of the complete entry points of a package whose entry points are not all complete. `check_contract` returns PRESENT for a declared API in `partial`, and UNKNOWN for every other declared API. It never returns ABSENT for an UNKNOWN contract. The escalated retry (R-C-9) treats any UNKNOWN contract, including one with `partial` names, as a BLOCK and not as PRESENT.
+
+`RegistrySource.contract(eco, name, version) -> ContractResult` is new. `exports()` stays on the protocol and returns the tuple for a `ContractComplete` and `None` for anything else, so callers outside the verdict keep working. Unknown is an explicit value, not `None` and not an exception (`tech.md`).
+
+`ApiSurfaceResult` gains `reason: UnknownReason | None = None` (default `None`, so existing constructors are unchanged). `check_contract(result, declared_api)` returns it. In `verdict.py` step 4, `ContractUnknown` becomes `CheckResult("api_surface", BLOCK, "exported symbols for this version are unknown: <reason>")`. The text before the colon is the v1 text. `ContractDigestMismatch` becomes `CheckResult("contract_digest", HARD_BLOCK, ...)`. No new exit code and no new outcome (`AGENTS.md`): both are BLOCK, exit 1.
+
+Existing tests: no test double implements `exports()`, and every existing intent test uses `OfflineSource`. Expected verdicts of existing tests do not change. Where a test names the BLOCK reason, the v1 prefix is kept.
+
+### 2.4 Artifact choice and digest
+
+- **PyPI.** The version endpoint `/pypi/<name>/<version>/json` is already fetched for the install-script check. Its `urls[]` lists the files, each with `filename`, `url`, and `digests`. The system picks a wheel (R-C-2) and reads `digests.sha256`.
+- **npm.** The packument entry `versions[<version>].dist` has `tarball`, `integrity`, and `shasum`. The system reads `integrity` only. A `shasum` without `integrity` is UNKNOWN (`no_digest`). SRI strings are `<algorithm>-<base64>`, space separated. The system picks the strongest of sha512, sha384, sha256 and decodes the base64 value.
+- The comparison uses `hmac.compare_digest`. The download is hashed while it is written, then compared, then opened. A digest is checked before any parsing.
+- The digest string comes from the registry, so it is untrusted until it has passed the format check in R-C-6. It is never used in a path before that.
+
+### 2.5 The worker process
+
+The parent starts `python -I <path to worker.py> <kind> <artifact path>`, where `kind` is `wheel` or `npm`, with an empty environment, `stdin` closed, the temp dir as the working directory, and a wall-time kill after 10 seconds. The worker sets its own limits first, before it opens the artifact: `RLIMIT_CPU`, `RLIMIT_AS`, `RLIMIT_FSIZE`, `RLIMIT_NOFILE`, and `RLIMIT_CORE` set to 0. It sets them itself and the parent does not use `preexec_fn`, because the install hook calls the Contract Check from a process that has threads. The hook does not run it today (R-C-8), but the code stays safe if that changes.
+
+The 10-second wall limit (R-C-4) covers the archive check and the extraction of one artifact together. The runner keeps one deadline for the artifact. The archive check uses the time it needs, up to the limit, and the extraction gets the time left. A run that starts after the deadline is UNKNOWN with reason `limit`. The worker's extract mode takes the artifact root from the archive check, so the npm extraction reads the same root.
+
+The worker never imports, executes, or compiles for execution anything from the artifact:
+
+- It reads archive members into memory with `zipfile` or `tarfile`, one at a time. It does not extract them to disk. A symlink, hardlink, device, or fifo member is rejected before any member is read.
+- It parses Python with `ast.parse`. This builds a syntax tree and runs nothing.
+- It scans JavaScript and TypeScript declaration files as text.
+- The artifact is not put on `sys.path`. A `.pth` file inside a wheel is data. `site` processing happens at interpreter start, from the worker's own interpreter, and not from the artifact.
+- A tar archive is read as a stream through a byte counter that sits after decompression, so a decompression bomb hits the 200 MB cap whether or not its members are read.
+
+The worker prints one JSON object on stdout, at most 8 MB: `{"status": "complete", "exports": [...]}` or `{"status": "unknown", "reason": "<typed reason>", "detail": "<short text>"}`. Any other output, a non-zero exit, a signal, or a timeout is UNKNOWN with reason `limit` for a timeout or signal and `parse_error` for malformed output. A worker killed by a signal (wall-time, CPU, or memory limit) gives `limit`. A non-zero exit that is not a limit kill gives `parse_error`. The parent re-validates the worker's `root` after the JSON parses (R-C-4): it must be relative, have no `..` segment, no backslash, and no NUL, and resolve under the artifact's private directory. A worker that returns `"../../etc"` is rejected with `parse_error`. Stderr is read for a short diagnostic only and never returned to the agent.
+
+If `import resource` fails (not POSIX), the worker reports UNKNOWN with reason `limit`. Windows is out of scope.
+
+### 2.6 Python extraction
+
+Two passes, both over `ast.parse` output. No code from the artifact runs.
+
+1. **Completeness pass.** `ast.walk` visits the whole tree, function bodies included. It returns UNKNOWN (`dynamic_exports`) for the first match of the R-C-2 list: any reference to `exec`, `eval`, `setattr`, `globals`, `vars`, `sys.modules`, or `__dict__`; a `global` statement; a `del` of a module name; a module-level `def __getattr__` or `def __dir__`; a module-level `for`, `with`, or `while` block; a module-level tuple target; a module-level augmented assignment; and a non-literal change to `__all__`. A reference inside a function is flagged the same way, because a function may run at import time.
+2. **Set collection.** Set B comes from the module body and from every branch of module-level `if` and `try` blocks, nested blocks included. That covers the `if`, `elif`, and `else` bodies, and the `try`, `except`, `else`, and `finally` bodies. The forms are `def`, `async def`, `class`, simple name assignments (including annotated and chained forms with plain names), and import bindings. A branch that is never taken still adds its names, which can only give a wrong PRESENT. The completeness pass rejects module-level `for`, `with`, `while`, and tuple targets before set collection, so they never reach set B. Set A is the literal `__all__` with its literal additions. The export set of a module is the union of set A and set B.
+
+Names. Each module's symbols are emitted as `<dotted module path>.<symbol>`, and each top-level symbol of a top-level module or package is also emitted as its bare name. Module paths are names too. The union is sorted, de-duplicated, and capped at 100,000 names. Over the cap is UNKNOWN with reason `limit`.
+
+Star imports. `from .x import *` reads the exports of `x` once. If `x` has its own star import, a completeness flag, or exists only as a compiled extension (`.so`, `.pyd`), the result is UNKNOWN with reason `dynamic_exports`.
+
+Cost. The rule flags every reference to `__dict__` and `sys`, including harmless ones such as `self.__dict__` inside a class. Those packages lose coverage. That is the price of Q1 and of never calling a real export absent.
+
+### 2.7 npm extraction (R-C-3)
+
+The stdlib has no JavaScript parser. The worker therefore runs a tokenizer over each entry file, in the extract mode of `worker.py`, and matches the modelled forms on the token stream. The matching is conservative: the requirement (R-C-3) gives the forms, the accounted-for rule, the tokenizer failures, the entry points, and the two-entry rule. This section gives the mechanism.
+
+**Tokenizer.** It produces tokens with a kind (identifier, keyword, punctuator, string, number, template, regular expression), a value, and a flag for a line break before the token. Comments and whitespace are dropped. Longest match is used for punctuators, so `==`, `===`, `=>`, and `+=` are not read as `=`. A string is read to its closing quote, and a newline ends it unterminated. A template literal is read as text, and each `${` pushes a marker on a brace stack, so the matching `}` resumes the template text. A `/` is decided by the previous token, as R-C-3 states. A regular expression is read to its unescaped `/` outside a character class, and then its flags. Any unterminated token gives `parse_error`.
+
+**Accounted-for rule.** After tokenizing, each identifier token `exports` or `module` must be consumed by one modelled form. The scan keeps a set of consumed token indices. A form consumes its tokens, and every unconsumed `exports` or `module` gives `dynamic_exports`. Chained names consume each `exports.<name> =` in the chain.
+
+**Modelled forms.** Each form is a token pattern.
+
+- `exports . ID =` and `module . exports . ID =`, followed by zero or more `exports . ID =` or `module . exports . ID =` links. The names are the IDs. `default` is added (Q4).
+- `module . exports =` followed by `{`. The object literal is parsed: keys are identifiers or strings, a shorthand key is an identifier followed by `,` or `}`, and a value is skipped to the next top-level `,` or the matching `}`. A value that contains an `exports` or `module` token gives `dynamic_exports`. A key named `default`, a computed key, a spread, a method, an accessor, or a numeric key gives `dynamic_exports`. After the matching `}`, the next token must be `;`, end of file, or a token with a line break before it that does not continue the expression. Otherwise `dynamic_exports`.
+- `Object . defineProperty (` with `exports` as first argument and a string `"__esModule"` as second: the call is consumed through its matching `)`. Any other name, or `module . exports` as first argument, gives `dynamic_exports`.
+- ESM: `export` keyword forms, matched by the rules of R-C-3.
+
+Everything else that holds an `exports` or `module` token gives `dynamic_exports`. The helper identifiers `__export`, `__exportStar`, `__reExport`, and `__createBinding` give `dynamic_exports` wherever they appear.
+
+**Entry resolution.** Implemented in the worker, from `package.json` read at the root selected by the archive check. The field rules and the two-entry rule are in R-C-3. Entries are listed in a stable order, by resolved path.
+
+**Two entry points.** Each entry is extracted on its own, and the result is one of: a complete name set, or UNKNOWN with a reason. The package contract is then formed:
+
+- All entries complete: `ContractComplete` with the union of their names.
+- Some complete, some not: `ContractUnknown(dynamic_exports, partial=<union of the complete entries' names>)`. A declared API in `partial` is PRESENT in the intent check. Any other declared API is UNKNOWN. This is the exception of R-C-3 and R-C-5, and P-C-2 states it.
+- None complete: the reason of the single entry, or `dynamic_exports` when there are several entries.
+
+**Names and limits.** Per R-C-3: the qualified name `<specifier>.<symbol>` is emitted for every entry, including a subpath and a scoped package, and the bare name is emitted for the root entry only. A file over 5 MB gives `limit`. The worker runs under the shared wall limit of R-C-4.
+
+### 2.8 Cache
+
+`<state dir>/contracts/<algorithm>-<hex>.json`. The entry is written to a temp file and moved into place with `os.replace`, as `rate_limit.py` does. The write is the last step of a miss, after step 5 of section 2.1 (the digest check). A cache write before the digest check is a violation (R-C-6, mutant in P-C-6). Fields: `schema`, `key`, `extractor_version`, `exports`, and `entry_sha256`, which is the SHA-256 of the canonical JSON of the other fields. The reader recomputes the hash and discards (and deletes) any entry that fails any check in R-C-6. A hit reads one small file and does no network call, so it fits the 100 ms bound.
+
+The hash detects corruption and accidental edits. It does not stop someone who can write the state directory, who can rewrite an entry and its hash together. That is the same limit as the snapshot manifest (T9), and it is recorded under T17 in the threat model. There is no eviction in Phase 2. The cache holds only complete contracts, one small file each.
+
+### 2.9 Tests and the acceptance measurement
+
+**Hermetic parity test.** For each of the 23 snapshot versions, the test builds a wheel (PyPI) or tarball (npm) from that version's snapshot exports, serves it through a fake fetch with a matching digest, and runs the whole live path, including the worker. It requires: the live contract contains every snapshot export, and live and offline give the same PRESENT or ABSENT answer for every probe, where the probes are each snapshot export, each export with `_x` added, and one name that exists nowhere. The live set is larger than the snapshot set, because live also emits the bare and the module-path names, so the test compares answers on the probes and not whole sets. The test is named `test_contract_plumbing_snapshot_parity`. It proves the plumbing from artifact to verdict. It does not measure accuracy on real packages.
+
+**Real-package measurement.** Fifty-one packages, 25 PyPI and 26 npm, are labelled by hand before any extractor run, from each package's official documentation and public API. The labels file is `docs/contract_labels.json`. The exact metric definitions are `docs/CONTRACT_EVAL.md`. Both land in one commit before the first extractor run, and neither changes after it. The labels file pins, per package, the exact version and the artifact file and digest. It lists symbols labelled present and plausible hallucinations labelled absent. It records the expected extraction status (complete, or UNKNOWN with a reason) for the hard cases, and the sources used. The three reported numbers are named here and defined in `CONTRACT_EVAL.md`:
+
+- **Coverage**: the share of packages with a decided answer (PRESENT or ABSENT).
+- **Decided accuracy**: the share of decided answers that match the label. Target at least 95%.
+- **Strict agreement**: the same count with UNKNOWN counted as a miss.
+
+A present-labelled symbol that the extractor calls ABSENT (a false ABSENT) is a hard stop for the phase. A wrong PRESENT is reported and is not a stop. The hard cases include a literal `__all__`, a module `__getattr__` (expected UNKNOWN), re-export-heavy packages, a `.d.ts`-only npm package, CommonJS, and ESM `exports` maps.
+
+### 2.10 Contract Diff in the payload
+
+P-SM-4 pins the payload to the exact R-Q-3 field set, and this phase does not change that set. The diff therefore uses existing keys: `declared_api` is the claimed symbol, `found_apis` is the real exports, and the nearest real symbol is an extra entry in `missing_evidence`, for example `["api_surface_mismatch", "nearest_real_symbol:parse_csv=>parse"]`. A name that reaches the payload has passed the name check in R-C-2, so it holds no whitespace and no control character. `found_apis` is capped at 200 sorted names, and a cut adds `found_apis_truncated`. The nearest symbol is computed over the whole set before the cap. The PRD example shows `missing_evidence` with one entry. The PRD is not edited.
+
+Owner ruling: the structured Contract Diff (the claimed symbol, the real exports, and the nearest symbol for each miss) goes into the receipt in Phase 3, which is not implemented here. The payload keys stay as above. R-Q-3 and P-SM-4 are not edited.
+
+Alternative, not chosen: a new `contract_diff` key. That would need R-Q-3 and the pinned set in `test_p_sm_quarantine.py` to change, which this phase does not do without the owner's decision.
+
+### 2.11 The escalated retry
+
+`_escalated_again` saves the escalated state as before, with the retry budget consumed. Then it asks for the contract with `contract()`, before it writes any escalation artifact. When the contract is UNKNOWN or a digest mismatch, it writes no artifact, appends the audit entry with the typed reason and the check name, and returns the BLOCK of R-C-9 (exit 1). It does not build an `api_absent` payload. When the contract is complete, it writes the escalation artifact and builds the payload as before.
+
+**Owner rulings.** Decision 1: option (a). The contract is added to the source protocol, the live path runs the download and the cache now, and the extraction step is a stub until the extractor lands. Decision 2: confirmed. On UNKNOWN in `_escalated_again`, no escalation artifact is written, the state change (budget consumed) is kept, the audit entry carries the typed reason and the check name, and the BLOCK message names the reason and the next step, and no artifact reference. P-SM-2 still holds: this call makes no new intent check. It reads the contract only to fill `found_apis`, and in live mode a cache hit makes that read cheap. A cache miss can download, so a retry against an escalated quarantine can use the network once. If an existing test pins the old exit 75 for an unknown contract, work stops and the owner is told. None does. The four test files that pass a `quarantine_id` (`test_p_sm_quarantine.py`, `test_r_4_7_rate_limit.py`, `test_p_g_1_hook.py`, `test_mcp_protocol.py`) use no live source, and an offline version that was quarantined always has known exports, so the unknown branch is not reached by any existing test.
+
+### 2.12 Constants
+
+| Constant | Value | Source |
+|----------|-------|--------|
+| Compressed size | 50 MB | R-C-4, owner |
+| Expanded size | 200 MB | R-C-4, owner |
+| Archive members | 5,000 | R-C-4, owner |
+| Extractor wall time | 10 s | R-C-4, owner |
+| Cache hit time | 100 ms | R-C-6, owner |
+| Download wall time | 30 s | proposed here |
+| Source file size read by `ast.parse` | 5 MB | proposed here |
+| Names in a contract | 100,000 | proposed here |
+| Worker output | 8 MB | proposed here |
+| Address-space limit | 1 GiB | proposed here |
+| `found_apis` in the payload | 200 | proposed here |
+
+Owner ruling: these values are fixed safety ceilings of the extractor. They are resource limits, not trust thresholds. They live as named constants in `contract/limits.py`, like `MAX_BYTES` (10 MB) in `registry/live.py`. A later policy section may lower them. Policy may never raise them, and a floor in `policy/invariants.py` must enforce that when such a section is added. That section is not part of this phase, and `dependency-trust.md` is not changed. In the table, *owner* marks a value from the brief and *proposed* marks a value this design chose. The owner may change any *proposed* value before the code lands.
+
+### 2.13 Documents this phase updates when the code lands
+
+`docs/REFERENCE.md` "Full limitations" (live exports are available only for artifacts the extractor can complete, and UNKNOWN blocks), `docs/THREAT_MODEL.md` (T5 status, T17, T18, T23 from planned to implemented, the data-sent table for the artifact download, section 6), `CHANGELOG.md`, and `.kiro/steering/structure.md` (`contract/`). Text that says live exports are always `None` is removed.
+
+### 2.14 Owner rulings
+
+All open questions from the previous step are closed. The rulings are:
+
+- **General rule.** Completeness is opt-in. An extraction is complete only when every statement that can define or change an export matches a modelled form (the completeness rule, in `requirements.md`, section 2). Any other statement that writes to exports gives UNKNOWN (`dynamic_exports`). Over-flagging costs coverage. Under-flagging causes a false ABSENT. This replaces the earlier list of dynamic patterns in R-C-2, R-C-3, and R-C-5.
+- **Q1, Python module writes.** `sys.modules` aliasing, `setattr`, `globals()` writes, `vars()` and `__dict__` writes, `exec`, and `eval` give UNKNOWN (`dynamic_exports`). The scan covers function bodies as well.
+- **Q2, reassigned `module.exports`.** `module.exports = <anything that is not a plain object literal>` gives UNKNOWN. Later member writes are not tracked. Lodash is labelled expected UNKNOWN.
+- **Q3, unnamed exports.** A function, class, identifier, or call assigned to `module.exports`, and `export =` in a `.d.ts`, give UNKNOWN (`dynamic_exports`). No eighth reason is added.
+- **Q4, default.** `default` is a reserved contract name, added by `export default` and `exports.default =`. A claim on `default` is PRESENT if listed. It is ABSENT only when the extraction is complete and it is not listed. Python has no default export. Replaces the earlier rule that `export default` counts under the bare name of its declaration.
+- **Q5, bundler and compiler helpers.** `__export(`, `__exportStar(`, `__reExport(`, `__createBinding(`, `Object.defineProperty(exports, ...)` except `__esModule`, `Object.assign(module.exports, ...)`, and `Object.keys(...).forEach` writing to exports give UNKNOWN (`dynamic_exports`). Immer stays expected UNKNOWN.
+- **Two entry points.** A symbol is PRESENT when it is in any complete entry point. It is ABSENT only when every resolved entry point is complete and none lists it. Otherwise UNKNOWN (`dynamic_exports`).
+- **Limits.** Unchanged (section 2.12).
+- **Typed reasons.** Seven, unchanged. No eighth reason.
+- **Receipt.** The structured Contract Diff goes to the receipt in Phase 3 (section 2.10).
+
+Expected statuses in the labels were predicted before this rule was written. Under the rule, some `complete` predictions for CommonJS, UMD, and bundled packages may be wrong. A wrong prediction lowers coverage and does not change the accuracy figures. The owner decides before the first run whether those predictions are re-made. The labels are not changed for this reason in this step.
+
+## 3. Phase 3 and later
+
+Not designed. Phase 3 is signing (R-S). Phase 4 ships R-G-12, the depth-1 transitive check, which is not implemented. T16 stays open until then (see `requirements.md`, glossary and R-G-12). Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).
+
+**Ruling 2.6 (recorded at the 2.6 report).** The rulings are: compiled extensions give `dynamic_exports` for the whole artifact (R-C-2, `docs/CONTRACT_EVAL.md`); the dynamic forms of R-C-2 are confirmed, with the `global` rule; a RECORD mismatch gives `parse_error` and is listed in the run report; the `__all__` load rule (any load other than a plain or annotated literal assignment gives `dynamic_exports`, with P-C-4 cases and a mutant); the wall limit is shared (R-C-4); the `except ImportError` rule (a name bound only there is PRESENT, never ABSENT); the 81cb280 commit spans three IDs and is accepted, and that is noted in the report. Ruling 4 (unsupported ecosystem) is not decided and is asked.

@@ -1,0 +1,1546 @@
+{
+  "schema": "slopseal.contract_labels/1",
+  "labelled_on": "2026-11-16",
+  "frozen_before_extractor_run": true,
+  "metric_definitions": "docs/CONTRACT_EVAL.md",
+  "labeller": "Drafted from official documentation and public API. Absent names are pending owner review.",
+  "packages": [
+    {
+      "id": "pypi:requests",
+      "ecosystem": "pypi",
+      "name": "requests",
+      "version": "2.32.3",
+      "artifact": {
+        "filename": "requests-2.32.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6",
+        "size": 64928
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "get",
+        "post",
+        "Session",
+        "requests.get"
+      ],
+      "absent": [
+        "fetch",
+        "get_json"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://requests.readthedocs.io/en/latest/api/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Top-level names bound by from-imports in __init__ (one hop)."
+    },
+    {
+      "id": "pypi:pytest",
+      "ecosystem": "pypi",
+      "name": "pytest",
+      "version": "8.3.3",
+      "artifact": {
+        "filename": "pytest-8.3.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/6b/77/7440a06a8ead44c7757a64362dd22df5760f9b12dc5f11b6188cd2fc27a0/pytest-8.3.3-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2",
+        "size": 342341
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "fixture",
+        "mark",
+        "raises",
+        "approx",
+        "skip"
+      ],
+      "absent": [
+        "assertEqual",
+        "expect"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://docs.pytest.org/en/stable/reference/reference.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: __init__ defines a literal __all__. Public names outside __all__ are still PRESENT under the union rule."
+    },
+    {
+      "id": "pypi:pydantic",
+      "ecosystem": "pypi",
+      "name": "pydantic",
+      "version": "2.9.2",
+      "artifact": {
+        "filename": "pydantic-2.9.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/df/e4/ba44652d562cbf0bf320e0f3810206149c8a4e99cdbf66da82e97ab53a15/pydantic-2.9.2-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "f048cec7b26778210e28a0459867920654d48e5e62db0958433636cde4254f12",
+        "size": 434928
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "lazy_getattr",
+      "present": [
+        "BaseModel",
+        "Field"
+      ],
+      "absent": [
+        "Schema",
+        "validate_all"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://docs.pydantic.dev/latest/api/base_model/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: module-level __getattr__ for lazy imports. The true answers are PRESENT, but the expected status is UNKNOWN. An ABSENT answer here is a false ABSENT."
+    },
+    {
+      "id": "pypi:numpy",
+      "ecosystem": "pypi",
+      "name": "numpy",
+      "version": "2.1.3",
+      "artifact": {
+        "filename": "numpy-2.1.3-cp310-cp310-macosx_10_9_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/f1/80/d572a4737626372915bca41c3afbfec9d173561a39a0a61bacbbfd1dafd4/numpy-2.1.3-cp310-cp310-macosx_10_9_x86_64.whl",
+        "digest_algorithm": "sha256",
+        "digest": "c894b4305373b9c5576d7a12b473702afdf48ce5369c074ba304cc5ad8730dff",
+        "size": 21152472
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "lazy_getattr",
+      "present": [
+        "array",
+        "zeros",
+        "ndarray"
+      ],
+      "absent": [
+        "matrix_multiply",
+        "arrayfast"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://numpy.org/doc/stable/reference/routines.array-creation.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: module-level __getattr__ for deprecated aliases. Pinned file is the first wheel in ascending order (no none-any wheel exists)."
+    },
+    {
+      "id": "pypi:httpx",
+      "ecosystem": "pypi",
+      "name": "httpx",
+      "version": "0.27.2",
+      "artifact": {
+        "filename": "httpx-0.27.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/56/95/9377bcb415797e44274b51d46e3249eba641711cf3348050f76ee7b15ffc/httpx-0.27.2-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "7bb2708e112d8fdd7829cd4243970f0c223274051cb35ee80c03301ee29a3df0",
+        "size": 76395
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "get",
+        "post",
+        "Client",
+        "AsyncClient",
+        "HTTPStatusError"
+      ],
+      "absent": [
+        "fetch",
+        "Session"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://www.python-httpx.org/api/",
+        "https://www.python-httpx.org/exceptions/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: literal __all__ plus re-exports from submodules."
+    },
+    {
+      "id": "pypi:flask",
+      "ecosystem": "pypi",
+      "name": "flask",
+      "version": "3.0.3",
+      "artifact": {
+        "filename": "flask-3.0.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/61/80/ffe1da13ad9300f87c93af113edd0638c75138c42a0994becfacac078c06/flask-3.0.3-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "34e815dfaa43340d1d15a5c3a02b8476004037eb4840b34910c6e21679d288f3",
+        "size": 101735
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "Flask",
+        "jsonify",
+        "render_template",
+        "url_for"
+      ],
+      "absent": [
+        "render",
+        "flask_app"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://flask.palletsprojects.com/en/stable/api/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Re-exports of many names from submodules (one hop)."
+    },
+    {
+      "id": "pypi:click",
+      "ecosystem": "pypi",
+      "name": "click",
+      "version": "8.1.7",
+      "artifact": {
+        "filename": "click-8.1.7-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/00/2e/d53fa4befbf2cfa713304affc7ca780ce4fc1fd8710527771b58311a3229/click-8.1.7-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "ae74fb96c20a0277a1d615f1e4d73c8414f5a98db8b799a7931d1582f3390c28",
+        "size": 97941
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "command",
+        "option",
+        "echo",
+        "group"
+      ],
+      "absent": [
+        "argparse_command",
+        "prompt_all"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://click.palletsprojects.com/en/stable/api/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:rich",
+      "ecosystem": "pypi",
+      "name": "rich",
+      "version": "13.9.4",
+      "artifact": {
+        "filename": "rich-13.9.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90",
+        "size": 242424
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "print",
+        "inspect",
+        "get_console"
+      ],
+      "absent": [
+        "colorize",
+        "print_table"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://rich.readthedocs.io/en/stable/reference/init.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Public functions defined in __init__ (def, not imports)."
+    },
+    {
+      "id": "pypi:attrs",
+      "ecosystem": "pypi",
+      "name": "attrs",
+      "version": "24.2.0",
+      "artifact": {
+        "filename": "attrs-24.2.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/6a/21/5b6702a7f963e95456c0de2d495f67bf5fd62840ac655dc451586d23d39a/attrs-24.2.0-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "81921eb96de3191c8258c199618104dd27ac608d9366f5e35d011eae1867ede2",
+        "size": 63001
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "define",
+        "field",
+        "frozen",
+        "Factory",
+        "asdict"
+      ],
+      "absent": [
+        "attributes_of",
+        "schema"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://www.attrs.org/en/stable/api.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:typer",
+      "ecosystem": "pypi",
+      "name": "typer",
+      "version": "0.12.5",
+      "artifact": {
+        "filename": "typer-0.12.5-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a8/2b/886d13e742e514f704c33c4caa7df0f3b89e5a25ef8db02aa9ca3d9535d5/typer-0.12.5-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "62fe4e471711b147e3365034133904df3e235698399bc4de2b36c8579298d52b",
+        "size": 47288
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "Typer",
+        "Option",
+        "Argument",
+        "echo",
+        "run"
+      ],
+      "absent": [
+        "CLIApp",
+        "command_group"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://typer.tiangolo.com/tutorial/",
+        "https://typer.tiangolo.com/tutorial/printing/",
+        "https://typer.tiangolo.com/tutorial/options/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:sqlalchemy",
+      "ecosystem": "pypi",
+      "name": "sqlalchemy",
+      "version": "2.0.36",
+      "artifact": {
+        "filename": "SQLAlchemy-2.0.36-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b8/49/21633706dd6feb14cd3f7935fc00b60870ea057686035e1a99ae6d9d9d53/SQLAlchemy-2.0.36-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "fddbe92b4760c6f5d48162aef14824add991aeda8ddadb3c31d56eb15ca69f8e",
+        "size": 1883787
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "create_engine",
+        "select",
+        "Column",
+        "Integer",
+        "String"
+      ],
+      "absent": [
+        "create_session",
+        "connect"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://docs.sqlalchemy.org/en/20/core/engines.html",
+        "https://docs.sqlalchemy.org/en/20/core/selectable.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "create_session lives in sqlalchemy.orm, not at top level."
+    },
+    {
+      "id": "pypi:tqdm",
+      "ecosystem": "pypi",
+      "name": "tqdm",
+      "version": "4.66.5",
+      "artifact": {
+        "filename": "tqdm-4.66.5-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/48/5d/acf5905c36149bbaec41ccf7f2b68814647347b72075ac0b1fe3022fdc73/tqdm-4.66.5-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "90279a3770753eafc9194a0364852159802111925aa30eb3f9d85b0e805ac7cd",
+        "size": 78351
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "tqdm",
+        "trange"
+      ],
+      "absent": [
+        "progressbar",
+        "tqdm_all"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://tqdm.github.io/docs/tqdm/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__."
+    },
+    {
+      "id": "pypi:pyyaml",
+      "ecosystem": "pypi",
+      "name": "pyyaml",
+      "version": "6.0.2",
+      "artifact": {
+        "filename": "PyYAML-6.0.2-cp310-cp310-macosx_10_9_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/9b/95/a3fac87cb7158e231b5a6012e438c647e1a87f09f8e0d123acec8ab8bf71/PyYAML-6.0.2-cp310-cp310-macosx_10_9_x86_64.whl",
+        "digest_algorithm": "sha256",
+        "digest": "0a9a2848a5b7feac301353437eb7d5957887edbf81d56e903999a75a3d743086",
+        "size": 184199
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "reexport_heavy",
+      "present": [
+        "safe_load",
+        "dump"
+      ],
+      "absent": [
+        "parse_yaml",
+        "safe_dump_json"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://pyyaml.org/wiki/PyYAMLDocumentation"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: yaml/__init__ star-imports from loader, which star-imports from reader (a second hop). The true answers are PRESENT."
+    },
+    {
+      "id": "pypi:jinja2",
+      "ecosystem": "pypi",
+      "name": "jinja2",
+      "version": "3.1.4",
+      "artifact": {
+        "filename": "jinja2-3.1.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/31/80/3a54838c3fb461f6fec263ebf3a3a41771bd05190238de3486aae8540c36/jinja2-3.1.4-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "bc5dd2abb727a5319567b7a813e6a2e7318c39f4f487cfe6c89c6f9c7d25197d",
+        "size": 133271
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "Environment",
+        "Template",
+        "FileSystemLoader"
+      ],
+      "absent": [
+        "render_html",
+        "TemplateEngine"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://jinja.palletsprojects.com/en/stable/api/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:beautifulsoup4",
+      "ecosystem": "pypi",
+      "name": "beautifulsoup4",
+      "version": "4.12.3",
+      "artifact": {
+        "filename": "beautifulsoup4-4.12.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b1/fe/e8c672695b37eecc5cbf43e1d0638d88d66ba3a44c4d321c796f4e59167f/beautifulsoup4-4.12.3-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "b80878c9f40111313e55da8ba20bdba06d8fa3969fc68304167741bbf9e082ed",
+        "size": 147925
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "BeautifulSoup",
+        "Tag",
+        "NavigableString"
+      ],
+      "absent": [
+        "parse_html",
+        "SoupParser"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://www.crummy.com/software/BeautifulSoup/bs4/doc/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:python-dotenv",
+      "ecosystem": "pypi",
+      "name": "python-dotenv",
+      "version": "1.0.1",
+      "artifact": {
+        "filename": "python_dotenv-1.0.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/6a/3e/b68c118422ec867fa7ab88444e1274aa40681c606d59ac27de5a5588f082/python_dotenv-1.0.1-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a",
+        "size": 19863
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "load_dotenv",
+        "dotenv_values",
+        "find_dotenv"
+      ],
+      "absent": [
+        "load",
+        "config"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://saurabh-kumar.com/python-dotenv/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__. config is the Node.js dotenv name, not a Python one."
+    },
+    {
+      "id": "pypi:tomli",
+      "ecosystem": "pypi",
+      "name": "tomli",
+      "version": "2.0.2",
+      "artifact": {
+        "filename": "tomli-2.0.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/cf/db/ce8eda256fa131af12e0a76d481711abe4681b6923c27efb9a255c9e4594/tomli-2.0.2-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "2ebe24485c53d303f690b0ec092806a085f07af5a5aa1464f3931eec36caaa38",
+        "size": 13237
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "loads",
+        "load",
+        "TOMLDecodeError"
+      ],
+      "absent": [
+        "dumps",
+        "dump"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/hukkin/tomli#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Literal __all__ tuple. dumps belongs to tomli-w, not tomli."
+    },
+    {
+      "id": "pypi:urllib3",
+      "ecosystem": "pypi",
+      "name": "urllib3",
+      "version": "2.2.3",
+      "artifact": {
+        "filename": "urllib3-2.2.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/ce/d9/5f4c13cecde62396b0d3fe530a50ccea91e7dfc1ccf0e09c228841bb5ba8/urllib3-2.2.3-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac",
+        "size": 126338
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "PoolManager",
+        "HTTPResponse",
+        "Retry",
+        "Timeout"
+      ],
+      "absent": [
+        "Session",
+        "fetch"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://urllib3.readthedocs.io/en/stable/reference/index.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__."
+    },
+    {
+      "id": "pypi:colorama",
+      "ecosystem": "pypi",
+      "name": "colorama",
+      "version": "0.4.6",
+      "artifact": {
+        "filename": "colorama-0.4.6-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+        "size": 25335
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "init",
+        "Fore",
+        "Style",
+        "deinit"
+      ],
+      "absent": [
+        "colorize",
+        "Color"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/tartley/colorama#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:certifi",
+      "ecosystem": "pypi",
+      "name": "certifi",
+      "version": "2024.8.30",
+      "artifact": {
+        "filename": "certifi-2024.8.30-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/12/90/3c9ff0512038035f59d279fddeb79f5f1eccd8859f06d6163c58798b9487/certifi-2024.8.30-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "922820b53db7a7257ffbda3f597266d435245903d80737e34f8a45ff3e3230d8",
+        "size": 167321
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": null,
+      "present": [
+        "where"
+      ],
+      "absent": [
+        "get_certs",
+        "bundle_path"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/certifi/python-certifi#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": ""
+    },
+    {
+      "id": "pypi:tenacity",
+      "ecosystem": "pypi",
+      "name": "tenacity",
+      "version": "9.0.0",
+      "artifact": {
+        "filename": "tenacity-9.0.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b6/cb/b86984bed139586d01532a587464b5805f12e397594f19f931c4c2fbfa61/tenacity-9.0.0-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "93de0c98785b27fcf659856aa9f54bfbd399e29969b0621bc7f762bd441b4539",
+        "size": 28169
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "retry",
+        "stop_after_attempt",
+        "wait_fixed",
+        "Retrying"
+      ],
+      "absent": [
+        "retry_on_error",
+        "backoff"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://tenacity.readthedocs.io/en/latest/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: many re-exports from submodules."
+    },
+    {
+      "id": "pypi:marshmallow",
+      "ecosystem": "pypi",
+      "name": "marshmallow",
+      "version": "3.22.0",
+      "artifact": {
+        "filename": "marshmallow-3.22.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/3c/78/c1de55eb3311f2c200a8b91724414b8d6f5ae78891c15d9d936ea43c3dba/marshmallow-3.22.0-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "71a2dce49ef901c3f97ed296ae5051135fd3febd2bf43afe0ae9a82143a494d9",
+        "size": 49334
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "Schema",
+        "fields",
+        "ValidationError",
+        "EXCLUDE",
+        "post_load"
+      ],
+      "absent": [
+        "Serializer",
+        "ModelSchema"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://marshmallow.readthedocs.io/en/stable/api_reference.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__."
+    },
+    {
+      "id": "pypi:tabulate",
+      "ecosystem": "pypi",
+      "name": "tabulate",
+      "version": "0.9.0",
+      "artifact": {
+        "filename": "tabulate-0.9.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f",
+        "size": 35252
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "tabulate"
+      ],
+      "absent": [
+        "table",
+        "format_table"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/astanin/python-tabulate#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__."
+    },
+    {
+      "id": "pypi:pluggy",
+      "ecosystem": "pypi",
+      "name": "pluggy",
+      "version": "1.5.0",
+      "artifact": {
+        "filename": "pluggy-1.5.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/88/5f/e351af9a41f866ac3f1fac4ca0613908d9a41741cfcf2228f4ad853b697d/pluggy-1.5.0-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669",
+        "size": 20556
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "literal___all__",
+      "present": [
+        "PluginManager",
+        "HookimplMarker",
+        "HookspecMarker"
+      ],
+      "absent": [
+        "HookRegistry",
+        "load_plugins"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://pluggy.readthedocs.io/en/stable/api_reference.html"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted literal __all__."
+    },
+    {
+      "id": "pypi:idna",
+      "ecosystem": "pypi",
+      "name": "idna",
+      "version": "3.10",
+      "artifact": {
+        "filename": "idna-3.10-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl",
+        "digest_algorithm": "sha256",
+        "digest": "946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3",
+        "size": 70442
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "encode",
+        "decode",
+        "IDNAError"
+      ],
+      "absent": [
+        "to_ascii",
+        "punycode"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/kjd/idna#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: one-hop star import from core (no second hop). Dropped probe 'intranges_contain' in the docs check: no cited page names it."
+    },
+    {
+      "id": "npm:semver",
+      "ecosystem": "npm",
+      "name": "semver",
+      "version": "7.6.3",
+      "artifact": {
+        "url": "https://registry.npmjs.org/semver/-/semver-7.6.3.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-oVekP1cKtI+CTDvHWYFUcMtsK/00wmAEfyqKfNdARm8u1wNVhSgaX7A8d4UuIlUI5e84iEwOhs7ZPYRmzU9U6A=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "parse",
+        "satisfies",
+        "coerce",
+        "semver.parse"
+      ],
+      "absent": [
+        "parseVersion",
+        "compareVersions"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/npm/node-semver#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS: module.exports is a literal object with shorthand properties."
+    },
+    {
+      "id": "npm:nanoid",
+      "ecosystem": "npm",
+      "name": "nanoid",
+      "version": "5.0.7",
+      "artifact": {
+        "url": "https://registry.npmjs.org/nanoid/-/nanoid-5.0.7.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-oLxFY2gd2IqnjcYyOXD8XGCftpGtZP2AbHbOkthDkvRywH5ayNtPVy9YlOPcHckXzbLTCHpkb7FB+yuxKV13pQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "nanoid",
+        "customAlphabet"
+      ],
+      "absent": [
+        "generateId",
+        "uuid"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/ai/nanoid#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "ESM exports map with import and require conditions."
+    },
+    {
+      "id": "npm:zod",
+      "ecosystem": "npm",
+      "name": "zod",
+      "version": "3.23.8",
+      "artifact": {
+        "url": "https://registry.npmjs.org/zod/-/zod-3.23.8.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g=="
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "reexport_heavy",
+      "present": [
+        "z",
+        "ZodError"
+      ],
+      "absent": [
+        "zodString",
+        "parseSchema"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://zod.dev/api"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Predicted: index.ts star-exports from external, which star-exports from errors (a second hop). True answers are PRESENT."
+    },
+    {
+      "id": "npm:@types/ms",
+      "ecosystem": "npm",
+      "name": "@types/ms",
+      "version": "0.7.34",
+      "artifact": {
+        "url": "https://registry.npmjs.org/@types/ms/-/ms-0.7.34.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-nG96G3Wp6acyAgJqGasjODb+acrI7KltPiRxzHPXnP3NgI28bpQDRv53olbqGXbfcgF5aiiHmO3xpwEpS5Ld9g=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "dts_only",
+      "present": [
+        "ms"
+      ],
+      "absent": [
+        "milliseconds",
+        "parse"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/vercel/ms#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Declaration-only package. export = name."
+    },
+    {
+      "id": "npm:@types/semver",
+      "ecosystem": "npm",
+      "name": "@types/semver",
+      "version": "7.5.8",
+      "artifact": {
+        "url": "https://registry.npmjs.org/@types/semver/-/semver-7.5.8.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "dts_only",
+      "present": [
+        "parse",
+        "satisfies",
+        "SemVer"
+      ],
+      "absent": [
+        "parseVersion",
+        "compareVersions"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/npm/node-semver#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Declaration-only package."
+    },
+    {
+      "id": "npm:uuid",
+      "ecosystem": "npm",
+      "name": "uuid",
+      "version": "10.0.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/uuid/-/uuid-10.0.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "v4",
+        "v1",
+        "validate"
+      ],
+      "absent": [
+        "uuidv4"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/uuidjs/uuid#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Re-exports with aliases: export { default as v4 } from ... (one hop)."
+    },
+    {
+      "id": "npm:commander",
+      "ecosystem": "npm",
+      "name": "commander",
+      "version": "12.1.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/commander/-/commander-12.1.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "program",
+        "Command",
+        "Option",
+        "createCommand"
+      ],
+      "absent": [
+        "CommandBuilder",
+        "parseArgs"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/tj/commander.js#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS exports.x = form."
+    },
+    {
+      "id": "npm:dotenv",
+      "ecosystem": "npm",
+      "name": "dotenv",
+      "version": "16.4.5",
+      "artifact": {
+        "url": "https://registry.npmjs.org/dotenv/-/dotenv-16.4.5.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-ZmdL2rui+eB2YwhsWzjInR8LldtZHGDoQ1ugH85ppHKwpUHL7j7rN0Ti9NCnGiQbhaZ11FpR+7ao1dNsmduNUg=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "config",
+        "parse",
+        "dotenv.config"
+      ],
+      "absent": [
+        "load",
+        "loadDotenv"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/motdotla/dotenv#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS module.exports.x = form."
+    },
+    {
+      "id": "npm:colorette",
+      "ecosystem": "npm",
+      "name": "colorette",
+      "version": "2.0.20",
+      "artifact": {
+        "url": "https://registry.npmjs.org/colorette/-/colorette-2.0.20.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "red",
+        "green",
+        "bold",
+        "isColorSupported"
+      ],
+      "absent": [
+        "rainbow",
+        "colorize"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/jorgebucaran/colorette#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Dual ESM and CommonJS exports map."
+    },
+    {
+      "id": "npm:jsonwebtoken",
+      "ecosystem": "npm",
+      "name": "jsonwebtoken",
+      "version": "9.0.2",
+      "artifact": {
+        "url": "https://registry.npmjs.org/jsonwebtoken/-/jsonwebtoken-9.0.2.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-PRp66vJ865SSqOlgqS8hujT5U4AOgMfhrwYIuIhfKaoSCZcirrmASQr8CX7cUg+RMih+hgznrjp99o+W4pJLHQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "sign",
+        "verify",
+        "decode",
+        "TokenExpiredError"
+      ],
+      "absent": [
+        "generateToken",
+        "validate"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/auth0/node-jsonwebtoken#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS literal object with require values."
+    },
+    {
+      "id": "npm:tslib",
+      "ecosystem": "npm",
+      "name": "tslib",
+      "version": "2.7.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/tslib/-/tslib-2.7.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-gLXCKdN1/j47AiHiOkJN69hJmcbGTHI0ImLmbYLHykhgeN0jVGola9yVjFgzCUklsZQMW55o+dW7IXv3RCXDzA=="
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "commonjs_umd",
+      "present": [
+        "__extends",
+        "__assign"
+      ],
+      "absent": [
+        "__awaiterX",
+        "__extendsX"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/microsoft/tslib#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "UMD wrapper. The pinned tslib.js has `typeof module === \"object\" && typeof module.exports === \"object\"` and `factory(createExporter(root, createExporter(module.exports)))`. Under the completeness rule (R-C-3) these references are unmodelled, so the result is UNKNOWN (dynamic_exports). The names remain PRESENT. The earlier prediction of complete was wrong."
+    },
+    {
+      "id": "npm:lru-cache",
+      "ecosystem": "npm",
+      "name": "lru-cache",
+      "version": "10.4.3",
+      "artifact": {
+        "url": "https://registry.npmjs.org/lru-cache/-/lru-cache-10.4.3.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "LRUCache"
+      ],
+      "absent": [
+        "LRU",
+        "lruCache"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/isaacs/node-lru-cache#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "TypeScript-compiled CommonJS: exports.LRUCache = ..."
+    },
+    {
+      "id": "npm:immer",
+      "ecosystem": "npm",
+      "name": "immer",
+      "version": "10.1.1",
+      "artifact": {
+        "url": "https://registry.npmjs.org/immer/-/immer-10.1.1.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-s2MPrmjovJcoMaHtx6K11Ra7oD05NT97w1IC5zpMkT6Atjr7H8LjaDd81iIxUYpMKSRRNMJE703M1Fhr/TctHw=="
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "esbuild_cjs_helper",
+      "present": [
+        "produce",
+        "createDraft",
+        "finishDraft"
+      ],
+      "absent": [
+        "updateDraft",
+        "produceAsync"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://immerjs.github.io/immer/api"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Q5: the CommonJS build uses an esbuild helper that defines exports from a getter object. Q5 gives UNKNOWN (dynamic_exports). The true answers are PRESENT. An ABSENT answer here is a false ABSENT."
+    },
+    {
+      "id": "npm:query-string",
+      "ecosystem": "npm",
+      "name": "query-string",
+      "version": "8.2.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/query-string/-/query-string-8.2.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-tUZIw8J0CawM5wyGBiDOAp7ObdRQh4uBor/fUR9ZjmbZVvw95OD9If4w3MQxr99rg0DJZ/9CIORcpEqU5hQG7g=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "parse",
+        "stringify",
+        "parseUrl"
+      ],
+      "absent": [
+        "parseQuery",
+        "decodeQuery"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/sindresorhus/query-string#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Named function declarations."
+    },
+    {
+      "id": "npm:qs",
+      "ecosystem": "npm",
+      "name": "qs",
+      "version": "6.13.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/qs/-/qs-6.13.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "parse",
+        "stringify",
+        "formats"
+      ],
+      "absent": [
+        "decode",
+        "encode"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/ljharb/qs#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS literal object with key: value pairs."
+    },
+    {
+      "id": "npm:xml2js",
+      "ecosystem": "npm",
+      "name": "xml2js",
+      "version": "0.6.2",
+      "artifact": {
+        "url": "https://registry.npmjs.org/xml2js/-/xml2js-0.6.2.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "parseString",
+        "Parser",
+        "Builder"
+      ],
+      "absent": [
+        "parseXml",
+        "stringifyXml"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/Leonidas-from-XIV/node-xml2js#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS exports.x = form."
+    },
+    {
+      "id": "npm:ini",
+      "ecosystem": "npm",
+      "name": "ini",
+      "version": "4.1.3",
+      "artifact": {
+        "url": "https://registry.npmjs.org/ini/-/ini-4.1.3.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-X7rqawQBvfdjS10YU1y1YVreA3SsLrW9dX2CewP2EbBJM4ypVNLDkO5y04gejPwKIY9lR+7r9gn3rFPt/kmWFg=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "parse",
+        "stringify",
+        "decode",
+        "encode"
+      ],
+      "absent": [
+        "load",
+        "dump"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/npm/ini#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Chained assignment: exports.parse = exports.decode = decode."
+    },
+    {
+      "id": "npm:js-yaml",
+      "ecosystem": "npm",
+      "name": "js-yaml",
+      "version": "4.1.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.0.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "load",
+        "dump",
+        "safeLoad",
+        "safeDump"
+      ],
+      "absent": [],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/nodeca/js-yaml#readme",
+        "https://github.com/nodeca/js-yaml/blob/master/CHANGELOG.md"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "present_but_throws (removed-API stub): safeLoad and safeDump are exported in the pinned 4.1.0 artifact (index.js: renamed(...) stubs that throw when called). The changelog lists them under Removed. PRESENT means exported, not that the call works."
+    },
+    {
+      "id": "npm:marked",
+      "ecosystem": "npm",
+      "name": "marked",
+      "version": "14.1.2",
+      "artifact": {
+        "url": "https://registry.npmjs.org/marked/-/marked-14.1.2.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-f3r0yqpz31VXiDB/wj9GaOB0a2PRLQl6vJmXiFrniNwjkKdvakqJRULhjFKJpxOchlCRiG5fcacoUZY5Xa6PEQ=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "marked",
+        "Lexer",
+        "Parser"
+      ],
+      "absent": [
+        "markdownToHtml",
+        "renderMarkdown"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://marked.js.org/"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "ESM bundle with a named export list."
+    },
+    {
+      "id": "npm:node-fetch",
+      "ecosystem": "npm",
+      "name": "node-fetch",
+      "version": "3.3.2",
+      "artifact": {
+        "url": "https://registry.npmjs.org/node-fetch/-/node-fetch-3.3.2.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "esm_exports_map",
+      "present": [
+        "Headers",
+        "Request",
+        "Response"
+      ],
+      "absent": [
+        "fetchJson",
+        "HttpError"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/node-fetch/node-fetch#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Named exports; the default export is not a contract name (owner ruling 4)."
+    },
+    {
+      "id": "npm:lodash-es",
+      "ecosystem": "npm",
+      "name": "lodash-es",
+      "version": "4.17.21",
+      "artifact": {
+        "url": "https://registry.npmjs.org/lodash-es/-/lodash-es-4.17.21.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "reexport_heavy",
+      "present": [
+        "chunk",
+        "debounce",
+        "memoize"
+      ],
+      "absent": [
+        "chunkBy",
+        "debounceAsync"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://lodash.com/docs/4.17.15"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Hundreds of one-hop aliased re-exports from per-function modules."
+    },
+    {
+      "id": "npm:@types/js-yaml",
+      "ecosystem": "npm",
+      "name": "@types/js-yaml",
+      "version": "4.0.9",
+      "artifact": {
+        "url": "https://registry.npmjs.org/@types/js-yaml/-/js-yaml-4.0.9.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "dts_only",
+      "present": [
+        "load",
+        "dump"
+      ],
+      "absent": [
+        "safeLoad"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/nodeca/js-yaml#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Declaration-only. safeLoad is not declared in the v4 types. Owner to confirm."
+    },
+    {
+      "id": "npm:@types/jsonwebtoken",
+      "ecosystem": "npm",
+      "name": "@types/jsonwebtoken",
+      "version": "9.0.7",
+      "artifact": {
+        "url": "https://registry.npmjs.org/@types/jsonwebtoken/-/jsonwebtoken-9.0.7.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-ugo316mmTYBl2g81zDFnZ7cfxlut3o+/EQdaP7J8QN2kY6lJ22hmQYCK5EHcJHbrW+dkCGSCPgbG8JtYj6qSrg=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "dts_only",
+      "present": [
+        "sign",
+        "verify",
+        "decode"
+      ],
+      "absent": [
+        "generateToken",
+        "validate"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/auth0/node-jsonwebtoken#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Declaration-only package."
+    },
+    {
+      "id": "npm:mime-types",
+      "ecosystem": "npm",
+      "name": "mime-types",
+      "version": "2.1.35",
+      "artifact": {
+        "url": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "lookup",
+        "contentType",
+        "extension",
+        "charset"
+      ],
+      "absent": [
+        "getMimeType",
+        "mimeFor"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/jshttp/mime-types#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS exports.x = form."
+    },
+    {
+      "id": "npm:cookie",
+      "ecosystem": "npm",
+      "name": "cookie",
+      "version": "0.7.2",
+      "artifact": {
+        "url": "https://registry.npmjs.org/cookie/-/cookie-0.7.2.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w=="
+      },
+      "expected_status": "complete",
+      "expected_reason": null,
+      "hard_case": "commonjs",
+      "present": [
+        "parse"
+      ],
+      "absent": [
+        "stringify",
+        "cookie"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://github.com/jshttp/cookie#readme"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "CommonJS exports.x = form. Dropped probe 'serialize' in the docs check: no cited page names it."
+    },
+    {
+      "id": "npm:lodash",
+      "ecosystem": "npm",
+      "name": "lodash",
+      "version": "4.17.21",
+      "artifact": {
+        "url": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+        "digest_algorithm": "sha512",
+        "integrity": "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg=="
+      },
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
+      "hard_case": "cjs_reassigned_exports",
+      "present": [
+        "map",
+        "chunk",
+        "debounce"
+      ],
+      "absent": [
+        "mapAsync",
+        "chunkBy"
+      ],
+      "absent_review": "pending_owner",
+      "source_urls": [
+        "https://lodash.com/docs/4.17.15"
+      ],
+      "label_basis": "official documentation and public API (as cited); not extractor output",
+      "notes": "Q2: the main file assigns (freeModule.exports = _) and then adds members to _. The reassignment makes the result UNKNOWN. The true answers are PRESENT for the documented methods. An ABSENT answer here is a false ABSENT."
+    }
+  ]
+}

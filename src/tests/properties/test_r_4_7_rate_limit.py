@@ -34,24 +34,31 @@ class FakeClock:
         return self.now
 
 
-def oracle_allowed(offsets: list[float], limit: int) -> list[bool]:
-    """Allowed iff fewer than `limit` earlier attempts (allowed or not) lie inside the window."""
+WINDOW_US = int(WINDOW.total_seconds() * 1_000_000)
+
+
+def oracle_allowed(offsets_us: list[int], limit: int) -> list[bool]:
+    """Allowed iff fewer than `limit` earlier attempts (allowed or not) lie inside the window.
+
+    Offsets are integer microseconds, the resolution of the timestamps the limiter sees, so the
+    window boundary is compared exactly. Float offsets could round across the boundary.
+    """
     decisions: list[bool] = []
-    for i, offset in enumerate(offsets):
-        prior = sum(1 for other in offsets[:i] if offset - other < WINDOW.total_seconds())
+    for i, offset in enumerate(offsets_us):
+        prior = sum(1 for other in offsets_us[:i] if offset - other < WINDOW_US)
         decisions.append(prior < limit)
     return decisions
 
 
 @given(
     limit=st.integers(min_value=1, max_value=5),
-    gaps=st.lists(st.floats(min_value=0.0, max_value=45.0), min_size=1, max_size=20),
+    gaps=st.lists(st.integers(min_value=0, max_value=45_000_000), min_size=1, max_size=20),
 )
 def test_r_4_7_allowed_iff_fewer_than_limit_attempts_in_the_window(
-    limit: int, gaps: list[float]
+    limit: int, gaps: list[int]
 ) -> None:
-    offsets: list[float] = []
-    total = 0.0
+    offsets: list[int] = []
+    total = 0
     for gap in gaps:
         total += gap
         offsets.append(total)
@@ -60,7 +67,7 @@ def test_r_4_7_allowed_iff_fewer_than_limit_attempts_in_the_window(
         limiter = RateLimiter(Path(tmp), limit, clock=clock)
         actual: list[bool] = []
         for offset in offsets:
-            clock.now = BASE + timedelta(seconds=offset)
+            clock.now = BASE + timedelta(microseconds=offset)
             actual.append(limiter.attempt().allowed)
     assert actual == oracle_allowed(offsets, limit)
 
