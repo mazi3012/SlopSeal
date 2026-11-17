@@ -2,7 +2,7 @@
 
 Status: labels are NOT frozen. They freeze at the first extractor run, and that run's commit records the final labels hash. Until then they may change, each change in its own commit with the hash updated here.
 
-Labels file: `docs/contract_labels.json`. SHA-256 of that file: `fc56b80e064115e57f8a82ac693ad04713141e1361ad02489469a44986eff6ef`.
+Labels file: `docs/contract_labels.json`. SHA-256 of that file: `d258bc486224aa07345e0c07a70378878d10d035ae8174c50e7b3d1e2e715885`.
 
 ## What is labelled
 
@@ -26,7 +26,7 @@ A `hard_case` field records which case each package exercises.
 - Reassigned `module.exports` (Q2, expected UNKNOWN): npm:lodash
 - An esbuild CommonJS export helper (Q5, expected UNKNOWN): npm:immer
 
-Expected UNKNOWN packages: pypi:pydantic, pypi:numpy, pypi:pyyaml, npm:zod, npm:immer, npm:lodash.
+Expected UNKNOWN packages: pypi:pydantic, pypi:numpy, pypi:pyyaml, npm:zod, npm:tslib, npm:immer, npm:lodash.
 
 Not covered by these labels: the `sdist_only`, `limit`, `network`, `no_digest`, and `not_in_snapshot` reasons. The parity test, the property tests (P-C-1 to P-C-8), and the typed-reason tests cover those. A 50-package label set cannot exercise them.
 

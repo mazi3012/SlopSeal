@@ -1094,8 +1094,8 @@
         "digest_algorithm": "sha512",
         "integrity": "sha512-gLXCKdN1/j47AiHiOkJN69hJmcbGTHI0ImLmbYLHykhgeN0jVGola9yVjFgzCUklsZQMW55o+dW7IXv3RCXDzA=="
       },
-      "expected_status": "complete",
-      "expected_reason": null,
+      "expected_status": "unknown",
+      "expected_reason": "dynamic_exports",
       "hard_case": "commonjs_umd",
       "present": [
         "__extends",
@@ -1110,7 +1110,7 @@
         "https://github.com/microsoft/tslib#readme"
       ],
       "label_basis": "official documentation and public API (as cited); not extractor output",
-      "notes": "UMD wrapper that assigns to a factory argument named exports. Expected complete, not certain: owner to confirm."
+      "notes": "UMD wrapper. The pinned tslib.js has `typeof module === \"object\" && typeof module.exports === \"object\"` and `factory(createExporter(root, createExporter(module.exports)))`. Under the completeness rule (R-C-3) these references are unmodelled, so the result is UNKNOWN (dynamic_exports). The names remain PRESENT. The earlier prediction of complete was wrong."
     },
     {
       "id": "npm:lru-cache",
