@@ -236,6 +236,8 @@ Existing tests: no test double implements `exports()`, and every existing intent
 
 The parent starts `python -I <path to worker.py> <kind> <artifact path>`, where `kind` is `wheel` or `npm`, with an empty environment, `stdin` closed, the temp dir as the working directory, and a wall-time kill after 10 seconds. The worker sets its own limits first, before it opens the artifact: `RLIMIT_CPU`, `RLIMIT_AS`, `RLIMIT_FSIZE`, `RLIMIT_NOFILE`, and `RLIMIT_CORE` set to 0. It sets them itself and the parent does not use `preexec_fn`, because the install hook calls the Contract Check from a process that has threads. The hook does not run it today (R-C-8), but the code stays safe if that changes.
 
+The 10-second wall limit (R-C-4) covers the archive check and the extraction of one artifact together. The runner keeps one deadline for the artifact. The archive check uses the time it needs, up to the limit, and the extraction gets the time left. A run that starts after the deadline is UNKNOWN with reason `limit`. The worker's extract mode takes the artifact root from the archive check, so the npm extraction reads the same root.
+
 The worker never imports, executes, or compiles for execution anything from the artifact:
 
 - It reads archive members into memory with `zipfile` or `tarfile`, one at a time. It does not extract them to disk. A symlink, hardlink, device, or fifo member is rejected before any member is read.
@@ -362,3 +364,5 @@ Expected statuses in the labels were predicted before this rule was written. Und
 ## 3. Phase 3 and later
 
 Not designed. Phase 3 is signing (R-S). Phase 4 ships R-G-12, the depth-1 transitive check, which is not implemented. T16 stays open until then (see `requirements.md`, glossary and R-G-12). Each later phase starts by adding its requirements, design section, and properties to this spec, and by stopping for the owner's review (see `tasks.md`).
+
+**Ruling 2.6 (recorded at the 2.6 report).** The rulings are: compiled extensions give `dynamic_exports` for the whole artifact (R-C-2, `docs/CONTRACT_EVAL.md`); the dynamic forms of R-C-2 are confirmed, with the `global` rule; a RECORD mismatch gives `parse_error` and is listed in the run report; the `__all__` load rule (any load other than a plain or annotated literal assignment gives `dynamic_exports`, with P-C-4 cases and a mutant); the wall limit is shared (R-C-4); the `except ImportError` rule (a name bound only there is PRESENT, never ABSENT); the 81cb280 commit spans three IDs and is accepted, and that is noted in the report. Ruling 4 (unsupported ecosystem) is not decided and is asked.
