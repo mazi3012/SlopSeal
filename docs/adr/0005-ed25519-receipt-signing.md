@@ -1,6 +1,6 @@
 # 0005. Ed25519 signatures for anchor receipts and approvals
 
-Status: Proposed. Not implemented. Implementation waits for owner approval of this ADR.
+Status: Accepted (owner approval, 2026-11-17). Implementation may proceed under PR C.
 Date: 2026-11-17
 Number note: 0004 is reserved by the gateway ADR on the frozen branch `feat/package-source-gateway` (PR #32).
 
