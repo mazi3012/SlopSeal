@@ -1297,14 +1297,18 @@ def _apply_limits(cpu: int, address: int, open_files: int) -> str | None:
         import resource
     except ImportError:
         return "resource limits are not available on this platform"
-    try:
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
-        resource.setrlimit(resource.RLIMIT_AS, (address, address))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
-        resource.setrlimit(resource.RLIMIT_NOFILE, (open_files, open_files))
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    except (ValueError, OSError):
-        return "resource limits could not be set"
+    calls: tuple[tuple[str, int, tuple[int, int]], ...] = (
+        ("RLIMIT_CPU", resource.RLIMIT_CPU, (cpu, cpu)),
+        ("RLIMIT_AS", resource.RLIMIT_AS, (address, address)),
+        ("RLIMIT_FSIZE", resource.RLIMIT_FSIZE, (0, 0)),
+        ("RLIMIT_NOFILE", resource.RLIMIT_NOFILE, (open_files, open_files)),
+        ("RLIMIT_CORE", resource.RLIMIT_CORE, (0, 0)),
+    )
+    for name, which, value in calls:
+        try:
+            resource.setrlimit(which, value)
+        except (ValueError, OSError) as error:
+            return f"resource limits could not be set: {name} {value}: {error}"
     return None
 
 
