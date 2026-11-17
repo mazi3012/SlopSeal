@@ -55,6 +55,12 @@ Terms used below:
 
 **R-U-1 (decision messages).** Every message the hook writes to stderr, and every MCP tool result text, shall state the decision in the fixed wording of `src/slopseal/messages.py`. The categories are: verification in progress, ALLOW, BLOCK, QUARANTINE, rate limited, error, and unverifiable form. A message shall not describe an unverifiable form as a security risk. Metadata (package names, reasons, advisory identifiers) shall appear only as JSON string values, as R-G-10 requires. Messages shall not change an exit code, an outcome, a check name, a structured MCP field, or any decision (R-1.8, R-G-2 to R-G-8). The hook description shall state these categories (R-G-9).
 
+## 1c. Deterministic enforcement preflight (D2 section 7.4)
+
+**R-PF-1 (one status).** The preflight shall derive exactly one enforcement status, ENFORCED, PARTIALLY ENFORCED, or NOT ENFORCED, from the Class A and Class B checks alone. Only the rule set in `src/slopseal/preflight/rules.py` shall select the status. The same checks shall always give the same status.
+
+**R-PF-2 (unrun is not passed).** A check that cannot be evaluated shall be NOT_RUN, never PASS. Any Class A check that is FAIL or NOT_RUN gives NOT ENFORCED. Any check that is NOT_RUN gives NOT ENFORCED. A default run with no probe results shall never report ENFORCED.
+
 ## 2. Contract Check (Phase 2, not implemented)
 
 **Purpose.** In live mode the registries do not publish exported symbols, so `exports()` returns nothing and every intent check blocks (R-Q-2). The Contract Check reads the exports from the artifact itself, statically, so that an intent check can answer PRESENT, ABSENT, or UNKNOWN. Offline mode is unchanged: it still reads the checksummed snapshot.
