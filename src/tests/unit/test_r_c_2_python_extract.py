@@ -59,10 +59,42 @@ def test_r_c_2_literal_all_keeps_underscore_names() -> None:
     assert {"pkg.a", "pkg._private", "pkg.b", "a", "_private", "b"} <= set(names)
 
 
-def test_r_c_2_literal_all_additions_are_read() -> None:
-    source = "__all__ = ['a']\n__all__ += ['b']\n__all__.extend(['c'])\n__all__.append('d')\n"
-    names = _extract({"pkg/__init__.py": source})
-    assert {"a", "b", "c", "d"} <= set(names)
+@pytest.mark.parametrize(
+    "source",
+    [
+        "__all__ = ['a']\nalias = __all__\n",
+        "__all__ = ['a']\n__all__ += ['b']\n",
+        "__all__ = ['a']\n__all__.extend(['c'])\n",
+        "__all__ = ['a']\n__all__.append('d')\n",
+        "__all__ = ['a']\nprint(__all__)\n",
+        "__all__ = ['a']\nf(__all__)\n",
+    ],
+)
+def test_r_c_2_every_load_of_all_other_than_a_literal_assignment_is_dynamic(source: str) -> None:
+    """Ruled at 2.6: aliases, +=, .extend, .append, and call arguments all give dynamic_exports."""
+    with pytest.raises(worker.Dynamic):
+        _extract({"pkg/__init__.py": source})
+
+
+def test_r_c_2_a_plain_or_annotated_literal_all_is_read() -> None:
+    names = _extract({"pkg/__init__.py": "__all__ = ['a']\n__all__: list[str] = ['b']\n"})
+    assert {"pkg.a", "pkg.b", "a", "b"} <= set(names)
+
+
+def test_r_c_2_a_name_bound_only_in_an_except_importerror_branch_is_present() -> None:
+    """Ruled at 2.6: the branch counts, so the name is PRESENT. It is never ABSENT."""
+    source = "try:\n    from fastlib import accel\nexcept ImportError:\n    fallback = None\n"
+    names = set(_extract({"pkg/__init__.py": source}))
+    assert "pkg.fallback" in names
+    assert "fallback" in names
+
+
+def test_r_c_2_a_global_statement_in_a_module_file_is_dynamic() -> None:
+    """Ruled at 2.6. This build flags every global statement, which is stricter than the ruling."""
+    with pytest.raises(worker.Dynamic):
+        _extract({"pkg/__init__.py": "def f():\n    global public_name\n    public_name = 1\n"})
+    with pytest.raises(worker.Dynamic):
+        _extract({"pkg/__init__.py": "def f():\n    global _private\n    _private = 1\n"})
 
 
 def test_r_c_2_branches_of_if_and_try_are_unioned() -> None:

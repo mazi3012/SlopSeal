@@ -256,19 +256,6 @@ def _literal_strings(node: ast.expr) -> list[str] | None:
     return values
 
 
-def _call_strings(call: ast.Call) -> list[str] | None:
-    """The literal strings added by `__all__.append("x")` or `__all__.extend([...])`."""
-    func = call.func
-    if not isinstance(func, ast.Attribute) or call.keywords or len(call.args) != 1:
-        return None
-    argument = call.args[0]
-    if func.attr == "append" and isinstance(argument, ast.Constant):
-        return [argument.value] if isinstance(argument.value, str) else None
-    if func.attr == "extend":
-        return _literal_strings(argument)
-    return None
-
-
 def _module_level(body: list[ast.stmt]) -> Iterator[ast.stmt]:
     """Statements that run at import time: the module body and every branch of if and try."""
     for stmt in body:
@@ -287,11 +274,12 @@ def _module_level(body: list[ast.stmt]) -> Iterator[ast.stmt]:
 def _check_forms(tree: ast.Module) -> None:
     """Raise Dynamic for every form that R-C-2 lists as dynamic, anywhere in the file.
 
-    A module name written at run time (Q1), a computed `__all__`, a module-level loop or tuple
-    target, and a `__getattr__` or `__dir__` all make the export set unknown.
+    `__all__` is read only as the target of a plain or annotated literal assignment (ruled at 2.6).
+    Every other use of the name gives Dynamic: an alias, `+=`, `.extend`, `.append`, a call
+    argument, a computed value. A module-level Name write at run time (Q1), a module-level loop or
+    tuple target, and a `__getattr__` or `__dir__` also give Dynamic.
     """
     literal_targets: set[int] = set()
-    literal_calls: set[int] = set()
     for stmt in _module_level(tree.body):
         if not isinstance(stmt, _MODULE_STATEMENTS):
             raise Dynamic("module-level statement is not modelled")
@@ -308,51 +296,29 @@ def _check_forms(tree: ast.Module) -> None:
                     literal_targets.add(id(target))
         elif isinstance(stmt, ast.AnnAssign):
             target = stmt.target
-            if isinstance(target, ast.Name) and target.id == "__all__" and stmt.value is not None:
-                if _literal_strings(stmt.value) is None:
-                    raise Dynamic("__all__ is computed")
+            if isinstance(target, ast.Name) and target.id == "__all__":
+                if stmt.value is None or _literal_strings(stmt.value) is None:
+                    raise Dynamic("__all__ is annotated without a literal value")
                 literal_targets.add(id(target))
-        elif isinstance(stmt, ast.AugAssign):
-            if isinstance(stmt.target, ast.Name):
-                literal = _literal_strings(stmt.value)
-                if (
-                    stmt.target.id != "__all__"
-                    or not isinstance(stmt.op, ast.Add)
-                    or literal is None
-                ):
-                    raise Dynamic("augmented assignment to a module name")
-                literal_targets.add(id(stmt.target))
-        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            func = stmt.value.func
-            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                if func.value.id == "__all__" and _call_strings(stmt.value) is None:
-                    raise Dynamic("__all__ is changed by a non-literal call")
-                if func.value.id == "__all__":
-                    literal_calls.add(id(func))
+        elif isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+            raise Dynamic("augmented assignment to a module name")
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
             if node.id in _DYNAMIC_CALLS:
                 raise Dynamic("reference to a builtin that changes names at run time")
-            changes_all = node.id == "__all__" and not isinstance(node.ctx, ast.Load)
-            if changes_all and id(node) not in literal_targets:
-                raise Dynamic("__all__ is changed outside a literal form")
+            if node.id == "__all__" and id(node) not in literal_targets:
+                raise Dynamic("__all__ is read or changed outside a literal assignment")
         elif isinstance(node, ast.Attribute):
             if node.attr in _DYNAMIC_ATTRS:
                 raise Dynamic("reference to a module namespace")
             value_name = node.value.id if isinstance(node.value, ast.Name) else ""
             if value_name == "builtins" and node.attr in _DYNAMIC_CALLS:
                 raise Dynamic("reference to a builtin that changes names at run time")
-            if value_name == "__all__" and id(node) not in literal_calls:
-                raise Dynamic("__all__ is changed by a method other than a literal append")
-        elif isinstance(node, ast.Subscript):
-            is_all = isinstance(node.value, ast.Name) and node.value.id == "__all__"
-            if is_all and not isinstance(node.ctx, ast.Load):
-                raise Dynamic("__all__ is changed by item assignment")
         elif isinstance(node, ast.ImportFrom):
             if any(alias.name in _DYNAMIC_CALLS | _DYNAMIC_ATTRS for alias in node.names):
                 raise Dynamic("import of a builtin that changes names at run time")
         elif isinstance(node, ast.Global):
-            raise Dynamic("global statement")
+            raise Dynamic("global statement in a module file")
         elif isinstance(node, ast.Delete):
             if any(isinstance(target, ast.Name) for target in node.targets):
                 raise Dynamic("del of a module name")
@@ -370,7 +336,11 @@ class _Module:
 
 
 def _collect(tree: ast.Module, module: _Module) -> None:
-    """Set A (literal `__all__`, underscores kept) and set B (public top-level bindings)."""
+    """Set A (a literal `__all__` assignment, underscores kept) and set B (public bindings).
+
+    Only a literal assignment of `__all__` reaches here: _check_forms has already refused every
+    other use of the name.
+    """
     for stmt in _module_level(tree.body):
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             if _public(stmt.name):
@@ -400,23 +370,10 @@ def _collect(tree: ast.Module, module: _Module) -> None:
         elif isinstance(stmt, ast.AnnAssign):
             target = stmt.target
             if isinstance(target, ast.Name):
-                if target.id == "__all__":
-                    if stmt.value is not None:
-                        module.names.update(_literal_strings(stmt.value) or [])
-                elif _public(target.id):
+                if target.id == "__all__" and stmt.value is not None:
+                    module.names.update(_literal_strings(stmt.value) or [])
+                elif target.id != "__all__" and _public(target.id):
                     module.names.add(target.id)
-        elif isinstance(stmt, ast.AugAssign):
-            if isinstance(stmt.target, ast.Name) and stmt.target.id == "__all__":
-                module.names.update(_literal_strings(stmt.value) or [])
-        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            func = stmt.value.func
-            is_all_call = (
-                isinstance(func, ast.Attribute)
-                and isinstance(func.value, ast.Name)
-                and func.value.id == "__all__"
-            )
-            if is_all_call:
-                module.names.update(_call_strings(stmt.value) or [])
 
 
 def _star_target(module: str, package: bool, level: int, target: str, known: set[str]) -> str:

@@ -105,3 +105,25 @@ def test_p_c_4_b_a_dynamic_file_is_unknown_for_every_probe(
     source = _module(symbols, layout, private) + pattern
     with pytest.raises(worker.Dynamic):
         _extract(source)
+
+
+# P-C-4 cases for __all__ (ruled at 2.6): any load other than a literal assignment is dynamic.
+ALL_LOADS = st.sampled_from(
+    [
+        "alias = __all__\n",
+        "__all__ += ['zz_extra']\n",
+        "__all__.extend(['zz_extra'])\n",
+        "__all__.append('zz_extra')\n",
+        "print(__all__)\n",
+        "f(__all__)\n",
+    ]
+)
+
+
+@given(symbols=SYMBOLS, private=PRIVATE, load=ALL_LOADS)
+def test_p_c_4_d_a_load_of_all_is_dynamic_for_every_probe(
+    symbols: list[str], private: list[str], load: str
+) -> None:
+    source = _module(symbols, "literal_all", private) + load
+    with pytest.raises(worker.Dynamic):
+        _extract(source)
