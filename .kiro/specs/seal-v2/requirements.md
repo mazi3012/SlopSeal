@@ -165,3 +165,5 @@ An UNKNOWN shall give BLOCK (exit 1, check `api_surface`, and the reason names t
 - v1 `src/slopseal/registry/live.py` states that exports are not published and the API-surface check is always unknown. After Phase 2 that holds only for artifacts the Contract Check cannot complete.
 
 Both v1 statements are kept as written. `.kiro/specs/seal/design.md` section 11 carries a dated note that marks the statement superseded for the hook. The other places listed in `design.md` section 1.9 are corrected in the Phase 1 pull request (R-G-9).
+
+**R-FS-1 (private state).** The system shall create every state directory under the state root with mode 0700, and every state or lock file with mode 0600, whatever the process umask. This covers the audit log, the seal key, the contract cache, the rate-limit state and lock, and the quarantine store. Hook config under the workspace and shim directories are not state and keep their own modes.
