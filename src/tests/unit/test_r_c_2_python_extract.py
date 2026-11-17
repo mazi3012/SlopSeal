@@ -256,3 +256,14 @@ def test_r_c_2_dist_info_is_ignored_and_data_purelib_is_installed() -> None:
 def test_r_c_2_stub_files_are_read_as_modules() -> None:
     names = _extract({"pkg/__init__.py": "x = 1\n", "pkg/types.pyi": "def stub() -> None: ...\n"})
     assert "pkg.types.stub" in names
+
+
+def test_r_c_2_del_of_a_local_inside_a_function_is_not_dynamic() -> None:
+    """A del of a function local cannot change a module name. Only a module-level del is dynamic."""
+    source = "def f(x):\n    minimum_unit = x\n    del minimum_unit\n    return x\n"
+    assert "pkg.f" in _extract({"pkg/__init__.py": source})
+
+
+def test_r_c_2_del_of_a_module_name_is_dynamic() -> None:
+    with pytest.raises(worker.Dynamic):
+        _extract({"pkg/__init__.py": "a = 1\ndel a\n"})

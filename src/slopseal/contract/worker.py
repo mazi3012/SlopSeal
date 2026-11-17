@@ -319,9 +319,6 @@ def _check_forms(tree: ast.Module) -> None:
                 raise Dynamic("import of a builtin that changes names at run time")
         elif isinstance(node, ast.Global):
             raise Dynamic("global statement in a module file")
-        elif isinstance(node, ast.Delete):
-            if any(isinstance(target, ast.Name) for target in node.targets):
-                raise Dynamic("del of a module name")
         elif isinstance(node, ast.NamedExpr):
             raise Dynamic("assignment expression binds a name the model does not follow")
 
