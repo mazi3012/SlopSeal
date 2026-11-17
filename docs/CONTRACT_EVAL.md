@@ -48,13 +48,27 @@ These are recorded before the measurement and are not narrowed before it (ruling
 
 ## npm coverage limits (R-C-3, first run)
 
-- **Extensionless entry points give UNKNOWN.** An entry such as `"main": "./index"` has no `.js` extension, so it is neither a JavaScript nor a declaration leaf, and it gives UNKNOWN with reason `dynamic_exports`. Node resolves the extension itself. Resolving it would be a rule change, and this is recorded as coverage, not a fix. Example: `ms@2.1.3` (not labelled), whose entry has no extension.
+- **Extensionless `main` and `module` resolve by probe; a directory does not.** See the probe order below. `ms@2.1.3` (not labelled) now resolves to its `index.js`, and it is still UNKNOWN, because that file is `module.exports = function ...`, an unnamed export (Q2, Q3). A `main` that names a directory gives `parse_error`.
+- **A `./package.json` subpath gives UNKNOWN.** A JSON leaf is neither a JavaScript nor a declaration leaf. Six labelled packages list one (dotenv, colorette, js-yaml, marked, immer, @types/js-yaml). Recorded in Run 1 as a decision for the owner.
+- **An empty `main`, `module`, `types`, or `typings` gives `parse_error`.** This is a bug, not a rule. Node treats an empty string as absent. Three labelled `@types` packages (`main: ""`) are affected. Recorded in Run 1; not fixed before the measurement.
 - **Two entry points, one not complete.** The complete entry's names are PRESENT. Every other name is UNKNOWN. Example: `kleur@4.1.5` (not labelled). Its ESM entry lists `default`, `kleur`, and `kleur/colors`, and its CommonJS entry is not complete.
 - **Conditions outside the list give UNKNOWN.** Only `import`, `require`, `node`, `default`, and `types` are resolved. A `browser`, `development`, or `worker` condition gives UNKNOWN.
 - **Literal `default` keys in `module.exports` give UNKNOWN.** Only `export default` and `exports.default =` add `default`.
 - **A top-level `this` gives UNKNOWN (conservative, added at 2.8).** A `this` in a top-level block that is not a function or a class is not caught. This is a false-ABSENT gap that the first run measures.
 - **Relative `export * from` is one hop.** A second hop, a bare package, and an `export * as` give UNKNOWN.
 - **Declaration files: `export =`, `declare module` blocks, and `export as namespace` give UNKNOWN.**
+
+## npm entry resolution order (R-C-3, ruled at the 2.14 review)
+
+A declared `main` or `module` path with no extension is probed in this order. The first file that exists in the tarball is the entry:
+
+1. `<path>.js`
+2. `<path>.cjs`
+3. `<path>.mjs`
+
+A declared `types` or `typings` path with no extension is probed as `<path>.d.ts` only, so a type path never resolves to a JavaScript file. The path as written is not probed. A directory is not probed. When no probe finds a file, the entry is missing and gives `parse_error` for that entry. Extensionless `exports` leaves are not resolved.
+
+The owner's list was `.js`, `.cjs`, `.mjs`, `.d.ts`. The split by field (`.d.ts` only for `types` and `typings`) is this document's refinement, and it keeps a type path from resolving to a JavaScript file.
 
 ## Metric definitions
 
