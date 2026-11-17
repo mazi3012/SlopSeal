@@ -342,6 +342,19 @@ Total to a first useful Docker tier: roughly 14–20 weeks for one developer. A 
 
 Content was summarised, not quoted, for licensing reasons.
 
+## 9a. Update: v1 scope is Kiro-native (Kiro IDE, CLI, Web)
+
+Scope was narrowed after review. The Kiro-only investigation is in `reports/SlopSeal_KIRO_NATIVE_INVESTIGATION.md`. Only Kiro Web could be tested (this session). IDE and CLI results are documentation only. Summary:
+
+- **Tested on Kiro Web:** PreToolUse fires, exit 2 blocks, and the agent sees stderr. Direct registry access succeeds from every client tried. The shell has root and `CAP_NET_ADMIN`. SlopSeal's key, audit log, and rate-limit state are readable and writable by the agent shell (audit finding F-16 confirmed live). The MCP server runs outside the shell's process namespace but shares its filesystem and user.
+- **Not tested:** whether the developer sees hook stderr, Web egress enforcement (needs a user-set allow-list), and everything on IDE and CLI.
+- **Power:** can install MCP and (legacy format) steering. It cannot install hooks or run a post-install step as far as documented. The MCP bootstrap registers the hook, and that worked on Web.
+- **Wizard on Kiro:** no Save callback. Use the first tool result, a skill, a prompt, and a host command (`slopseal setup`) on IDE and CLI. Web has no host terminal, so Web is advisory in v1.
+- **Possible Kiro-native boundary (IDE and CLI, untested):** local sandbox with `DEFAULT_BLOCKED`, MCP outside the sandbox, state outside the workspace with a `permissions.yaml` read deny.
+- **Status today:** NOT ENFORCED on Kiro Web.
+
+The Docker design in section 3 remains the fallback if the Kiro-native tests fail.
+
 ## 10. Recommendation
 
 **Build a host-side guided setup with a local dashboard, and use MCP only as a status signpost and an optional on-ramp.**
