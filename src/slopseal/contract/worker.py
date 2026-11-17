@@ -1305,6 +1305,10 @@ def _apply_limits(cpu: int, address: int, open_files: int) -> str | None:
         ("RLIMIT_CORE", resource.RLIMIT_CORE, (0, 0)),
     )
     for name, which, value in calls:
+        # macOS rejects RLIMIT_AS (CI, PR #29) and does not enforce it. Skip it there only.
+        # Linux keeps the address-space cap, and a failure to set it stays fail-closed.
+        if name == "RLIMIT_AS" and sys.platform == "darwin":
+            continue
         try:
             resource.setrlimit(which, value)
         except (ValueError, OSError) as error:
