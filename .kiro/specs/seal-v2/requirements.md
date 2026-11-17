@@ -55,6 +55,12 @@ Terms used below:
 
 **R-U-1 (decision messages).** Every message the hook writes to stderr, and every MCP tool result text, shall state the decision in the fixed wording of `src/slopseal/messages.py`. The categories are: verification in progress, ALLOW, BLOCK, QUARANTINE, rate limited, error, and unverifiable form. A message shall not describe an unverifiable form as a security risk. Metadata (package names, reasons, advisory identifiers) shall appear only as JSON string values, as R-G-10 requires. Messages shall not change an exit code, an outcome, a check name, a structured MCP field, or any decision (R-1.8, R-G-2 to R-G-8). The hook description shall state these categories (R-G-9).
 
+## 1d. Request binding and replay (D2 section 8.4)
+
+**R-RB-1 (bound replay).** A request id shall be bound to the session token id and to the SHA-256 of the canonical request (ecosystem, normalized name, exact version, purpose, expected API, quarantine id, token id, timestamp). An identical replay (same token, same hash) shall return the cached verdict without a new quota count. An altered request under the same id shall be refused with REPLAY_CONFLICT. A request under the same id from another token shall be refused with REPLAY_DENIED. Nothing is evaluated for a refused request.
+
+**R-RB-2 (fresh requests only).** A request whose timestamp is more than 2 minutes in the future, more than 10 minutes in the past, or lacks a UTC offset shall be refused with REQUEST_STALE. Refused requests are neither evaluated nor counted.
+
 ## 2. Contract Check (Phase 2, not implemented)
 
 **Purpose.** In live mode the registries do not publish exported symbols, so `exports()` returns nothing and every intent check blocks (R-Q-2). The Contract Check reads the exports from the artifact itself, statically, so that an intent check can answer PRESENT, ABSENT, or UNKNOWN. Offline mode is unchanged: it still reads the checksummed snapshot.
