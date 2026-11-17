@@ -43,7 +43,7 @@ from slopseal.core.signatures import Signature, check_slopsquat
 from slopseal.core.types import CheckResult, Ecosystem, Level
 from slopseal.core.typosquat import check_typosquat
 from slopseal.policy.loader import Policy
-from slopseal.quarantine.api_surface import ApiSurface, check_api_surface
+from slopseal.quarantine.api_surface import ApiSurface, check_api_surface, unknown_block
 from slopseal.quarantine.payload import (
     MISMATCH_API_ABSENT,
     build_escalation_artifact,
@@ -610,6 +610,13 @@ def _escalated_again(
         expired_now = False
     exports = ctx.source.exports(request.ecosystem, request.package, version)
     surface = check_api_surface(exports, state.declared_api)
+    if surface.outcome is ApiSurface.UNKNOWN:
+        # R-C-9: an unknown contract blocks (exit 1). It never becomes api_absent, and no
+        # escalation artifact is written for it. The state was saved above if the window expired.
+        violation = unknown_block(surface)
+        return _block(
+            request, ctx, violation.check, violation.reason, quarantine_id=state.quarantine_id
+        )
     alternatives = tuple(
         (alt, f"exports {state.declared_api} directly")
         for alt in ctx.source.alternatives(request.ecosystem, state.declared_api, request.package)
