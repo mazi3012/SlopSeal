@@ -2,13 +2,13 @@
   "version": "v1",
   "hooks": [
     {
-      "name": "SlopSeal: block agent install commands",
-      "description": "Before the agent runs a shell command, runs the slopseal.hooks.on_install module with the hook payload on stdin. A command with no install exits 0. For an install of pinned pip or npm packages (pip install name==x.y.z, npm install name@x.y.z, npx name@x.y.z), the module runs the SlopSeal verdict pipeline for each package. ALLOW for every package exits 0 and the command runs. BLOCK exits 2 with the failed check, the reason, and a suggested fix. QUARANTINE exits 2 with the check name and the next step. An install the hook cannot verify exits 2 with a fix: an unpinned or ranged version, a URL or path, -r, another package manager (uv, poetry, cargo, and others), an environment assignment or xargs before the install, or text it cannot parse. Fails closed: any error exits 2, and if slopseal cannot run (exit code other than 0 or 2), the wrapper prints an install hint and blocks the command with exit 2. Each verified package counts against the install rate limit. Installs the user runs go through the SlopSeal PATH shim, which verifies each package.",
+      "name": "SlopSeal: Verify dependency security before installation",
+      "description": "Checks each package install command before it runs. For pinned pip or npm packages (name==x.y.z, name@x.y.z), SlopSeal runs its verification checks on every package. If every package is ALLOW, the command runs (exit 0). If any package is BLOCK, QUARANTINE, RATE_LIMITED, or ERROR, the command is stopped (exit 2) and the output names the package, the check that stopped it, and the next step. An install that SlopSeal cannot verify, such as an unpinned or ranged version, a URL or local path, a requirements file, or another package manager, is also stopped (exit 2) with the form that must change. A command that installs nothing is not affected. If SlopSeal cannot run, the command is stopped (exit 2). Each verified package counts against the install rate limit. Installs the user runs go through the SlopSeal PATH shim, which verifies each package.",
       "trigger": "PreToolUse",
       "matcher": "execute_bash",
       "action": {
         "type": "command",
-        "command": "sh -c '\"$1\" -m slopseal.hooks.on_install; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then echo \"BLOCKED: SlopSeal is not installed for \\\"$1\\\". Install it into that Python with: \\\"$1\\\" -m pip install git+https://github.com/mazi3012/SlopSeal.git\" >&2; exit 2; else exit $rc; fi' sh python3"
+        "command": "sh -c '\"$1\" -m slopseal.hooks.on_install; rc=$?; if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then echo \"SlopSeal: Unable to verify package. Installation is not permitted. SlopSeal is not installed for \\\"$1\\\". Install it into that Python with: \\\"$1\\\" -m pip install git+https://github.com/mazi3012/SlopSeal.git\" >&2; exit 2; else exit $rc; fi' sh python3"
       },
       "timeout": 30
     }

@@ -47,9 +47,11 @@ STDIN_TIMEOUT_SECONDS = 3.0
 DEADLINE_SECONDS = 25.0
 MAX_DEPTH = 8
 
+# Written when the hook cannot reach a decision (unreadable payload, timeout, crash). That is an
+# error, not a finding about a package, so the wording says verification could not run (R-U-1).
 BLOCK_MESSAGE = (
-    "BLOCKED by SlopSeal: Direct installs are disabled. You must use the slopseal MCP tool "
-    "to verify the package first."
+    "SlopSeal: Unable to verify package. Installation is not permitted. "
+    "Verify the package with the slopseal MCP tool, then run the install again."
 )
 
 UNREADABLE_REASON = "the command text cannot be read or is nested too deeply"

@@ -44,7 +44,7 @@ def test_bootstrap_creates_hook_config_in_empty_workspace(tmp_path: Path) -> Non
     assert hook["matcher"] == "execute_bash"
     assert target.read_bytes() == render_install_hook_config(sys.executable)
     assert err.getvalue() == REGISTERED_MESSAGE + "\n"
-    assert REGISTERED_MESSAGE == "SlopSeal MCP: Auto-registered security hook in workspace."
+    assert REGISTERED_MESSAGE == "SlopSeal: Install verification hook registered in this workspace."
 
 
 def test_generated_hook_contains_the_running_interpreter(tmp_path: Path) -> None:

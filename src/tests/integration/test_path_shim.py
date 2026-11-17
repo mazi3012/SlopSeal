@@ -83,7 +83,8 @@ def test_allowed_pinned_pip_install_runs_the_real_tool_with_its_args(
 ) -> None:
     result = _run_shim("pip", ["install", "tinyfmt-kit==0.4.0"], base_env, stubs)
     assert result.returncode == 0, result.stderr
-    assert "ALLOW tinyfmt-kit==0.4.0" in result.stderr
+    assert "SlopSeal: Package verified. Installation is permitted." in result.stderr
+    assert '"package": "tinyfmt-kit"' in result.stderr
     assert stubs["pip"].read_text().strip() == "install tinyfmt-kit==0.4.0"
 
 
@@ -209,7 +210,8 @@ def test_npx_pinned_allowed_package_runs_the_real_tool(
 ) -> None:
     result = _run_shim("npx", ["uuidkit@1.4.0", "--help"], base_env, stubs)
     assert result.returncode == 0, result.stderr
-    assert "ALLOW uuidkit==1.4.0" in result.stderr
+    assert "SlopSeal: Package verified. Installation is permitted." in result.stderr
+    assert '"package": "uuidkit"' in result.stderr
     assert stubs["npx"].read_text().strip() == "uuidkit@1.4.0 --help"
 
 

@@ -14,6 +14,7 @@ from slopseal.core.types import CheckResult, Level
 from slopseal.hooks import gate
 from slopseal.hooks.gate import MAX_TEXT, decide
 from slopseal.hooks.on_install import Detected
+from slopseal.messages import HEADLINES, PROGRESS
 from slopseal.verdict import Decision, InstallRequest, Outcome
 
 PIP = Detected("pip", ("install", "alpha==1.0.0"))
@@ -45,9 +46,11 @@ def _run(
 
 
 def _problems(stderr: str) -> list[dict[str, str]]:
+    """The JSON objects of a block. The lines before them are fixed wording (R-U-1)."""
     lines = stderr.splitlines()
-    assert lines[0] == gate.HEADER
-    return [json.loads(line) for line in lines[1:]]
+    assert lines[:2] == list(PROGRESS)
+    assert lines[2] in HEADLINES.values()  # the headline is fixed wording, never metadata
+    return [json.loads(line) for line in lines if line.startswith("{")]
 
 
 def test_r_g_1_each_package_is_verified_once_without_an_intent() -> None:
@@ -64,8 +67,13 @@ def test_r_g_2_allow_prints_a_summary_and_warnings_to_stderr() -> None:
     warning = CheckResult("near_name", Level.WARN, "close to a popular name")
     code, stderr, _ = _run([PIP], warnings=(warning,))
     assert code == 0
-    assert "slopseal: ALLOW alpha==1.0.0: stub reason" in stderr
-    assert "slopseal: WARN near_name: close to a popular name" in stderr
+    lines = stderr.splitlines()
+    assert lines[2] == HEADLINES["allow"]
+    record = json.loads(lines[3])
+    assert record["outcome"] == "ALLOW"
+    assert record["package"] == "alpha"
+    assert record["version"] == "1.0.0"
+    assert record["warnings"] == [{"check": "near_name", "reason": "close to a popular name"}]
 
 
 def test_r_g_3_block_uses_the_remedy_as_the_fix() -> None:
@@ -177,8 +185,10 @@ def test_r_g_10_untrusted_text_is_a_capped_json_string_value() -> None:
     code, stderr, _ = _run([PIP], Outcome.BLOCK, violation=violation)
     assert code == 2
     lines = stderr.splitlines()
-    assert len(lines) == 2  # the fixed header and one JSON line: the newlines were escaped
-    problem = json.loads(lines[1])
+    # Two progress lines, the headline, the next step, and one JSON line. The newlines in the
+    # hostile reason were escaped, so the JSON is still one line.
+    assert len(lines) == 5
+    assert lines[2] == HEADLINES["block"]
+    problem = json.loads(lines[4])
     assert len(problem["reason"]) <= MAX_TEXT
     assert len(problem["fix"]) <= MAX_TEXT
-    assert lines[0] == gate.HEADER

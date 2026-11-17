@@ -33,6 +33,7 @@ from typing import Any, BinaryIO, TextIO
 from slopseal import __version__
 from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
+from slopseal.messages import HEADLINES, NEXT, data_line, verdict_category
 from slopseal.policy.loader import PolicyError
 from slopseal.runtime import ECOSYSTEMS, build_context, state_dir
 from slopseal.verdict import Decision, InstallRequest, Intent, Outcome, verify_install
@@ -205,20 +206,51 @@ def tool_result(decision: Decision) -> dict[str, Any]:
         if decision.outcome is Outcome.QUARANTINE
         else None,
     }
-    summary = f"{decision.outcome.value} {decision.package}=={decision.version}: {decision.reason}"
     return {
-        "content": [{"type": "text", "text": summary}],
+        "content": [{"type": "text", "text": verdict_text(decision)}],
         "structuredContent": payload,
         "isError": decision.outcome is not Outcome.ALLOW,
     }
 
 
+def verdict_text(decision: Decision) -> str:
+    """The human-readable text of a verdict: fixed wording, then the facts as JSON values."""
+    violation = decision.violation
+    category = verdict_category(decision.outcome.value, violation.check if violation else None)
+    lines = [
+        HEADLINES[category],
+        data_line("package", decision.package),
+        data_line("ecosystem", decision.ecosystem),
+        data_line("version", decision.version),
+    ]
+    if violation is not None:
+        lines.append(data_line("check", violation.check))
+    lines.append(data_line("reason", decision.reason))
+    if violation is not None:
+        identifiers = [
+            value
+            for key, value in violation.evidence
+            if key in ("advisories", "records") and isinstance(value, str)
+        ]
+        if identifiers:
+            lines.append(data_line("advisory_ids", identifiers))
+    for warning in decision.warnings:
+        lines.append(data_line("warning", f"{warning.check}: {warning.reason}"))
+    if decision.quarantine_id is not None:
+        lines.append(data_line("quarantine_id", decision.quarantine_id))
+    lines.append(NEXT[category])
+    return "\n".join(lines)
+
+
 def no_verdict_result(reason: str) -> dict[str, Any]:
     """Tool error for a run that produced no verdict. The install must not run."""
-    return {
-        "content": [{"type": "text", "text": f"no verdict was issued: {reason}. Do not install."}],
-        "isError": True,
-    }
+    lines = [
+        HEADLINES["error"],
+        data_line("status", "no verdict was issued"),
+        data_line("reason", reason),
+        NEXT["error"],
+    ]
+    return {"content": [{"type": "text", "text": "\n".join(lines)}], "isError": True}
 
 
 class Server:
@@ -333,7 +365,7 @@ def serve(stdin: BinaryIO, stdout: BinaryIO, verifier: Verifier) -> None:
 
 
 HOOK_CONFIG_RELATIVE = Path(".kiro") / "hooks" / "block-agent-installs.json"
-REGISTERED_MESSAGE = "SlopSeal MCP: Auto-registered security hook in workspace."
+REGISTERED_MESSAGE = "SlopSeal: Install verification hook registered in this workspace."
 
 
 def install_hook_command(python: str) -> str:
@@ -346,7 +378,8 @@ def install_hook_command(python: str) -> str:
     script = (
         '"$1" -m slopseal.hooks.on_install; rc=$?; '
         "if [ $rc -ne 0 ] && [ $rc -ne 2 ]; then "
-        'echo "BLOCKED: SlopSeal is not installed for \\"$1\\". Install it into that Python '
+        'echo "SlopSeal: Unable to verify package. Installation is not permitted. SlopSeal is not '
+        'installed for \\"$1\\". Install it into that Python '
         'with: \\"$1\\" -m pip install git+https://github.com/mazi3012/SlopSeal.git" >&2; '
         "exit 2; else exit $rc; fi"
     )

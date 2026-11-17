@@ -224,19 +224,19 @@ BLOCKED_COMMANDS = [
 
 
 BLOCK_MESSAGE = (
-    "BLOCKED by SlopSeal: Direct installs are disabled. You must use the slopseal MCP tool "
-    "to verify the package first.\n"
+    "SlopSeal: Unable to verify package. Installation is not permitted. "
+    "Verify the package with the slopseal MCP tool, then run the install again.\n"
 )
 
 
-BLOCK_PREFIX = "BLOCKED by SlopSeal:"
+# Every verdict-aware message starts with the first progress line (R-U-1).
+PROGRESS_FIRST = "SlopSeal: Checking dependencies before installation."
 
 
 def _problems(stderr: str) -> list[dict[str, str]]:
-    """The JSON objects after the first line of a verdict-aware block message."""
-    lines = stderr.splitlines()
-    assert lines[0].startswith(BLOCK_PREFIX), stderr
-    return [json.loads(line) for line in lines[1:]]
+    """The JSON objects in a verdict-aware message. Prose lines are fixed wording (R-G-10)."""
+    assert stderr.startswith(PROGRESS_FIRST), stderr
+    return [json.loads(line) for line in stderr.splitlines() if line.startswith("{")]
 
 
 @pytest.mark.parametrize("command", BLOCKED_COMMANDS)
@@ -246,7 +246,7 @@ def test_install_commands_are_blocked_with_exit_2(command: str) -> None:
     result = _run_hook(_kiro_payload(command))
     assert result.returncode == 2, command
     assert result.stdout == ""
-    assert result.stderr.startswith(BLOCK_PREFIX), result.stderr
+    assert result.stderr.startswith(PROGRESS_FIRST), result.stderr
     assert all("check" in problem for problem in _problems(result.stderr))
 
 
@@ -390,7 +390,7 @@ def test_policy_hook_matcher_selects_only_the_trust_policy() -> None:
 
 # ---- Fail-closed wrapper (R-1.1): the shipped command, run through a shell as Kiro runs it. ----
 
-WRAPPER_NOT_INSTALLED = 'BLOCKED: SlopSeal is not installed for "python3".'
+WRAPPER_NOT_INSTALLED = 'SlopSeal is not installed for "python3".'
 
 
 def _shipped_command() -> str:
@@ -454,7 +454,7 @@ def test_wrapper_passes_benign_commands_and_blocks_installs_when_installed() -> 
     assert benign.stderr == ""
     install = _run_shipped("npm install game-engine-pro-ultra", path=path)
     assert install.returncode == 2
-    assert install.stderr.startswith(BLOCK_PREFIX)
+    assert install.stderr.startswith(PROGRESS_FIRST)
     verified = _run_shipped("pip install tinyfmt-kit==0.4.0", path=path)
     assert verified.returncode == 0, verified.stderr
 
@@ -482,19 +482,20 @@ def _attempts(tmp_path: Path) -> int:
 @pytest.mark.parametrize(
     ("command", "expected"),
     [
-        (f"pip install {ALLOWED_PIP}", "ALLOW tinyfmt-kit==0.4.0"),
-        (f"npm install {ALLOWED_NPM}", "ALLOW colorkit==2.0.1"),
-        (f"npx {ALLOWED_NPM}", "ALLOW colorkit==2.0.1"),
-        ("python3 -m pip install csv-parser==1.2.0 --quiet", "ALLOW csv-parser==1.2.0"),
-        (f"sudo pip install {ALLOWED_PIP}", "ALLOW tinyfmt-kit==0.4.0"),
-        (f"cd app && pip install {ALLOWED_PIP} | tail -n 1", "ALLOW tinyfmt-kit==0.4.0"),
-        (f'bash -c "pip install {ALLOWED_PIP}"', "ALLOW tinyfmt-kit==0.4.0"),
+        (f"pip install {ALLOWED_PIP}", '"package": "tinyfmt-kit"'),
+        (f"npm install {ALLOWED_NPM}", '"package": "colorkit"'),
+        (f"npx {ALLOWED_NPM}", '"package": "colorkit"'),
+        ("python3 -m pip install csv-parser==1.2.0 --quiet", '"package": "csv-parser"'),
+        (f"sudo pip install {ALLOWED_PIP}", '"package": "tinyfmt-kit"'),
+        (f"cd app && pip install {ALLOWED_PIP} | tail -n 1", '"package": "tinyfmt-kit"'),
+        (f'bash -c "pip install {ALLOWED_PIP}"', '"package": "tinyfmt-kit"'),
     ],
 )
 def test_r_g_2_verified_install_exits_0(command: str, expected: str) -> None:
     result = _run_hook(_kiro_payload(command))
     assert result.returncode == 0, result.stderr
     assert result.stdout == ""
+    assert "SlopSeal: Package verified. Installation is permitted." in result.stderr
     assert expected in result.stderr
 
 
@@ -502,8 +503,8 @@ def test_r_g_2_every_package_in_a_chain_is_verified(tmp_path: Path) -> None:
     command = f"pip install {ALLOWED_PIP} && npm install {ALLOWED_NPM}"
     result = _run_hook(_kiro_payload(command))
     assert result.returncode == 0, result.stderr
-    assert "ALLOW tinyfmt-kit==0.4.0" in result.stderr
-    assert "ALLOW colorkit==2.0.1" in result.stderr
+    assert '"package": "tinyfmt-kit"' in result.stderr
+    assert '"package": "colorkit"' in result.stderr
     assert len(_audit_lines(tmp_path)) == 3  # genesis and one verdict per package
 
 
@@ -715,5 +716,5 @@ def test_r_g_11_hook_then_shim_counts_the_install_once(tmp_path: Path) -> None:
         check=False,
     )
     assert shim.returncode == 0, shim.stderr
-    assert "ALLOW tinyfmt-kit==0.4.0" in shim.stderr
+    assert '"package": "tinyfmt-kit"' in shim.stderr
     assert _attempts(tmp_path) == 1
