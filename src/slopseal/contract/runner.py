@@ -54,6 +54,19 @@ def _short(text: str) -> str:
     return text[:DETAIL_MAX_CHARS]
 
 
+def _root_inside(root: str, private_dir: Path) -> bool:
+    """The worker's root must be relative and must resolve inside the private directory (R-C-4)."""
+    if not root:
+        return True
+    if root.startswith("/") or "\\" in root or "\x00" in root:
+        return False
+    if any(part == ".." for part in root.split("/")):
+        return False
+    base = private_dir.resolve()
+    target = (private_dir / root).resolve()
+    return target == base or base in target.parents
+
+
 def run_archive_check(
     artifact: Path, kind: str, *, timeout: float = WORKER_WALL_SECONDS
 ) -> ArchiveOk | ContractUnknown:
@@ -105,7 +118,12 @@ def run_archive_check(
     if not isinstance(message, dict):
         return ContractUnknown(UnknownReason.PARSE_ERROR, "archive check output is malformed")
     if message.get("status") == "ok" and isinstance(message.get("root"), str):
-        return ArchiveOk(message["root"])
+        root = message["root"]
+        if not _root_inside(root, artifact.parent):
+            return ContractUnknown(
+                UnknownReason.PARSE_ERROR, "archive root is outside the artifact directory"
+            )
+        return ArchiveOk(root)
     if message.get("status") == "unknown":
         try:
             reason = UnknownReason(message.get("reason"))

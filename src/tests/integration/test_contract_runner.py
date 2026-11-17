@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from slopseal.contract import runner as runner_module
 from slopseal.contract.limits import MAX_COMPRESSED_BYTES
 from slopseal.contract.runner import ArchiveOk, run_archive_check
 from slopseal.contract.types import ContractUnknown, UnknownReason
@@ -81,3 +82,126 @@ def test_r_c_4_the_worker_output_is_json_and_nothing_else() -> None:
         path = Path(tmp) / "pkg.whl"
         path.write_bytes(buffer.getvalue())
         assert run_archive_check(path, "wheel") == ArchiveOk("")
+
+
+# R-C-4: worker outcomes. Each test points the runner at a wrapper script. The wrapper loads the
+# real worker module and then forces one outcome, so the mapping runs in a real subprocess.
+
+_REAL_WORKER = Path(runner_module.WORKER)
+
+
+def _wrapper(directory: Path, body: str) -> Path:
+    script = directory / "fake_worker.py"
+    script.write_text(
+        "import importlib.util, sys\n"
+        f"_spec = importlib.util.spec_from_file_location('worker', {str(_REAL_WORKER)!r})\n"
+        "worker = importlib.util.module_from_spec(_spec)\n"
+        "_spec.loader.exec_module(worker)\n" + body,
+        encoding="utf-8",
+    )
+    return script
+
+
+def _artifact(directory: Path) -> Path:
+    path = directory / "pkg.tgz"
+    path.write_bytes(b"placeholder")
+    return path
+
+
+def test_r_c_4_a_worker_killed_by_a_signal_is_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(
+            runner_module,
+            "WORKER",
+            _wrapper(base, "import os, signal\nos.kill(os.getpid(), signal.SIGKILL)\n"),
+        )
+        result = run_archive_check(_artifact(base), "npm")
+        assert result == ContractUnknown(
+            UnknownReason.LIMIT, "archive check was stopped by a limit"
+        )
+
+
+def test_r_c_4_a_worker_stopped_by_the_cpu_limit_is_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RLIMIT_CPU delivers SIGXCPU to the worker, which the parent sees as a signal kill."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        body = (
+            "import resource\n"
+            "resource.setrlimit(resource.RLIMIT_CPU, (1, 1))\n"
+            "while True:\n"
+            "    pass\n"
+        )
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
+        result = run_archive_check(_artifact(base), "npm")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.LIMIT
+
+
+def test_r_c_4_a_memory_error_in_the_worker_is_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    body = (
+        "def boom(*args, **kwargs):\n"
+        "    raise MemoryError()\n"
+        "worker.check_zip = boom\n"
+        "sys.exit(worker.main(sys.argv[1:]))\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
+        result = run_archive_check(_artifact(base), "wheel")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.LIMIT
+
+
+def test_r_c_4_a_non_limit_nonzero_exit_is_parse_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, "sys.exit(3)\n"))
+        result = run_archive_check(_artifact(base), "npm")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.PARSE_ERROR
+
+
+def test_r_c_4_worker_root_that_escapes_is_parse_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The worker's root is re-validated by the parent: "../../etc" is rejected."""
+    body = (
+        "worker.check_npm = lambda *a, **k: {'status': 'ok', 'root': '../../etc'}\n"
+        "worker.check_zip = worker.check_npm\n"
+        "sys.exit(worker.main(sys.argv[1:]))\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
+        result = run_archive_check(_artifact(base), "npm")
+        assert result == ContractUnknown(
+            UnknownReason.PARSE_ERROR, "archive root is outside the artifact directory"
+        )
+
+
+@pytest.mark.parametrize("root", ["/etc", "pkg/../../x", "..", "a\\b", "pkg\u0000x"])
+def test_r_c_4_every_unsafe_root_form_is_parse_error(
+    monkeypatch: pytest.MonkeyPatch, root: str
+) -> None:
+    body = (
+        f"worker.check_zip = lambda *a, **k: {{'status': 'ok', 'root': {root!r}}}\n"
+        "sys.exit(worker.main(sys.argv[1:]))\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
+        result = run_archive_check(_artifact(base), "wheel")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.PARSE_ERROR
+
+
+def test_r_c_4_a_relative_package_root_inside_the_directory_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = (
+        "worker.check_npm = lambda *a, **k: {'status': 'ok', 'root': 'package'}\n"
+        "sys.exit(worker.main(sys.argv[1:]))\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
+        assert run_archive_check(_artifact(base), "npm") == ArchiveOk("package")

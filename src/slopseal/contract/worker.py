@@ -179,6 +179,9 @@ def main(argv: list[str]) -> int:
     except Limit as exc:
         _emit({"status": "unknown", "reason": "limit", "detail": str(exc)})
         return 0
+    except MemoryError:
+        _emit({"status": "unknown", "reason": "limit", "detail": "memory limit reached"})
+        return 0
     except Unsafe as exc:
         _emit({"status": "unknown", "reason": "parse_error", "detail": str(exc)})
         return 0
