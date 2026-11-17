@@ -13,9 +13,10 @@ text for stderr. The rules, in order:
 - A setup error (policy, seal key, snapshot, or state directory) is a problem. Nothing is
   verified, so nothing is allowed (R-G-6).
 
-Output is one fixed line, then one JSON object per problem with sorted keys. A reason can
-come from package metadata, so it is a JSON string value with a length cap, never prose
-(R-G-10). Stdout is not used (R-G-8).
+Output (stderr only, R-G-8) is fixed wording from slopseal.messages (R-U-1): two progress
+lines, then a headline and a next step, then one JSON object per problem with sorted keys. An
+ALLOW prints the headline and one JSON object per package. A reason or a package name can come
+from package metadata, so it is a JSON string value with a length cap, never prose (R-G-10).
 
 Requirements: R-G-1..R-G-6, R-G-8, R-G-10. Property: P-G-1. Layer 5.
 """
@@ -29,17 +30,20 @@ from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.hooks.on_install import BLOCK_EXIT, Detected, Evaluation
 from slopseal.intercept.parse import Blocked, Install, parse
+from slopseal.messages import HEADLINES, NEXT, PROGRESS
 from slopseal.policy.loader import PolicyError
-from slopseal.quarantine.rate_limit import Layer
+from slopseal.quarantine.rate_limit import WINDOW, Layer
 from slopseal.runtime import ECOSYSTEMS, build_context
 from slopseal.verdict import Context, Decision, InstallRequest, Outcome, verify_install
 
 ALLOW_EXIT = 0
 MAX_TEXT = 300
-HEADER = (
-    "BLOCKED by SlopSeal: this install is not allowed. Fix the problem below, "
-    "or verify the package with the slopseal MCP tool first."
+# Checks that mean SlopSeal could not reach a verdict (setup or internal failure).
+_ERROR_CHECKS = frozenset(
+    {"internal_error", "policy_error", "seal_key", "snapshot_integrity", "state_directory"}
 )
+# When one command has several problems, the headline names the first category in this order.
+_HEADLINE_ORDER = ("block", "quarantine", "rate_limited", "error", "unverifiable")
 
 # Errors that building the context is known to raise. Each is a setup failure, so exit 2.
 # `verify_install` never raises. Any other error ends the worker thread in `on_install`,
@@ -63,6 +67,10 @@ _FIX_BLOCKED = (
     "Do not install this package. Choose a different package, or ask the user to review it."
 )
 _FIX_SETUP = "Fix the SlopSeal setup problem named in the reason, then run the command again."
+_FIX_RATE = (
+    f"Wait up to {int(WINDOW.total_seconds())} seconds before the next attempt. Retries in "
+    "that time are counted and extend the wait. Do not change the package."
+)
 
 Verify = Callable[[InstallRequest, Context], Decision]
 Build = Callable[[], Context]
@@ -148,20 +156,56 @@ def _decision_problem(decision: Decision) -> Problem | None:
     violation = decision.violation
     check = violation.check if violation is not None else "unknown"
     reason = violation.reason if violation is not None else decision.reason
-    remedy = violation.remedy if violation is not None and violation.remedy else _FIX_BLOCKED
+    if check == "rate_limit":
+        remedy = _FIX_RATE
+    elif violation is not None and violation.remedy:
+        remedy = violation.remedy
+    else:
+        remedy = _FIX_BLOCKED
     return {**base, "check": _cap(check), "reason": _cap(reason), "fix": _cap(remedy)}
 
 
-def _allow_lines(decisions: Sequence[Decision]) -> str:
-    lines: list[str] = []
+def _progress() -> str:
+    return "".join(f"{line}\n" for line in PROGRESS)
+
+
+def _category(problem: Problem) -> str:
+    """The message category of one problem. It picks the headline and never changes a decision."""
+    if "quarantine_id" in problem:
+        return "quarantine"
+    check = problem["check"]
+    if check == "rate_limit":
+        return "rate_limited"
+    if check in _ERROR_CHECKS:
+        return "error"
+    if check == "unverifiable_install":
+        return "unverifiable"
+    return "block"
+
+
+def _headline_category(problems: Sequence[Problem]) -> str:
+    """The category whose headline and next step are shown: the first one in _HEADLINE_ORDER."""
+    present = {_category(problem) for problem in problems}
+    for category in _HEADLINE_ORDER:
+        if category in present:
+            return category
+    return "unverifiable"  # decide always adds a problem before it gets here
+
+
+def _allow_text(decisions: Sequence[Decision]) -> str:
+    lines = [HEADLINES["allow"]]
     for decision in decisions:
-        lines.append(
-            _cap(f"slopseal: ALLOW {decision.package}=={decision.version}: {decision.reason}")
-        )
-        lines.extend(
-            _cap(f"slopseal: WARN {warning.check}: {warning.reason}")
-            for warning in decision.warnings
-        )
+        record = {
+            "outcome": "ALLOW",
+            "package": _cap(decision.package),
+            "version": _cap(decision.version),
+            "reason": _cap(decision.reason),
+            "warnings": [
+                {"check": _cap(warning.check), "reason": _cap(warning.reason)}
+                for warning in decision.warnings
+            ],
+        }
+        lines.append(json.dumps(record, sort_keys=True))
     return "".join(f"{line}\n" for line in lines)
 
 
@@ -200,11 +244,14 @@ def decide(
         and all(decision.outcome is Outcome.ALLOW for decision in decisions)
     )
     if approved:
-        return Evaluation(ALLOW_EXIT, _allow_lines(decisions))
+        return Evaluation(ALLOW_EXIT, _progress() + _allow_text(decisions))
     if not problems:
         # Nothing was found to verify, so there is nothing to allow.
         problems.append(
             _problem("unverifiable_install", "no package could be verified", _FIX_PLAIN)
         )
+    # Prose lines are fixed wording. Each problem is one JSON object (R-G-10).
     body = "".join(f"{json.dumps(problem, sort_keys=True)}\n" for problem in problems)
-    return Evaluation(BLOCK_EXIT, f"{HEADER}\n{body}")
+    category = _headline_category(problems)
+    text = f"{HEADLINES[category]}\n{NEXT[category]}\n{body}"
+    return Evaluation(BLOCK_EXIT, _progress() + text)

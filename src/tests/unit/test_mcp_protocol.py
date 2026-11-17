@@ -169,7 +169,10 @@ def test_allow_is_a_success_result() -> None:
     assert result["isError"] is False
     assert result["structuredContent"]["outcome"] == "ALLOW"
     assert result["structuredContent"]["exit_code"] == 0
-    assert result["content"][0]["text"] == "ALLOW tinyfmt-kit==0.4.0: all checks passed"
+    text = result["content"][0]["text"]
+    assert text.startswith("SlopSeal: Package verified. Installation is permitted.\n")
+    assert 'package: "tinyfmt-kit"' in text
+    assert 'version: "0.4.0"' in text
 
 
 def test_block_is_an_error_result_with_the_failed_check() -> None:

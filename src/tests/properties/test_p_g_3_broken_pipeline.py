@@ -149,14 +149,14 @@ def test_p_g_3_a_broken_pipeline_never_allows_an_install(command: str, failure: 
     code, stdout, stderr, _verified = run_hook(command, failure)
     assert code == 2
     assert stdout == ""
-    assert "slopseal: ALLOW" not in stderr
+    assert "SlopSeal: Package verified" not in stderr
 
 
 @pytest.mark.parametrize("failure", FAILURES)
 def test_p_g_3_pinned_install_is_blocked_under_each_failure(failure: str) -> None:
     code, _stdout, stderr, _verified = run_hook("pip install tinyfmt-kit==0.4.0", failure)
     assert code == 2
-    assert "slopseal: ALLOW" not in stderr
+    assert "SlopSeal: Package verified" not in stderr
 
 
 @pytest.mark.parametrize("failure", FAILURES)

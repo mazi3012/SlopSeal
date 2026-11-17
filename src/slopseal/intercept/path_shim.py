@@ -36,6 +36,7 @@ from typing import TextIO
 from slopseal.audit.seal import SealKeyError
 from slopseal.fixtures.loader import SnapshotIntegrityError
 from slopseal.intercept.parse import Blocked, Passthrough, parse
+from slopseal.messages import HEADLINES, NEXT, verdict_category
 from slopseal.policy.loader import PolicyError
 from slopseal.quarantine.rate_limit import Layer
 from slopseal.runtime import ECOSYSTEMS, build_context, offline
@@ -88,14 +89,28 @@ def _json_line(stream: TextIO, payload: dict[str, object]) -> None:
 
 
 def _emit_decision(decision: Decision) -> None:
+    """Write one decision. Fixed wording first, then JSON values (R-U-1, R-G-10).
+
+    Stdout carries only the QUARANTINE payload, which agents parse. Everything else is stderr.
+    """
+    violation = decision.violation
+    category = verdict_category(decision.outcome.value, violation.check if violation else None)
     if decision.outcome is Outcome.QUARANTINE:
         _json_line(sys.stdout, decision.quarantine_payload or {})
-        print(
-            f"slopseal: QUARANTINE {decision.package}=={decision.version}: {decision.reason}",
-            file=sys.stderr,
+        print(HEADLINES[category], file=sys.stderr)
+        print(NEXT[category], file=sys.stderr)
+        _json_line(
+            sys.stderr,
+            {
+                "outcome": "QUARANTINE",
+                "package": decision.package,
+                "version": decision.version,
+                "reason": decision.reason,
+            },
         )
         return
-    violation = decision.violation
+    print(HEADLINES[category], file=sys.stderr)
+    print(NEXT[category], file=sys.stderr)
     _json_line(
         sys.stderr,
         {
@@ -247,13 +262,21 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             _emit_decision(decision)
         return EXIT_QUARANTINE
 
+    print(HEADLINES["allow"], file=sys.stderr)
     for decision in decisions:
-        print(
-            f"slopseal: ALLOW {decision.package}=={decision.version}: {decision.reason}",
-            file=sys.stderr,
+        _json_line(
+            sys.stderr,
+            {
+                "outcome": "ALLOW",
+                "package": decision.package,
+                "version": decision.version,
+                "reason": decision.reason,
+                "warnings": [
+                    {"check": warning.check, "reason": warning.reason}
+                    for warning in decision.warnings
+                ],
+            },
         )
-        for warning in decision.warnings:
-            print(f"slopseal: WARN {warning.check}: {warning.reason}", file=sys.stderr)
     return _run_real(tool, rewritten, env)
 
 
