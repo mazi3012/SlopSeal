@@ -25,7 +25,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Final, assert_never
@@ -60,6 +60,8 @@ from slopseal.core.types import (
     RegistryResult,
     RegistryUnknown,
 )
+from slopseal.policy.compiled_wheels import compiled_wheel_refusal, host_platform
+from slopseal.policy.loader import CompiledWheelException
 
 PYPI_BASE = "https://pypi.org/pypi"
 NPM_BASE = "https://registry.npmjs.org"
@@ -159,12 +161,14 @@ class LiveSource:
         osv_url: str = OSV_URL,
         artifact_fetch: ArtifactFetch | None = None,
         cache_root: Path | None = None,
+        compiled_wheels: Sequence[CompiledWheelException] = (),
     ) -> None:
         self._top: dict[Ecosystem, tuple[str, ...]] = dict(top_n or {})
         self._artifact_fetch: ArtifactFetch = (
             artifact_fetch if artifact_fetch is not None else fetch_artifact
         )
         self._cache_root = cache_root
+        self._compiled_wheels: tuple[CompiledWheelException, ...] = tuple(compiled_wheels)
         self._fetch: Fetch = (
             fetch if fetch is not None else (lambda url, body: _http(url, body, timeout))
         )
@@ -325,8 +329,15 @@ class LiveSource:
                 if any(_UNIVERSAL_WHEEL.search(str(f["filename"])) for f in files):
                     # pip installs the universal wheel for every Python, so no setup.py runs.
                     return ()
+                refusal = compiled_wheel_refusal(
+                    name, version, data, self._compiled_wheels, host_platform()
+                )
+                if refusal is None:
+                    # One reviewed compiled wheel (policy [compiled_wheels]). Its digest matched.
+                    return ()
                 return ScriptsUnknown(
-                    "no universal wheel: install-time code (setup.py) cannot be ruled out"
+                    "no universal wheel: install-time code (setup.py) cannot be ruled out; "
+                    + refusal
                 )
             if eco is Ecosystem.NPM:
                 data = self._json(self._npm_url(name))

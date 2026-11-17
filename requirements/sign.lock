@@ -1,0 +1,5 @@
+# Hash-pinned install for the sign extra. Reviewed under policy [compiled_wheels] (ADR 0005).
+# Install with: pip install --only-binary=:all: --require-hashes -r requirements/sign.lock
+cryptography==50.0.2 \
+    --hash=sha256:f21e8a22c8605750c7af886bab299a363721264061b4ac0a30efb73cfd58efc5 \
+    --hash=sha256:0ec5f09541743261e66e291b4a0cbf0fb2997aeaab6d9e9c740b9dba1b58d1c2

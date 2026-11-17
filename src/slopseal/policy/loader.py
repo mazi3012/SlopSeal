@@ -24,6 +24,8 @@ from typing import Any
 
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1})
 VALID_LEVELS = frozenset({"warn", "block"})
+# Top-level tables that may be absent. A missing table means "no entries", never "allowed".
+OPTIONAL_SECTIONS = frozenset({"compiled_wheels"})
 
 # A backtick is \x60, so the fence can be written here without opening a fence in this file.
 _OPEN_FENCE = re.compile(r"^\x60{3}toml slopseal-policy[ \t]*$")
@@ -61,6 +63,29 @@ class Policy:
     semantic_enabled: bool
     confidence_threshold: float
     policy_hash: str
+    compiled_wheels: tuple[CompiledWheelException, ...] = ()
+
+
+@dataclass(frozen=True)
+class WheelPin:
+    """One reviewed wheel for one host platform. The digest must match the registry's digest."""
+
+    platform: str
+    filename: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class CompiledWheelException:
+    """A reviewed exception for a compiled (non-universal) wheel. See `.kiro/steering/`."""
+
+    name: str
+    version: str
+    publisher: str
+    reviewed_by: str
+    reviewed_on: str
+    adr: str
+    pins: tuple[WheelPin, ...]
 
 
 # Schema: section name -> key -> expected type. The top level is the empty section name.
@@ -168,6 +193,70 @@ def _level(where: str, value: str) -> str:
     return value
 
 
+_EXCEPTION_KEYS: dict[str, type] = {
+    "version": str,
+    "publisher": str,
+    "reviewed_by": str,
+    "reviewed_on": str,
+    "adr": str,
+    "platforms": dict,
+}
+_PIN_KEYS: dict[str, type] = {"wheel": str, "sha256": str}
+_EXACT_VERSION = re.compile(r"^[0-9]+(\.[0-9]+)*$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_PUBLISHER = re.compile(r"^github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+$")
+
+
+def _compiled_wheels(table: Any) -> tuple[CompiledWheelException, ...]:
+    """Validate the optional `[compiled_wheels]` table. A missing table means no exceptions."""
+    if not isinstance(table, dict):
+        raise PolicyError("[compiled_wheels] must be a table")
+    exceptions: list[CompiledWheelException] = []
+    for name in sorted(table):
+        where = f"compiled_wheels.{name}"
+        body = table[name]
+        if not isinstance(body, dict):
+            raise PolicyError(f"{where} must be a table")
+        if name != name.lower():
+            raise PolicyError(f"{where}: the package name must be lowercase")
+        _check_section(where, body, _EXCEPTION_KEYS)
+        version = body["version"]
+        if not _EXACT_VERSION.match(version):
+            raise PolicyError(f"{where}.version must be an exact version such as 1.2.3")
+        publisher = body["publisher"].lower()
+        if not _PUBLISHER.match(publisher):
+            raise PolicyError(f"{where}.publisher must look like github.com/owner/repo")
+        if not body["reviewed_by"].strip() or not body["reviewed_on"].strip():
+            raise PolicyError(f"{where} needs reviewed_by and reviewed_on")
+        if not body["platforms"]:
+            raise PolicyError(f"{where}.platforms must name at least one reviewed wheel")
+        pins: list[WheelPin] = []
+        for platform in sorted(body["platforms"]):
+            pin_where = f"{where}.platforms.{platform}"
+            pin = body["platforms"][platform]
+            if not isinstance(pin, dict):
+                raise PolicyError(f"{pin_where} must be a table")
+            _check_section(pin_where, pin, _PIN_KEYS)
+            filename = pin["wheel"]
+            if not (filename.endswith(".whl") and filename.startswith(f"{name}-{version}-")):
+                raise PolicyError(f"{pin_where}.wheel must be a wheel of {name} {version}")
+            if not _SHA256.match(pin["sha256"]):
+                raise PolicyError(f"{pin_where}.sha256 must be 64 lowercase hex characters")
+            pins.append(WheelPin(platform, filename, pin["sha256"]))
+        exceptions.append(
+            CompiledWheelException(
+                name=name,
+                version=version,
+                publisher=publisher,
+                reviewed_by=body["reviewed_by"],
+                reviewed_on=body["reviewed_on"],
+                adr=body["adr"],
+                pins=tuple(pins),
+            )
+        )
+    return tuple(exceptions)
+
+
 def parse_policy(text: str) -> Policy:
     """Parse and validate the policy in the full text of the steering file."""
     body = extract_policy_block(text)
@@ -177,7 +266,11 @@ def parse_policy(text: str) -> Policy:
         raise PolicyError(f"malformed TOML in policy block: {exc}") from exc
 
     section_names = {name for name in _SCHEMA if name}
-    top_level = {key: value for key, value in data.items() if key not in section_names}
+    top_level = {
+        key: value
+        for key, value in data.items()
+        if key not in section_names and key not in OPTIONAL_SECTIONS
+    }
     _check_section("", top_level, _SCHEMA[""])
 
     if top_level["schema_version"] not in SUPPORTED_SCHEMA_VERSIONS:
@@ -232,6 +325,7 @@ def parse_policy(text: str) -> Policy:
         semantic_enabled=sem["enabled"],
         confidence_threshold=float(sem["confidence_threshold"]),
         policy_hash=_canonical_hash(data),
+        compiled_wheels=_compiled_wheels(data.get("compiled_wheels", {})),
     )
 
 

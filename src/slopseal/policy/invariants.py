@@ -47,6 +47,13 @@ FLOORS: tuple[Floor, ...] = (
 )
 
 
+# Compiled-wheel exceptions (install-time code cannot be ruled out by a universal wheel). Only
+# this package at this exact version may be exempted, and only on the platforms named here.
+# The runtime enforces the same list, so an edit to the policy file cannot widen it on its own.
+ALLOWED_COMPILED_WHEELS: frozenset[tuple[str, str]] = frozenset({("cryptography", "50.0.2")})
+ALLOWED_PLATFORMS: frozenset[str] = frozenset({"linux-x86_64", "macos-arm64"})
+
+
 def enforce_floors(policy: Policy) -> tuple[str, ...]:
     """Return one message per violated floor. An empty tuple means the policy is acceptable."""
     violations: list[str] = []
@@ -56,4 +63,14 @@ def enforce_floors(policy: Policy) -> tuple[str, ...]:
             violations.append(f"{floor.attribute} = {value} is below the floor {floor.minimum}")
         if floor.maximum is not None and value > floor.maximum:
             violations.append(f"{floor.attribute} = {value} is above the ceiling {floor.maximum}")
+    for exception in policy.compiled_wheels:
+        if (exception.name, exception.version) not in ALLOWED_COMPILED_WHEELS:
+            violations.append(
+                f"compiled_wheels: {exception.name} {exception.version} is not allowlisted"
+            )
+        for pin in exception.pins:
+            if pin.platform not in ALLOWED_PLATFORMS:
+                violations.append(
+                    f"compiled_wheels.{exception.name}: platform {pin.platform} is not allowlisted"
+                )
     return tuple(violations)

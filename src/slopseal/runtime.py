@@ -88,7 +88,7 @@ def build_context(root: Path | None = None, *, rate_limited: bool = True) -> Con
         # The top-N list comes from the checksummed snapshot. Live mode has no ranking source.
         top = {eco: snapshot.top_n(eco) for eco in (Ecosystem.PYPI, Ecosystem.NPM)}
         # The contract cache lives under the state directory (R-C-6).
-        source = LiveSource(top_n=top, cache_root=state)
+        source = LiveSource(top_n=top, cache_root=state, compiled_wheels=policy.compiled_wheels)
         clock = datetime.now(UTC)
     limiter = RateLimiter(state, policy.max_installs_per_minute) if rate_limited else None
     return Context(
