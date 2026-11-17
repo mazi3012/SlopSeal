@@ -43,10 +43,12 @@ from slopseal.core.new_package import check_new_package
 from slopseal.core.signatures import Signature, check_slopsquat
 from slopseal.core.types import CheckResult, Ecosystem, Level
 from slopseal.core.typosquat import check_typosquat
+from slopseal.policy.known_exports import reviewed_symbols
 from slopseal.policy.loader import Policy
 from slopseal.quarantine.api_surface import (
     ApiSurface,
     ApiSurfaceResult,
+    apply_reviewed_exports,
     check_contract,
     mismatch_block,
     unknown_block,
@@ -283,6 +285,7 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
             results.append(mismatch_block(contract_result))
             return _verdict_block(request, ctx, version, results, snapshot_id, retry)
         surface = check_contract(contract_result, api)
+        surface = apply_reviewed_exports(surface, reviewed_symbols(ctx.policy, name, version))
         if surface.outcome is ApiSurface.UNKNOWN:
             results.append(unknown_block(surface))
             return _verdict_block(

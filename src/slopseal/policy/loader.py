@@ -76,6 +76,17 @@ class WheelPin:
 
 
 @dataclass(frozen=True)
+class KnownExport:
+    """One symbol that a reviewed version of an allowlisted package exports (R-CW-2)."""
+
+    package: str
+    version: str
+    symbol: str
+    reviewer: str
+    date: str
+
+
+@dataclass(frozen=True)
 class CompiledWheelException:
     """A reviewed exception for a compiled (non-universal) wheel. See `.kiro/steering/`."""
 
@@ -86,6 +97,7 @@ class CompiledWheelException:
     reviewed_on: str
     adr: str
     pins: tuple[WheelPin, ...]
+    known_exports: tuple[KnownExport, ...] = ()
 
 
 # Schema: section name -> key -> expected type. The top level is the empty section name.
@@ -205,6 +217,47 @@ _PIN_KEYS: dict[str, type] = {"wheel": str, "sha256": str}
 _EXACT_VERSION = re.compile(r"^[0-9]+(\.[0-9]+)*$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _PUBLISHER = re.compile(r"^github\.com/[a-z0-9_.-]+/[a-z0-9_.-]+$")
+_KNOWN_EXPORT_KEYS: dict[str, type] = {
+    "package": str,
+    "version": str,
+    "symbol": str,
+    "reviewer": str,
+    "date": str,
+}
+_SYMBOL = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
+_ISO_DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+
+
+def _known_exports(where: str, name: str, version: str, table: Any) -> tuple[KnownExport, ...]:
+    """Validate the optional `known_exports` array. Each record names one reviewed symbol."""
+    if not isinstance(table, list):
+        raise PolicyError(f"{where}.known_exports must be an array of tables")
+    records: list[KnownExport] = []
+    for index, record in enumerate(table):
+        rec_where = f"{where}.known_exports[{index}]"
+        if not isinstance(record, dict):
+            raise PolicyError(f"{rec_where} must be a table")
+        _check_section(rec_where, record, _KNOWN_EXPORT_KEYS)
+        if record["package"] != name:
+            raise PolicyError(f"{rec_where}.package must be {name}")
+        if record["version"] != version:
+            raise PolicyError(f"{rec_where}.version must be the reviewed version {version}")
+        if not _SYMBOL.match(record["symbol"]):
+            raise PolicyError(f"{rec_where}.symbol must be a dotted Python name")
+        if not record["reviewer"].strip():
+            raise PolicyError(f"{rec_where}.reviewer must be named")
+        if not _ISO_DATE.match(record["date"]):
+            raise PolicyError(f"{rec_where}.date must be YYYY-MM-DD")
+        records.append(
+            KnownExport(
+                package=record["package"],
+                version=record["version"],
+                symbol=record["symbol"],
+                reviewer=record["reviewer"],
+                date=record["date"],
+            )
+        )
+    return tuple(records)
 
 
 def _compiled_wheels(table: Any) -> tuple[CompiledWheelException, ...]:
@@ -219,7 +272,9 @@ def _compiled_wheels(table: Any) -> tuple[CompiledWheelException, ...]:
             raise PolicyError(f"{where} must be a table")
         if name != name.lower():
             raise PolicyError(f"{where}: the package name must be lowercase")
-        _check_section(where, body, _EXCEPTION_KEYS)
+        _check_section(
+            where, {k: v for k, v in body.items() if k != "known_exports"}, _EXCEPTION_KEYS
+        )
         version = body["version"]
         if not _EXACT_VERSION.match(version):
             raise PolicyError(f"{where}.version must be an exact version such as 1.2.3")
@@ -252,6 +307,7 @@ def _compiled_wheels(table: Any) -> tuple[CompiledWheelException, ...]:
                 reviewed_on=body["reviewed_on"],
                 adr=body["adr"],
                 pins=tuple(pins),
+                known_exports=_known_exports(where, name, version, body.get("known_exports", [])),
             )
         )
     return tuple(exceptions)
