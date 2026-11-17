@@ -18,6 +18,10 @@ import os
 import signal
 import subprocess
 import sys
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,6 +41,8 @@ from slopseal.contract.limits import (
 from slopseal.contract.types import ContractComplete, ContractUnknown, UnknownReason
 
 WORKER = Path(__file__).with_name("worker.py")
+# The deadline of the artifact being checked. Unset outside wall_budget (R-C-4).
+_DEADLINE: ContextVar[float | None] = ContextVar("slopseal_worker_deadline", default=None)
 KINDS = frozenset({"wheel", "npm"})
 
 
@@ -45,6 +51,28 @@ class ArchiveOk:
     """The archive passed the safety check. `root` is the npm package root, or "" for a wheel."""
 
     root: str
+
+
+@contextmanager
+def wall_budget(seconds: float = WORKER_WALL_SECONDS) -> Iterator[None]:
+    """One wall-time budget for the worker runs of one artifact (R-C-4).
+
+    The archive check and the extraction both run inside it, so together they get `seconds`.
+    """
+    token = _DEADLINE.set(time.monotonic() + seconds)
+    try:
+        yield
+    finally:
+        _DEADLINE.reset(token)
+
+
+def _time_left(timeout: float) -> float | None:
+    """The timeout for one run: the smaller of `timeout` and the time left, or None."""
+    deadline = _DEADLINE.get()
+    if deadline is None:
+        return timeout
+    left = deadline - time.monotonic()
+    return min(timeout, left) if left > 0 else None
 
 
 def _kill_group(process: subprocess.Popen[bytes]) -> None:
@@ -74,6 +102,9 @@ def _root_inside(root: str, private_dir: Path) -> bool:
 def _invoke(tail: list[str], artifact: Path, timeout: float, what: str) -> bytes | ContractUnknown:
     """Run the worker with `tail` as its arguments. Returns its stdout, or the typed unknown."""
     argv = [sys.executable, "-I", str(WORKER), *tail]
+    limit = _time_left(timeout)
+    if limit is None:
+        return ContractUnknown(UnknownReason.LIMIT, f"{what} had no wall time left")
     process = subprocess.Popen(  # noqa: S603 - argv is built here from constants and our path; no shell
         argv,
         stdin=subprocess.DEVNULL,
@@ -85,7 +116,7 @@ def _invoke(tail: list[str], artifact: Path, timeout: float, what: str) -> bytes
         start_new_session=True,
     )
     try:
-        output, _ = process.communicate(timeout=timeout)
+        output, _ = process.communicate(timeout=limit)
     except subprocess.TimeoutExpired:
         _kill_group(process)
         process.communicate()
@@ -154,17 +185,21 @@ def run_archive_check(
 
 
 def run_extract(
-    artifact: Path, kind: str, *, timeout: float = WORKER_WALL_SECONDS
+    artifact: Path, kind: str, root: str = "", *, timeout: float = WORKER_WALL_SECONDS
 ) -> ContractComplete | ContractUnknown:
-    """The export names of a wheel, from the worker's extract mode (R-C-2). Wheels only."""
+    """The export names of an artifact, from the worker's extract mode (R-C-2, R-C-3).
+
+    `root` is the package root that the archive check selected (npm), or "" for a wheel.
+    """
     if os.name != "posix":
         return ContractUnknown(UnknownReason.LIMIT, "extraction needs POSIX resource limits")
-    if kind != "wheel":
-        return ContractUnknown(UnknownReason.PARSE_ERROR, "extraction is implemented for wheels")
+    if kind not in KINDS:
+        raise ValueError("unknown artifact kind")
     tail = [
         "extract",
         kind,
         str(artifact),
+        root,
         str(SOURCE_FILE_MAX_BYTES),
         str(MAX_CONTRACT_NAMES),
         str(int(WORKER_WALL_SECONDS)),

@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import os
 import stat
+import subprocess
 import tempfile
 import zipfile
 from pathlib import Path
@@ -265,3 +266,35 @@ def test_r_c_2_extraction_of_an_npm_kind_is_refused_here() -> None:
         result = run_extract(artifact, "npm")
         assert isinstance(result, ContractUnknown)
         assert result.reason is UnknownReason.PARSE_ERROR
+
+
+# R-C-4: one wall budget for the archive check and the extraction together.
+
+
+def test_r_c_4_an_exhausted_budget_gives_limit_without_starting_a_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started: list[object] = []
+    real_popen = subprocess.Popen
+
+    def spy(*args: object, **kwargs: object) -> object:
+        started.append(args)
+        return real_popen(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(runner_module.subprocess, "Popen", spy)
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(Path(tmp), {"pkg/__init__.py": "def parse():\n    pass\n"})
+        with runner_module.wall_budget(-1.0):
+            result = run_extract(wheel, "wheel")
+    assert isinstance(result, ContractUnknown)
+    assert result.reason is UnknownReason.LIMIT
+    assert started == []
+
+
+def test_r_c_4_extraction_inside_a_live_budget_completes() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(Path(tmp), {"pkg/__init__.py": "def parse():\n    pass\n"})
+        with runner_module.wall_budget(10.0):
+            result = run_extract(wheel, "wheel")
+    assert isinstance(result, ContractComplete)
+    assert "parse" in result.exports

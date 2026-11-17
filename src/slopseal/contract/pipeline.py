@@ -25,7 +25,7 @@ from pathlib import Path
 from slopseal.contract import cache
 from slopseal.contract.digest import PublishedDigest, verify_artifact
 from slopseal.contract.fetch import download
-from slopseal.contract.runner import ArchiveOk, run_archive_check
+from slopseal.contract.runner import ArchiveOk, run_archive_check, wall_budget
 from slopseal.contract.types import (
     ContractComplete,
     ContractDigestMismatch,
@@ -77,10 +77,11 @@ def obtain_contract(
     with tempfile.TemporaryDirectory(prefix="slopseal-contract-") as directory:
         artifact = Path(directory) / "artifact"
         _write_private(artifact, data)
-        checked = check(artifact, kind)
-        if isinstance(checked, ContractUnknown):
-            return checked
-        result = extract(artifact, kind, checked.root)
+        with wall_budget():
+            checked = check(artifact, kind)
+            if isinstance(checked, ContractUnknown):
+                return checked
+            result = extract(artifact, kind, checked.root)
         if isinstance(result, ContractComplete) and cache_root is not None:
             cache.store(cache_root, verified, result.exports)
         return result

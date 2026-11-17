@@ -135,7 +135,7 @@ def _time(text: object) -> datetime:
 def _extract(artifact: Path, kind: str, root: str) -> ContractComplete | ContractUnknown:
     """The extraction step of R-C-8: the wheel extractor (R-C-2), or the npm stub until R-C-3."""
     if kind == "wheel":
-        return run_extract(artifact, kind)
+        return run_extract(artifact, kind, root)
     return ContractUnknown(UnknownReason.PARSE_ERROR, "extractor not implemented")
 
 

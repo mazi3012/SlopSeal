@@ -475,8 +475,8 @@ def _apply_limits(cpu: int, address: int, open_files: int) -> str | None:
 
 def _main_extract(argv: list[str]) -> int:
     kind, path = argv[0], argv[1]
-    max_file_bytes, max_names = int(argv[2]), int(argv[3])
-    cpu, address, open_files = int(argv[4]), int(argv[5]), int(argv[6])
+    max_file_bytes, max_names = int(argv[3]), int(argv[4])
+    cpu, address, open_files = int(argv[5]), int(argv[6]), int(argv[7])
     limit_detail = _apply_limits(cpu, address, open_files)
     if limit_detail is not None:
         _emit({"status": "unknown", "reason": "limit", "detail": limit_detail})
