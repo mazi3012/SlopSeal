@@ -193,6 +193,8 @@ Requirements: R-C-1 to R-C-9 (`requirements.md`, section 2). Properties: P-C-1 t
 
 `contract/` sits beside `registry/` and follows the same import rule: it may import `core.types`, and `registry/live.py` imports it. `worker.py` is the one exception, because it runs as a separate program and must not import anything it does not need. `core/` and `semantic/` do not import `contract/`. `structure.md` lists `contract/` when the code lands.
 
+**Wiring status (R-C-8).** `LiveSource.contract()` runs the registry metadata request, the artifact choice, the digest read, the cache lookup, the download, digest verification, the archive check, the cache write (complete contracts only), and then the extraction step. The extraction step is a stub until R-C-2 and R-C-3 land. It returns `ContractUnknown(PARSE_ERROR, "extractor not implemented")`. `LiveSource.exports()` returns the tuple for a complete contract and `None` otherwise, so it is derived from `contract()`. With the stub, `exports()` still returns `None` for every live package, so no live answer changes before the extractor lands. The stub is removed in the same commit as the extractor for each ecosystem, and `grep "extractor not implemented"` returns nothing before any pull request.
+
 ### 2.3 Types and the interface
 
 ```python
