@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ### Fixed
 
+- Live mode did not pass the state directory to the contract cache, so complete contracts were never cached (R-C-6). The state directory is now the cache root.
 - Rate limit counted an allowed install twice when the install hook and the PATH shim both verified it. One install now counts once, whichever layers run (R-G-11, R-4.7, P-G-2). The limit of 10 per minute is unchanged.
 
 ### Changed
