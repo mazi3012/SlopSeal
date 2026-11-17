@@ -46,6 +46,16 @@ These are recorded before the measurement and are not narrowed before it (ruling
 - **False-PRESENT risk: `from .x import y`.** The extractor binds `y` and does not read `x`. A name that `x` does not define at run time is reported PRESENT. This cannot cause a false ABSENT. It is reported as a wrong PRESENT, not a stop.
 - **False-PRESENT risk: `try` and `if` branches.** Every branch is unioned. A name bound in a branch that never runs is reported PRESENT.
 
+## npm coverage limits (R-C-3, first run)
+
+- **Extensionless entry points give UNKNOWN.** An entry such as `"main": "./index"` has no `.js` extension, so it is neither a JavaScript nor a declaration leaf, and it gives UNKNOWN with reason `dynamic_exports`. Node resolves the extension itself. Resolving it would be a rule change, and this is recorded as coverage, not a fix. Example: `ms@2.1.3` (not labelled), whose entry has no extension.
+- **Two entry points, one not complete.** The complete entry's names are PRESENT. Every other name is UNKNOWN. Example: `kleur@4.1.5` (not labelled). Its ESM entry lists `default`, `kleur`, and `kleur/colors`, and its CommonJS entry is not complete.
+- **Conditions outside the list give UNKNOWN.** Only `import`, `require`, `node`, `default`, and `types` are resolved. A `browser`, `development`, or `worker` condition gives UNKNOWN.
+- **Literal `default` keys in `module.exports` give UNKNOWN.** Only `export default` and `exports.default =` add `default`.
+- **A top-level `this` gives UNKNOWN (conservative, added at 2.8).** A `this` in a top-level block that is not a function or a class is not caught. This is a false-ABSENT gap that the first run measures.
+- **Relative `export * from` is one hop.** A second hop, a bare package, and an `export * as` give UNKNOWN.
+- **Declaration files: `export =`, `declare module` blocks, and `export as namespace` give UNKNOWN.**
+
 ## Metric definitions
 
 Notation. A probe `p` is one (package, name) pair. `L(p)` is its label, PRESENT or ABSENT. `A(p)` is the extractor's answer: PRESENT or ABSENT when the package contract is complete, and UNKNOWN with its typed reason when it is not. A probe is *decided* when `A(p)` is PRESENT or ABSENT. A package is *decided* when its contract is complete.
