@@ -32,6 +32,7 @@ from pathlib import Path
 
 from slopseal.core.names import normalize_name
 from slopseal.core.types import Ecosystem
+from slopseal.fsutil import ensure_private_dir, open_private_file
 
 WINDOW = timedelta(seconds=60)
 _FILE = "ratelimit.json"
@@ -84,9 +85,9 @@ class RateLimiter:
         A SHIM attempt for a key with a live hook credit consumes that credit and is not
         counted. It is allowed, because the hook already counted it within the limit.
         """
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self._path.parent)
         lock_path = self._path.with_suffix(".lock")
-        with open(lock_path, "a+", encoding="utf-8") as lock:
+        with open_private_file(lock_path) as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
                 return self._attempt_locked(key, layer)
@@ -95,9 +96,9 @@ class RateLimiter:
 
     def note_hook_allow(self, key: str) -> None:
         """Save one credit after the hook allowed an install. Raises OSError or ValueError."""
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self._path.parent)
         lock_path = self._path.with_suffix(".lock")
-        with open(lock_path, "a+", encoding="utf-8") as lock:
+        with open_private_file(lock_path) as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             try:
                 now = self._clock()

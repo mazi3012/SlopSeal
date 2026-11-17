@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from slopseal.core.types import Ecosystem
+from slopseal.fsutil import ensure_private_dir
 
 _ID_PATTERN = re.compile(r"^qs_[0-9a-f]{26}$")
 
@@ -126,7 +127,7 @@ class QuarantineStore:
         """Write the pending-approval artifact atomically and return its path."""
         if not is_valid_id(quarantine_id):
             raise ValueError("malformed quarantine id")
-        self._approvals.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self._approvals)
         target = self._approvals / f"{quarantine_id}.json"
         handle, temp_name = tempfile.mkstemp(dir=self._approvals, prefix=".tmp-", suffix=".json")
         try:
@@ -162,7 +163,7 @@ class QuarantineStore:
         return state
 
     def save(self, state: QuarantineState) -> None:
-        self._dir.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self._dir)
         target = self._path(state.quarantine_id)
         handle, temp_name = tempfile.mkstemp(dir=self._dir, prefix=".tmp-", suffix=".json")
         try:

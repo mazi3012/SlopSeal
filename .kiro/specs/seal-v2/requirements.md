@@ -60,6 +60,11 @@ Terms used below:
 **R-PF-1 (one status).** The preflight shall derive exactly one enforcement status, ENFORCED, PARTIALLY ENFORCED, or NOT ENFORCED, from the Class A and Class B checks alone. Only the rule set in `src/slopseal/preflight/rules.py` shall select the status. The same checks shall always give the same status.
 
 **R-PF-2 (unrun is not passed).** A check that cannot be evaluated shall be NOT_RUN, never PASS. Any Class A check that is FAIL or NOT_RUN gives NOT ENFORCED. Any check that is NOT_RUN gives NOT ENFORCED. A default run with no probe results shall never report ENFORCED.
+## 1d. Request binding and replay (D2 section 8.4)
+
+**R-RB-1 (bound replay).** A request id shall be bound to the session token id and to the SHA-256 of the canonical request (ecosystem, normalized name, exact version, purpose, expected API, quarantine id, token id, timestamp). An identical replay (same token, same hash) shall return the cached verdict without a new quota count. An altered request under the same id shall be refused with REPLAY_CONFLICT. A request under the same id from another token shall be refused with REPLAY_DENIED. Nothing is evaluated for a refused request.
+
+**R-RB-2 (fresh requests only).** A request whose timestamp is more than 2 minutes in the future, more than 10 minutes in the past, or lacks a UTC offset shall be refused with REQUEST_STALE. Refused requests are neither evaluated nor counted.
 
 ## 2. Contract Check (Phase 2, not implemented)
 
@@ -171,3 +176,5 @@ An UNKNOWN shall give BLOCK (exit 1, check `api_surface`, and the reason names t
 - v1 `src/slopseal/registry/live.py` states that exports are not published and the API-surface check is always unknown. After Phase 2 that holds only for artifacts the Contract Check cannot complete.
 
 Both v1 statements are kept as written. `.kiro/specs/seal/design.md` section 11 carries a dated note that marks the statement superseded for the hook. The other places listed in `design.md` section 1.9 are corrected in the Phase 1 pull request (R-G-9).
+
+**R-FS-1 (private state).** The system shall create every state directory under the state root with mode 0700, and every state or lock file with mode 0600, whatever the process umask. This covers the audit log, the seal key, the contract cache, the rate-limit state and lock, and the quarantine store. Hook config under the workspace and shim directories are not state and keep their own modes.
