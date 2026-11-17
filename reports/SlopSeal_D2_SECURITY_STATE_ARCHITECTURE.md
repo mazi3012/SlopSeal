@@ -424,6 +424,8 @@ A request id on its own is not an identity. Anyone who learns an id could reuse 
 
 ## 11. Migration strategy (unchanged from revision 1, with the bootstrap step added)
 
+Scope (updated 2026-11-17): M1 and every later step (M2 to M6) are v2.1, not v2. See section 14.
+
 | Step | Work | Exit check |
 |---|---|---|
 | M0 | Inventory current state (done: key, log, counters, quarantine, policy) | Inventory accepted |
@@ -493,16 +495,23 @@ The artifact-route tests AC-32, AC-33 and AC-34 are defined in section 7.6 and a
 
 ## 14. Roadmap (updated)
 
-| Phase | Goal | Depends on | Exit |
+Scope (updated 2026-11-17). v2 covers D2-a and D2-b. The following are v2.1, not v2, because they depend on the M1 service skeleton or on the probe harness:
+
+- M1 (service skeleton) and M2 to M6 (section 11).
+- The probe harness, tracked in issue #39 (PR F). The ENFORCED path requires it.
+- The artifact route (section 7.5), implemented as PR D. PR D stays stopped until v2.1 starts.
+- Phases D2-c, D2-d, D2-e, D3, W and Wizard, which depend on M1 in the table below.
+
+| Phase | Goal | Depends on | Exit
 |---|---|---|---|
 | D2-a | Revision 2 approved; IDE/CLI protocol executed on throwaway accounts | Review; throwaway accounts | Results recorded in the protocol report |
 | D2-b | Installer preflight (section 7.3), deterministic status (7.4), and production model checks (AC-20, AC-21, AC-25, AC-35) on a VM | D2-a | Preflight passes only on a correctly configured host; status matches AC-35 fixtures |
-| D2-c | Service skeleton (M1), `init` and sink records (M2), protected replica (6.6) | D2-b | AC-9, AC-12, AC-13, AC-14, AC-31 green |
-| D2-d | Clients switched; fail-closed; anchor paths (M3, M4); request binding (8.4); artifact route (7.5) | D2-c | AC-5, AC-15 to AC-19, AC-22 to AC-24, AC-26 to AC-30, AC-32 to AC-34 green |
-| D2-e | Local state removed; legacy labelling (M5, M6) | D2-d | AC-1 to AC-8, AC-10, AC-11 green |
-| D3 | Approval channel (Ed25519 ADR first, also for sink receipts) | D2-c and the ADR | AC-17, AC-18 green for signed receipts; F-02 Part B closed |
-| W | Web remote service, advisory | D2-c; Web testing with administrator access | Status shown as advisory |
-| Wizard | Kiro-native guided setup | D2-e, D3 | After D2 and D3 |
+| D2-c (v2.1) | Service skeleton (M1), `init` and sink records (M2), protected replica (6.6) | D2-b | AC-9, AC-12, AC-13, AC-14, AC-31 green |
+| D2-d (v2.1) | Clients switched; fail-closed; anchor paths (M3, M4); request binding (8.4); artifact route (7.5) | D2-c | AC-5, AC-15 to AC-19, AC-22 to AC-24, AC-26 to AC-30, AC-32 to AC-34 green |
+| D2-e (v2.1) | Local state removed; legacy labelling (M5, M6) | D2-d | AC-1 to AC-8, AC-10, AC-11 green |
+| D3 (v2.1) | Approval channel (Ed25519 ADR first, also for sink receipts) | D2-c and the ADR | AC-17, AC-18 green for signed receipts; F-02 Part B closed |
+| W (v2.1) | Web remote service, advisory | D2-c; Web testing with administrator access | Status shown as advisory |
+| Wizard (v2.1) | Kiro-native guided setup | D2-e, D3 | After D2 and D3 |
 
 ENFORCED is not claimed on any surface before D2-e, and only for IDE and CLI in the production model, and only when the probes and preflight pass.
 
