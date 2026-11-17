@@ -440,3 +440,63 @@ def test_r_c_3_a_template_substitution_keeps_brace_depth_exact() -> None:
     """After `${x}` the depth is back to zero, so a later export is still read (no false ABSENT)."""
     names = _complete({"index.js": "const t = `${1}`;\nexports.a = 1;"})
     assert "a" in names
+
+
+# ---- Extensionless main, module, types, and typings (R-C-3, ruled at the 2.14 review) -----------
+
+
+def test_r_c_3_an_extensionless_main_resolves_to_index_js() -> None:
+    """The ms@2.1.3 shape: `"main": "./index"` with index.js in the tarball."""
+    names = _complete({"index.js": "exports.ms = 1;"}, {"name": "ms", "main": "./index"})
+    assert {"ms", "ms.ms"} <= names
+
+
+def test_r_c_3_the_probe_order_for_main_is_js_then_cjs_then_mjs() -> None:
+    """With index.cjs and index.mjs present and no index.js, the .cjs file wins over .mjs."""
+    files = {
+        "index.cjs": "exports.from_cjs = 1;",
+        "index.mjs": "export const from_mjs = 1;",
+    }
+    names = _complete(files, {"name": "pkg", "main": "./index"})
+    assert "from_cjs" in names
+    assert "from_mjs" not in names
+
+
+def test_r_c_3_an_extensionless_module_resolves_to_mjs() -> None:
+    files = {"esm/index.mjs": "export const v = 1;"}
+    names = _complete(files, {"name": "pkg", "module": "./esm/index"})
+    assert "v" in names
+
+
+def test_r_c_3_an_extensionless_types_path_resolves_to_d_ts_only() -> None:
+    files = {"index.d.ts": "export declare function f(): void;"}
+    names = _complete(files, {"name": "pkg", "types": "./index"})
+    assert "f" in names
+
+
+def test_r_c_3_an_extensionless_types_path_never_resolves_to_javascript() -> None:
+    """index.js exists, but types probes only .d.ts: the declared entry is missing."""
+    result = _unknown({"index.js": "exports.a = 1;"}, {"name": "pkg", "types": "./index"})
+    assert result["reason"] == "parse_error"
+
+
+def test_r_c_3_an_extensionless_main_with_no_probe_match_is_parse_error() -> None:
+    result = _unknown({"other.js": "exports.a = 1;"}, {"name": "pkg", "main": "./missing"})
+    assert result["reason"] == "parse_error"
+
+
+def test_r_c_3_a_main_that_names_a_directory_is_parse_error() -> None:
+    """A directory is not probed (R-C-3): lib/index.js is not found through `main: "./lib"`."""
+    result = _unknown({"lib/index.js": "exports.a = 1;"}, {"name": "pkg", "main": "./lib"})
+    assert result["reason"] == "parse_error"
+
+
+def test_r_c_3_a_probed_entry_beside_a_missing_one_keeps_partial_names() -> None:
+    """Two entries: `module` resolves by probe and `main` names a missing file. The
+    probed entry's names are kept as partial."""
+    files = {"esm/index.mjs": "export const v = 1;", "cjs.js": "exports.w = 2;"}
+    manifest = {"name": "pkg", "module": "./esm/index", "main": "./nothere"}
+    result = _extract(files, manifest)
+    assert result["status"] == "unknown"
+    assert result["reason"] == "dynamic_exports"
+    assert "v" in set(result["partial"])  # type: ignore[arg-type]

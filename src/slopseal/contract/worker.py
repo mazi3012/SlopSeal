@@ -1077,8 +1077,18 @@ def _subpaths(exports: object) -> dict[str, object]:
     raise Unsafe("exports has an unexpected type")
 
 
-def _resolve_entries(manifest: dict[str, Any], prefix: str) -> list[_Entry]:
-    """The entry points of the package (R-C-3, entry points)."""
+# Probe order for an extensionless declared path (R-C-3, ruled at the 2.14 review).
+_JS_PROBES = (".js", ".cjs", ".mjs")
+_DTS_PROBES = (".d.ts",)
+
+
+def _resolve_entries(manifest: dict[str, Any], prefix: str, present: set[str]) -> list[_Entry]:
+    """The entry points of the package (R-C-3, entry points). `present` holds the tarball members.
+
+    A declared main, module, types, or typings path with no extension is probed in a fixed order.
+    A path that no probe finds is an entry that is missing from the tarball, so it gives
+    parse_error for that entry only.
+    """
     if "typesVersions" in manifest:
         raise Dynamic("typesVersions is not modelled")
     name = manifest.get("name")
@@ -1104,12 +1114,35 @@ def _resolve_entries(manifest: dict[str, Any], prefix: str) -> list[_Entry]:
             if value is not None:
                 if not isinstance(value, str):
                     raise Unsafe(f"{field} is not a string")
-                add(name, value, True)
+                _add_declared(name, value, field, entries, present, prefix)
         if not entries:
             add(name, "index.js", True)
     if not entries:
         raise Unsafe("no entry point")
     return list(entries.values())
+
+
+def _add_declared(
+    spec: str,
+    leaf: str,
+    field: str,
+    entries: dict[str, _Entry],
+    present: set[str],
+    prefix: str,
+) -> None:
+    """One declared main, module, types, or typings path (R-C-3, extensionless probes)."""
+    declared_dts = field in ("types", "typings")
+    if "." in leaf.rsplit("/", 1)[-1]:
+        member = _member_name(prefix, leaf)
+        entries.setdefault(member, _Entry(spec, member, True, _leaf_is_dts(leaf)))
+        return
+    for extension in _DTS_PROBES if declared_dts else _JS_PROBES:
+        member = _member_name(prefix, leaf + extension)
+        if member in present:
+            entries.setdefault(member, _Entry(spec, member, True, declared_dts))
+            return
+    missing = _member_name(prefix, leaf)  # not in the tarball: analysed as parse_error
+    entries.setdefault(missing, _Entry(spec, missing, True, declared_dts))
 
 
 def _join_inside(prefix: str, base: str, relative: str) -> str:
@@ -1208,7 +1241,7 @@ def extract_npm(path: str, root: str, max_file_bytes: int, max_names: int) -> di
         manifest = json.loads(_read_member(archive, manifest_info, max_file_bytes).decode("utf-8"))
         if not isinstance(manifest, dict):
             raise Unsafe("package.json is not an object")
-        entries = _resolve_entries(manifest, root)
+        entries = _resolve_entries(manifest, root, set(members))
         outcomes: list[tuple[_Entry, set[str] | None, tuple[str, str] | None]] = []
         for entry in entries:
             try:
