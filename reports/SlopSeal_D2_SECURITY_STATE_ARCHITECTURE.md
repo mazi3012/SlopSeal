@@ -259,15 +259,17 @@ The status is a pure function of the preflight and probe results. No wording in 
 | Class | Checks | Meaning of a failure |
 |---|---|---|
 | **Class A: security-critical** | A1 no sudo, su, or polkit route for the agent account (7.1, rows 1–2). A2 no Docker group or socket route (7.1, row 3). A3 service writable executables and shared groups closed, and the key, state, and service sockets unreadable by the agent except the verdict socket (7.1, rows 4 and 6). A4 `ptrace_scope` at least 1 and no `CAP_SYS_PTRACE` for the agent (7.1, row 5). A5 anchor integrity: sink reachable, receipts verify, `installation_id`, `key_id`, `seq`, and head match (6.5), and the anchor is not writable by the agent (7.1, row 7). A6 no direct registry route from the agent: every probe to a registry, by any client, fails (7.5 and the probe matrix). A7 policy pin matches. A8 verdict socket binding (`SO_PEERCRED`) active. A9 Kiro escape routes that run commands outside the sandbox are disabled where Kiro allows (7.1, row 8; protocol tests N5 and N6) | **Any failure or NOT RUN → NOT ENFORCED** |
-| **Class B: coverage and durability** | B1 protected audit replica present and head-verified (6.6). B2 approved artifact route answers for an ALLOW grant (7.5). B3 probes that cannot run on this host (for example IPv6 on a host with no IPv6), where the probe class has no route to a registry in the other probes | **Any failure → PARTIALLY ENFORCED at most** |
+| **Class B: coverage and durability** | B1 protected audit replica present and head-verified (6.6). B2 approved artifact route answers for an ALLOW grant (7.5). B3 probes that cannot run on this host (for example IPv6 on a host with no IPv6), where the probe class has no route to a registry in the other probes | **Any FAIL → PARTIALLY ENFORCED at most. Any NOT RUN → NOT ENFORCED** (Option A, see the note below the outcome table) |
 
 **Outcomes:**
 
 | Status | Rule (all must hold) |
 |---|---|
 | **ENFORCED** | Every Class A check PASS **and** every Class B check PASS. No probe is NOT RUN |
-| **PARTIALLY ENFORCED** | Every Class A check PASS, **and** at least one Class B check is FAIL or NOT RUN, and no Class A check is FAIL or NOT RUN. Each failed or unrun Class B check is named in the status |
-| **NOT ENFORCED** | Any Class A check FAIL or NOT RUN, **or** any condition in section 7.4.1 holds |
+| **PARTIALLY ENFORCED** | Every Class A check PASS, **and** at least one Class B check is FAIL, **and** no Class B check is NOT RUN, and no Class A check is FAIL or NOT RUN. Each failed Class B check is named in the status |
+| **NOT ENFORCED** | Any Class A check FAIL or NOT RUN, **or** any Class B check NOT RUN, **or** any condition in section 7.4.1 holds |
+
+**Option A (owner decision, tracked in issue #38).** A Class B check that is NOT RUN gives NOT ENFORCED, not PARTIALLY ENFORCED. Any check that is NOT RUN, in either class, gives NOT ENFORCED. Under this rule a host where a Class B probe such as B3 cannot run cannot reach PARTIALLY ENFORCED. The rule is implemented in `src/slopseal/preflight/rules.py`, rule 3, and tested by PR #36.
 
 **7.4.1 Conditions that always produce NOT ENFORCED**, regardless of the other checks:
 1. The agent can escalate privileges (any A1 or A2 route is open, or unknown).
