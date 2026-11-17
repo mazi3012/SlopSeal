@@ -79,6 +79,21 @@ def unknown_block(surface: ApiSurfaceResult) -> CheckResult:
     return CheckResult("api_surface", Level.BLOCK, text)
 
 
+def apply_reviewed_exports(surface: ApiSurfaceResult, reviewed: frozenset[str]) -> ApiSurfaceResult:
+    """A reviewed known export clears a `dynamic_exports` UNKNOWN for that symbol (R-CW-2).
+
+    Only that exact combination changes. Any other reason, or a symbol not in `reviewed`, keeps
+    the UNKNOWN.
+    """
+    if surface.outcome is not ApiSurface.UNKNOWN:
+        return surface
+    if surface.reason is not UnknownReason.DYNAMIC_EXPORTS:
+        return surface
+    if surface.declared_api not in reviewed:
+        return surface
+    return ApiSurfaceResult(ApiSurface.PRESENT, surface.declared_api, (surface.declared_api,))
+
+
 def mismatch_block(result: ContractDigestMismatch) -> CheckResult:
     """The HARD_BLOCK for a digest mismatch (T23, R-C-1). Exit 1 at the verdict."""
     return CheckResult(

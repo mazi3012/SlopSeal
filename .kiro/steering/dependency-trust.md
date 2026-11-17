@@ -26,7 +26,7 @@ Do not change a value to make a test pass. If a value needs to change, change th
 - **Maintainers.** `min_account_age_days` is the age below which the newest maintainer account is a finding (check 2.10).
 - **Limits.** `max_installs_per_minute` is the rate limit (PRD 4.7). Install attempts beyond it in a rolling 60-second window are BLOCKED before any check runs. Every attempt counts, including blocked ones, so a blocked agent cannot reset the window by retrying. The value 10 is the v1 setting (PRD Open Decision 7, resolved).
 - **Quarantine.** `retry_budget` is the number of automated retries after a quarantine. The PRD sets it to 1. `max_seconds` is the window a quarantine stays open before it counts as escalated. It is 900 seconds (PRD Open Decision 7, resolved).
-- **Compiled wheels.** A version with no universal wheel can run install-time code, so check 2.5 blocks it. `[compiled_wheels]` is a reviewed exception for one exact version of one package. It applies only when the release names the reviewed publisher, the host platform has a reviewed wheel, and that wheel's sha256 equals the pin. An sdist alone is refused. The live OSV check still runs. The allowlist is in code (`src/slopseal/policy/invariants.py`), and the policy cannot widen it. Reviewed by owner on 2026-11-17, ADR 0005. Install with `--only-binary` and `--require-hashes` from `requirements/sign.lock`.
+- **Compiled wheels.** A version with no universal wheel can run install-time code, so check 2.5 blocks it. `[compiled_wheels]` is a reviewed exception for one exact version of one package. It applies only when the release names the reviewed publisher, the host platform has a reviewed wheel, and that wheel's sha256 equals the pin. An sdist alone is refused. The live OSV check still runs. The allowlist is in code (`src/slopseal/policy/invariants.py`), and the policy cannot widen it. A `known_exports` record names one symbol that a reviewed version exports, and clears only a `dynamic_exports` api_surface block for that symbol (R-CW-2). Reviewed by owner on 2026-11-17, ADR 0005. Install with `--only-binary` and `--require-hashes` from `requirements/sign.lock`.
 - **Semantic (L2).** Not in v1: the M1 gate failed (`docs/needle_spike.csv`). It stays disabled. `confidence_threshold` is 0.5, pre-registered before the spike runs. It is the midpoint between the model card's figures for a wrong call (0.26) and a correct one (0.93). It is never tuned against the spike results.
 
 ```toml slopseal-policy
@@ -89,4 +89,11 @@ sha256 = "f21e8a22c8605750c7af886bab299a363721264061b4ac0a30efb73cfd58efc5"
 [compiled_wheels.cryptography.platforms.macos-arm64]
 wheel = "cryptography-50.0.2-cp39-abi3-macosx_11_0_arm64.whl"
 sha256 = "0ec5f09541743261e66e291b4a0cbf0fb2997aeaab6d9e9c740b9dba1b58d1c2"
+
+[[compiled_wheels.cryptography.known_exports]]
+package = "cryptography"
+version = "50.0.2"
+symbol = "ed25519.Ed25519PublicKey"
+reviewer = "owner"
+date = "2026-11-17"
 ```
