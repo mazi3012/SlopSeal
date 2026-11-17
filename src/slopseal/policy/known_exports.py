@@ -14,7 +14,7 @@ Requirements: R-CW-2. Layer 2. Pure.
 from __future__ import annotations
 
 from slopseal.policy.invariants import ALLOWED_COMPILED_WHEELS
-from slopseal.policy.loader import Policy
+from slopseal.policy.loader import KnownExport, Policy
 
 
 def reviewed_symbols(policy: Policy, name: str, version: str) -> frozenset[str]:
@@ -28,3 +28,19 @@ def reviewed_symbols(policy: Policy, name: str, version: str) -> frozenset[str]:
         for record in entry.known_exports
         if record.version == version
     )
+
+
+def reviewed_record(policy: Policy, name: str, version: str, symbol: str) -> KnownExport | None:
+    """The record for one symbol of this exact version, with its reviewer and date (R-CW-3).
+
+    None when the package is not allowed or no record names the symbol.
+    """
+    if (name, version) not in ALLOWED_COMPILED_WHEELS:
+        return None
+    for entry in policy.compiled_wheels:
+        if entry.name != name:
+            continue
+        for record in entry.known_exports:
+            if record.version == version and record.symbol == symbol:
+                return record
+    return None
