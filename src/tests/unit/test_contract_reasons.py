@@ -57,3 +57,76 @@ def test_reason_not_in_snapshot_is_never_quarantine_or_allow() -> None:
     surface = check_contract(result, "parse")  # type: ignore[arg-type]
     assert surface.outcome.value == "unknown"
     assert surface.reason is UnknownReason.NOT_IN_SNAPSHOT
+
+
+# ---- Reasons produced by the 2.B pipeline. Each goes through the same mapping as the verdict. ----
+
+
+def _block_exit_for(result: object) -> tuple[str, str, int]:
+    """Map an UNKNOWN contract to the BLOCK the verdict gives: (check, reason text, exit code)."""
+    from slopseal.contract.types import ContractComplete, ContractUnknown
+
+    assert isinstance(result, ContractUnknown)
+    assert not isinstance(result, ContractComplete)
+    surface = check_contract(result, "parse")
+    violation = unknown_block(surface)
+    decision = Decision(
+        outcome=Outcome.BLOCK,
+        ecosystem="pypi",
+        package="pkg",
+        version="1.0.0",
+        reason=violation.reason,
+    )
+    return violation.check, violation.reason, decision.exit_code
+
+
+def test_reason_limit() -> None:
+    """An artifact over the compressed limit is limit, and the verdict gives exit 1."""
+    import tempfile
+
+    from slopseal.contract.limits import MAX_COMPRESSED_BYTES
+    from slopseal.contract.runner import run_archive_check
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "huge.whl"
+        with path.open("wb") as handle:
+            handle.truncate(MAX_COMPRESSED_BYTES + 1)
+        result = run_archive_check(path, "wheel")
+    assert getattr(result, "reason", None) is UnknownReason.LIMIT
+    check, text, exit_code = _block_exit_for(result)
+    assert check == "api_surface"
+    assert "limit" in text
+    assert exit_code == 1
+
+
+def test_reason_network() -> None:
+    """A failed download is network, and the verdict gives exit 1."""
+    import urllib.error
+
+    from slopseal.contract.fetch import download
+    from slopseal.core.types import Ecosystem
+
+    class Refuse:
+        def __call__(self, request: object, timeout: float) -> object:
+            raise urllib.error.URLError("connection refused")
+
+    result = download(
+        "https://files.pythonhosted.org/packages/p/pkg-1.0-py3-none-any.whl",
+        Ecosystem.PYPI,
+        opener=Refuse(),  # type: ignore[arg-type]
+    )
+    assert getattr(result, "reason", None) is UnknownReason.NETWORK
+    check, text, exit_code = _block_exit_for(result)
+    assert "network" in text
+    assert exit_code == 1
+
+
+def test_reason_no_digest() -> None:
+    """A registry with no usable digest is no_digest, and the verdict gives exit 1."""
+    from slopseal.contract.digest import published_from_npm_integrity
+
+    result = published_from_npm_integrity("sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    assert getattr(result, "reason", None) is UnknownReason.NO_DIGEST
+    check, text, exit_code = _block_exit_for(result)
+    assert "no_digest" in text
+    assert exit_code == 1
