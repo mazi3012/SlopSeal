@@ -61,7 +61,7 @@ Add SlopSeal to Kiro as an MCP server. It sets up its own security hook on first
 
 Then **start a new Kiro session**. Kiro reads hook files only at session start, so the hook protects you from the second session on.
 
-`SLOPSEAL_OFFLINE_SNAPSHOT=0` turns on Live Mode, which checks real PyPI and OSV data. Remove it to use the bundled offline snapshot, which is better for demos.
+`SLOPSEAL_OFFLINE_SNAPSHOT=0` turns on Live Mode, which checks real PyPI, npm, and OSV data. With `--expected-api`, Live Mode also downloads the artifact and reads its exports. Most packages cannot be read completely yet, and an unread export list blocks (see docs/REFERENCE.md). Remove the variable to use the bundled offline snapshot, which is better for demos.
 
 ### What the hook does
 
