@@ -217,6 +217,8 @@ class ContractDigestMismatch: algorithm: str; detail: str
 ContractResult = ContractComplete | ContractUnknown | ContractDigestMismatch
 ```
 
+`ContractUnknown` gains one field, `partial: tuple[str, ...] = ()`. It is set only by the npm two-entry rule (R-C-3): the names of the complete entry points of a package whose entry points are not all complete. `check_contract` returns PRESENT for a declared API in `partial`, and UNKNOWN for every other declared API. It never returns ABSENT for an UNKNOWN contract. The escalated retry (R-C-9) treats any UNKNOWN contract, including one with `partial` names, as a BLOCK and not as PRESENT.
+
 `RegistrySource.contract(eco, name, version) -> ContractResult` is new. `exports()` stays on the protocol and returns the tuple for a `ContractComplete` and `None` for anything else, so callers outside the verdict keep working. Unknown is an explicit value, not `None` and not an exception (`tech.md`).
 
 `ApiSurfaceResult` gains `reason: UnknownReason | None = None` (default `None`, so existing constructors are unchanged). `check_contract(result, declared_api)` returns it. In `verdict.py` step 4, `ContractUnknown` becomes `CheckResult("api_surface", BLOCK, "exported symbols for this version are unknown: <reason>")`. The text before the colon is the v1 text. `ContractDigestMismatch` becomes `CheckResult("contract_digest", HARD_BLOCK, ...)`. No new exit code and no new outcome (`AGENTS.md`): both are BLOCK, exit 1.
