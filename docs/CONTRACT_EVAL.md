@@ -37,6 +37,15 @@ Not covered by these labels: the `sdist_only`, `limit`, `network`, `no_digest`, 
 - **Expected statuses are predictions** made from each package's structure, before the completeness rule was final. A wrong expected status lowers coverage. It does not change the accuracy figures.
 - **Docs can omit real exports.** A present name that a documentation page does not name is dropped from the labels rather than kept without a source. A real export missing from the labels is not counted, and that is a gap in the labels, not in the extractor.
 
+## Coverage limits of the first run
+
+These are recorded before the measurement and are not narrowed before it (rulings of 2.6).
+
+- **Compiled extensions (`.so`, `.pyd`) give UNKNOWN for the whole artifact.** A Python wheel that ships a compiled module has its names unread, so the whole package is UNKNOWN with reason `dynamic_exports`. Packages with compiled modules lose coverage. The labels expect this for the numeric and native hard cases.
+- **Dynamic forms.** `sys.modules`, any `__dict__`, `from sys import modules`, walrus assignments, `match`, `global` statements in a module file, and any unmodelled module-level statement give UNKNOWN for the whole artifact. Over-flagging costs coverage only.
+- **False-PRESENT risk: `from .x import y`.** The extractor binds `y` and does not read `x`. A name that `x` does not define at run time is reported PRESENT. This cannot cause a false ABSENT. It is reported as a wrong PRESENT, not a stop.
+- **False-PRESENT risk: `try` and `if` branches.** Every branch is unioned. A name bound in a branch that never runs is reported PRESENT.
+
 ## Metric definitions
 
 Notation. A probe `p` is one (package, name) pair. `L(p)` is its label, PRESENT or ABSENT. `A(p)` is the extractor's answer: PRESENT or ABSENT when the package contract is complete, and UNKNOWN with its typed reason when it is not. A probe is *decided* when `A(p)` is PRESENT or ABSENT. A package is *decided* when its contract is complete.
