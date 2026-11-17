@@ -28,7 +28,7 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,sign]"
       - name: Lint
         run: |
           ruff check .

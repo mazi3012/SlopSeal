@@ -28,10 +28,9 @@ dependencies = []
 # Needle 3 runtime for the optional L2 layer. Chosen in docs/adr/0003. Pinned to the version the
 # spike ran against. Installing this extra is optional; the default install never imports it.
 needle = ["needle-rs==0.3.1"]
-# Ed25519 seal signing (public verifiability). Roadmap, not v1. See docs/adr/0002-stdlib-first.md.
-# TODO(roadmap): fill with the chosen Ed25519 library when the roadmap item is scheduled.
-# Adding a dependency here requires its own ADR.
-sign = []
+# Ed25519 receipt verification (R-AR-1). Reviewed in docs/adr/0005-ed25519-receipt-signing.md.
+# Hash-pinned lock: requirements/sign.lock. Adding a dependency here requires its own ADR.
+sign = ["cryptography==50.0.2"]
 dev = [
     "pytest>=8.0",
     "hypothesis>=6.100",
