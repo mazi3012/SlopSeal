@@ -392,7 +392,7 @@ def _star_target(module: str, package: bool, level: int, target: str, known: set
 
 
 def _export_names(modules: dict[str, _Module]) -> set[str]:
-    """Qualified names for every module, bare names for top-level modules, and module paths."""
+    """Qualified names for every module, bare names for top-level modules, and submodule paths."""
     known = set(modules)
     names: set[str] = set()
     for name, module in modules.items():
@@ -402,7 +402,10 @@ def _export_names(modules: dict[str, _Module]) -> set[str]:
             if source.stars:
                 raise Dynamic("star import of a module that itself has a star import")
             exported |= source.names
-        names.add(name)
+        if "." in name:
+            names.add(
+                name
+            )  # a submodule path is a name; the root package's own name is not (R-C-2)
         for symbol in exported:
             names.add(f"{name}.{symbol}")
             if "." not in name:

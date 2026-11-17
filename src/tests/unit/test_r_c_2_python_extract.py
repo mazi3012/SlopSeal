@@ -50,7 +50,7 @@ def test_r_c_2_defs_imports_and_package_paths_are_named() -> None:
     assert "pkg.top" in names
     assert "pkg.core.parse" in names
     assert "pkg.core" in names  # module path
-    assert "pkg" in names
+    assert "pkg" not in names  # the root package's own name is not an export (ruled at Run 1)
     assert "pkg._hidden" not in names  # underscore names are not in set B
 
 
@@ -247,7 +247,7 @@ def test_r_c_2_dist_info_is_ignored_and_data_purelib_is_installed() -> None:
         "pkg-1.0.data/purelib/extra.py": "def helper():\n    pass\n",
     }
     names = _extract(files)
-    assert "extra" in names
+    assert "extra" not in names  # the top-level module's own name is not an export (ruled at Run 1)
     assert "extra.helper" in names
     assert "run" not in names
     assert "pkg.run" not in names
@@ -267,3 +267,9 @@ def test_r_c_2_del_of_a_local_inside_a_function_is_not_dynamic() -> None:
 def test_r_c_2_del_of_a_module_name_is_dynamic() -> None:
     with pytest.raises(worker.Dynamic):
         _extract({"pkg/__init__.py": "a = 1\ndel a\n"})
+
+
+def test_r_c_2_the_top_level_module_name_is_an_export_only_when_the_package_exports_it() -> None:
+    """Ruled at Run 1: `pkg` is a name only when pkg/__init__.py defines a symbol named pkg."""
+    assert "pkg" not in _extract({"pkg/__init__.py": "def other():\n    pass\n"})
+    assert "pkg" in _extract({"pkg/__init__.py": "def pkg():\n    pass\n"})
