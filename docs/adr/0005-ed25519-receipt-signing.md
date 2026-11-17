@@ -23,7 +23,7 @@ The stdlib does not provide Ed25519 in Python 3.11, so a dependency is required.
 ## Decision
 
 1. **Algorithm: Ed25519 (RFC 8032).** Fixed for receipts and approvals. Verifiers reject any other `alg` value, so there is no downgrade path.
-2. **Library: `cryptography` (pyca), pinned to an exact version at implementation time**, in the `sign` extra that `pyproject.toml` already reserves. The core install stays stdlib-only, so ADR 0002's zero-mandatory-dependency rule holds. Only the service and the sink install the extra. The HMAC audit verifier needs no new dependency.
+2. **Library: `cryptography` (pyca), pinned to `cryptography==50.0.2`**, in the `sign` extra that `pyproject.toml` already reserves. The pin is checked again at implementation time. The core install stays stdlib-only, so ADR 0002's zero-mandatory-dependency rule holds. Only the service and the sink install the extra. The HMAC audit verifier needs no new dependency.
 3. **Signed payload.** Canonical JSON (sorted keys, UTF-8, no insignificant whitespace), prefixed with a domain separator so a receipt signature cannot be replayed as an approval, and the reverse:
    - Receipt: prefix `slopseal-receipt-v1\n`, fields `{alg, key_id, installation_id, sink_id, seq, head_hash, issued_at}`.
    - Approval: prefix `slopseal-approval-v1\n`, fields `{alg, key_id, quarantine_id, package, version, decision, approver, issued_at}`.
@@ -33,7 +33,7 @@ The stdlib does not provide Ed25519 in Python 3.11, so a dependency is required.
 
 ## Key rotation
 
-- **Scheduled.** Each sink signing key has `key_id`, `purpose`, `valid_from`, and `valid_until` (default 365 days). A new key is created before the old one expires, so receipts never lack a key. The overlap is 30 days.
+- **Scheduled.** Each sink signing key has `key_id`, `purpose`, `valid_from`, and `valid_until` (default 90 days). A new key is created before the old one expires, so receipts never lack a key. The overlap is 30 days.
 - **Registry.** Public keys and their status live in a registry the service pins by hash. Old public keys are kept to verify old receipts, and they are never deleted from the registry.
 - **Compromise.** The compromised key is marked `revoked_at`. Receipts issued by it at or after `revoked_at` are rejected. Receipts issued before `revoked_at` remain verifiable, but they only prove what the key signed before the compromise, so the owner must treat any head signed in the suspected window as unproven and re-anchor from the protected replica (D2 section 6.6).
 - **Rotation is never automatic in the agent's reach.** Only the sink operator rotates keys, and every rotation is recorded in the sink.
@@ -55,14 +55,21 @@ The stdlib does not provide Ed25519 in Python 3.11, so a dependency is required.
   - *PyNaCl (libsodium).* Acceptable alternative with the same algorithm and a smaller surface. Not chosen only because `cryptography` is the more widely reviewed library for the wider Python ecosystem. The owner may choose PyNaCl instead; the rest of this ADR is unchanged.
   - *RSA.* Rejected: larger keys and signatures, no advantage here.
 
+## Owner decisions (recorded 2026-11-17)
+
+- Library: `cryptography`, pinned to `50.0.2`.
+- Rotation: 90 days per key. The 30-day overlap is unchanged from the earlier draft.
+- The compromise path in "Key rotation" is the documented procedure for a suspected key compromise.
+
 ## Open decisions for the owner
 
-1. Confirm the library (`cryptography` or PyNaCl).
-2. Confirm the 365-day rotation and 30-day overlap.
-3. Who holds the sink signing key, and where it is stored (links to the §15 "sink key enrolment" decision, which the owner will provide separately).
-4. The sink ID format (also a §15 decision).
+1. Who holds the sink signing key, and where it is stored (links to the §15 "sink key enrolment" decision, which the owner will provide separately).
+2. The sink ID format (also a §15 decision).
 
 ## Verification of this ADR
 
 - The stdlib claim: Python 3.11's standard library has no Ed25519 implementation. Confirmed by the absence of an `ed25519` module in `hashlib`, `hmac`, and `secrets`, and by the project's own note in `pyproject.toml`.
-- Library versions observed on the package index on 2026-11-17 (metadata only, nothing installed): `cryptography` 50.0.2, `pynacl` 1.6.2. The pinned version is chosen at implementation time and checked then.
+- Library versions observed on the package index on 2026-11-17 (metadata only, nothing installed): `cryptography` 50.0.2, `pynacl` 1.6.2.
+- Stdlib re-check on 2026-11-17 with Python 3.11.15: `ed25519`, `nacl`, and `cryptography` are all not importable in the base interpreter.
+- OSV query for `cryptography` 50.0.2 (PyPI) on 2026-11-17 returned no known vulnerabilities.
+- The pin is checked again at implementation time, because advisories can be published after this date.
