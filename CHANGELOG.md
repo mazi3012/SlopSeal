@@ -12,10 +12,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - Resolve-then-pin in live mode (R-1.7): an unpinned `pip install x` or `npm install x` is pinned to the verified latest version. The original and rewritten commands are audited. `--no-resolve` or `SLOPSEAL_NO_RESOLVE=1` keeps the refusal.
 - `slopseal audit html`: a single self-contained HTML receipt of the audit log. Each verdict shows its badge, checks, warnings, policy hash, and seal status. Light and dark mode. Stdlib only, no scripts or external requests, and all log text is escaped (R-5.7.1, R-5.7.2).
 - Live registry adapter (`slopseal.registry.live`): PyPI JSON API, npm registry, and OSV over `urllib`, with timeouts, a size cap, and explicit unknowns (R-P-3). `slopseal check --live` selects it.
+- Replay store (`slopseal.requests.replay`, R-RB-1, R-RB-2, AC-26 to AC-29): a file-backed store that binds a request id to its session token and canonical request, and refuses altered, cross-token, and stale requests. It is tested. No verdict path calls it yet. Wiring it into the verdict path is part of the verdict-service work (D2 milestone M1), which is v2.1. Replay is not live in v2.
+- Deterministic enforcement status (`slopseal.preflight`, D2 section 7.4, AC-35): one status from the Class A and Class B checks. A check that is not run gives NOT ENFORCED. Probes that are not yet built report NOT RUN, so they block ENFORCED. The probe harness is tracked as v2.1 work in issue #39.
 
 ### Fixed
 
 - Live mode did not pass the state directory to the contract cache, so complete contracts were never cached (R-C-6). The state directory is now the cache root.
+- SlopSeal state directories were created with the process umask (0755 under umask 022). State directories are now created 0700 and state and lock files 0600, whatever the umask (R-FS-1). A directory that already exists keeps its mode, so one created by an earlier version must be removed or corrected by hand.
 - Rate limit counted an allowed install twice when the install hook and the PATH shim both verified it. One install now counts once, whichever layers run (R-G-11, R-4.7, P-G-2). The limit of 10 per minute is unchanged.
 
 ### Changed
