@@ -117,7 +117,7 @@ class ReplayStore:
         return data
 
     def _write(self, entries: dict[str, dict[str, str]]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         handle, temp_name = tempfile.mkstemp(dir=self._path.parent, prefix=".rp-", suffix=".json")
         try:
             with os.fdopen(handle, "w", encoding="utf-8") as stream:
@@ -130,8 +130,10 @@ class ReplayStore:
             raise
 
     def _locked(self) -> Any:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        return open(self._path.with_suffix(".lock"), "a+", encoding="utf-8")  # noqa: SIM115
+        """Open the lock file. Directory is 0700 and lock file is 0600, whatever the umask."""
+        self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(self._path.with_suffix(".lock"), os.O_RDWR | os.O_CREAT, 0o600)
+        return os.fdopen(fd, "a+", encoding="utf-8")
 
     def admit(self, request_id: str, request: CanonicalRequest) -> Admission:
         """Decide what to do with an incoming request. Records nothing."""

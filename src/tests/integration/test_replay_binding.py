@@ -9,6 +9,7 @@ are refused). Covers AC-26 to AC-29.
 
 from __future__ import annotations
 
+import stat
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -171,6 +172,17 @@ def test_the_replay_record_survives_a_restart(tmp_path: Path, clock: Clock) -> N
     restarted = ReplayStore(tmp_path / "state", clock=clock)
     assert restarted.admit("req-1", _request()).decision is Decision.REPLAY_CACHED
     assert counted == ["req-1"]
+
+
+def test_state_directory_and_files_are_private(tmp_path: Path, clock: Clock) -> None:
+    """Defect fix: state directory is 0700 and written files are 0600, whatever the umask."""
+    state = tmp_path / "fresh-state"
+    store = ReplayStore(state, clock=clock)
+    store.record("req-1", _request(), "vd-1")
+    store.admit("req-1", _request())  # takes the lock file
+    assert stat.S_IMODE(state.stat().st_mode) == 0o700
+    assert stat.S_IMODE((state / "replay.json").stat().st_mode) == 0o600
+    assert stat.S_IMODE((state / "replay.lock").stat().st_mode) == 0o600
 
 
 def test_an_id_cannot_be_recorded_twice(store: ReplayStore) -> None:
