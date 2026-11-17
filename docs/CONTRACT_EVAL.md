@@ -149,7 +149,7 @@ The decided accuracy is 53 of 54 decided probes. The one miss is the wrong PRESE
 | commonjs_umd | 1 | 0 | 4 | 0 | - | 0.0% |
 | esbuild_cjs_helper | 1 | 0 | 5 | 0 | - | 0.0% |
 
-The `None` row is the seven packages with no hard case in the labels: the seven expected-UNKNOWN packages. Every hard-case group has a false ABSENT count of 0.
+The `None` row is the seven packages that have no hard case in the labels (requests, rich, attrs, jinja2, beautifulsoup4, colorama, certifi). All seven are expected complete, and none is decided. Every hard-case group has a false ABSENT count of 0.
 
 ### Latency (contract step, one artifact, live registries)
 
