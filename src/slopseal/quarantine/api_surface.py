@@ -58,6 +58,9 @@ def check_contract(
     ABSENT is returned only for a complete contract. UNKNOWN never becomes PRESENT or ABSENT.
     """
     if isinstance(result, ContractUnknown):
+        if declared_api in result.partial:
+            # Two entry points (R-C-3): a complete entry point lists the API. Never ABSENT.
+            return ApiSurfaceResult(ApiSurface.PRESENT, declared_api, result.partial)
         return ApiSurfaceResult(ApiSurface.UNKNOWN, declared_api, (), result.reason)
     outcome = ApiSurface.PRESENT if declared_api in result.exports else ApiSurface.ABSENT
     return ApiSurfaceResult(outcome, declared_api, result.exports)

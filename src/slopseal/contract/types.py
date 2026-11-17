@@ -69,9 +69,16 @@ class ContractUnknown:
 
     reason: UnknownReason
     detail: str
+    # Names listed by a complete entry point of a package whose entry points are not all complete
+    # (R-C-3, two entry points). A declared API in `partial` is PRESENT; nothing is ABSENT.
+    partial: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _check_detail(self.detail)
+        for name in self.partial:
+            if not valid_name(name):
+                raise ValueError("partial name fails the name check")
+        object.__setattr__(self, "partial", tuple(sorted(set(self.partial))))
 
 
 @dataclass(frozen=True)

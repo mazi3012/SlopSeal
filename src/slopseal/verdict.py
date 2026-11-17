@@ -28,7 +28,7 @@ from enum import Enum
 from typing import Any
 
 from slopseal.audit.log import AuditLog
-from slopseal.contract.types import ContractDigestMismatch, UnknownReason
+from slopseal.contract.types import ContractDigestMismatch, ContractUnknown, UnknownReason
 from slopseal.core.allow_deny import check_allow_deny
 from slopseal.core.cve import check_cve
 from slopseal.core.distance import levenshtein
@@ -624,19 +624,21 @@ def _escalated_again(
         return _block(
             request, ctx, mismatch.check, mismatch.reason, quarantine_id=state.quarantine_id
         )
-    surface = check_contract(result, state.declared_api)
-    if surface.outcome is ApiSurface.UNKNOWN:
-        # R-C-9: an unknown contract blocks (exit 1). It never becomes api_absent, and no
-        # escalation artifact is written for it. The state was saved above if the window expired.
-        violation = unknown_block(surface)
+    if isinstance(result, ContractUnknown):
+        # R-C-9: any unknown contract blocks (exit 1), including one with partial names. It never
+        # becomes api_absent, and no escalation artifact is written for it. The state was saved
+        # above if the window expired.
+        unknown = ApiSurfaceResult(ApiSurface.UNKNOWN, state.declared_api, (), result.reason)
+        violation = unknown_block(unknown)
         return _block(
             request,
             ctx,
             violation.check,
             f"{violation.reason}; {_UNKNOWN_NEXT_STEP}",
             quarantine_id=state.quarantine_id,
-            unknown_reason=surface.reason,
+            unknown_reason=result.reason,
         )
+    surface = check_contract(result, state.declared_api)
     alternatives = tuple(
         (alt, f"exports {state.declared_api} directly")
         for alt in ctx.source.alternatives(request.ecosystem, state.declared_api, request.package)
