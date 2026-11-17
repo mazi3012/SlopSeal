@@ -1,7 +1,7 @@
 {
   "schema": "slopseal.contract_labels/1",
   "labelled_on": "2026-11-16",
-  "frozen_before_extractor_run": false,
+  "frozen_before_extractor_run": true,
   "metric_definitions": "docs/CONTRACT_EVAL.md",
   "labeller": "Drafted from official documentation and public API. Absent names are pending owner review.",
   "packages": [
