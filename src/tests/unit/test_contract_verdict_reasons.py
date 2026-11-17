@@ -26,7 +26,12 @@ from typing import Any
 from slopseal.audit.log import AuditLog
 from slopseal.audit.seal import load_or_create_key
 from slopseal.contract.fetch import download
-from slopseal.contract.types import ContractResult, ContractUnknown, UnknownReason
+from slopseal.contract.types import (
+    ContractComplete,
+    ContractResult,
+    ContractUnknown,
+    UnknownReason,
+)
 from slopseal.core.types import Ecosystem
 from slopseal.fixtures.loader import load_snapshot
 from slopseal.policy.loader import load_policy
@@ -204,26 +209,36 @@ def _serve(data: bytes) -> Any:
     return open_request
 
 
-def test_r_c_8_live_path_verifies_the_digest_and_stops_at_the_extraction_step() -> None:
-    """With a matching digest, the live path downloads and verifies, then returns UNKNOWN.
+def _recorded_wheel() -> bytes:
+    """A wheel with a RECORD, so the extractor can read it (R-C-2)."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("csv_parser/__init__.py", "def parse():\n    pass\n")
+        archive.writestr(
+            "csv_parser-1.2.0.dist-info/RECORD",
+            "csv_parser/__init__.py,,\ncsv_parser-1.2.0.dist-info/RECORD,,\n",
+        )
+    return buffer.getvalue()
 
-    The extraction step is a stub until R-C-2 lands, so the result is never a complete contract.
-    The cache receives nothing. `exports()` stays None.
-    """
-    data = _wheel_bytes()
+
+def test_r_c_8_live_path_verifies_extracts_and_caches_a_complete_contract() -> None:
+    """A matching digest passes verification, the extractor reads the wheel, and the complete
+    contract is written to the cache under its digest key (R-C-6)."""
+    data = _recorded_wheel()
     digest = hashlib.sha256(data).hexdigest()
     with tempfile.TemporaryDirectory() as tmp:
-        cache = Path(tmp) / "contracts"
+        state = Path(tmp)
         live = LiveSource(
             fetch=_registry(_version_json({"sha256": digest})),
             artifact_fetch=lambda url, eco: download(url, eco, opener=_serve(data)),
-            cache_root=cache,
+            cache_root=state,
         )
         result = live.contract(Ecosystem.PYPI, "csv-parser", "1.2.0")
-        assert isinstance(result, ContractUnknown)
-        assert result.reason is UnknownReason.PARSE_ERROR
-        assert live.exports(Ecosystem.PYPI, "csv-parser", "1.2.0") is None
-        assert not cache.exists() or list(cache.iterdir()) == []
+        assert isinstance(result, ContractComplete)
+        assert "parse" in result.exports
+        assert live.exports(Ecosystem.PYPI, "csv-parser", "1.2.0") == result.exports
+        entries = [entry.name for entry in (state / "contracts").iterdir()]
+        assert entries == [f"sha256-{digest}.json"]
 
 
 def test_r_c_8_a_registry_digest_mismatch_blocks_with_exit_1() -> None:

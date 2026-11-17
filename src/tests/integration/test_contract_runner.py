@@ -16,8 +16,8 @@ import pytest
 
 from slopseal.contract import runner as runner_module
 from slopseal.contract.limits import MAX_COMPRESSED_BYTES
-from slopseal.contract.runner import ArchiveOk, run_archive_check
-from slopseal.contract.types import ContractUnknown, UnknownReason
+from slopseal.contract.runner import ArchiveOk, run_archive_check, run_extract
+from slopseal.contract.types import ContractComplete, ContractUnknown, UnknownReason
 
 pytestmark = pytest.mark.skipif(os.name != "posix", reason="archive checks need POSIX limits")
 
@@ -205,3 +205,63 @@ def test_r_c_4_a_relative_package_root_inside_the_directory_is_accepted(
         base = Path(tmp)
         monkeypatch.setattr(runner_module, "WORKER", _wrapper(base, body))
         assert run_archive_check(_artifact(base), "npm") == ArchiveOk("package")
+
+
+# R-C-2: the extract mode of the worker, as a real subprocess.
+
+
+def _record_wheel(directory: Path, files: dict[str, str]) -> Path:
+    path = directory / "pkg-1.0-py3-none-any.whl"
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, body in files.items():
+            archive.writestr(name, body)
+        record = "".join(f"{name},,\n" for name in files) + "pkg-1.0.dist-info/RECORD,,\n"
+        archive.writestr("pkg-1.0.dist-info/RECORD", record)
+    return path
+
+
+def test_r_c_2_extraction_runs_in_the_subprocess_and_returns_complete_names() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(Path(tmp), {"pkg/__init__.py": "def parse():\n    pass\n"})
+        result = run_extract(wheel, "wheel")
+        assert isinstance(result, ContractComplete)
+        assert "parse" in result.exports
+        assert "pkg.parse" in result.exports
+
+
+def test_r_c_2_a_dynamic_module_is_dynamic_exports_from_the_subprocess() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(
+            Path(tmp), {"pkg/__init__.py": "import sys\nsetattr(sys.modules[__name__], 'x', 1)\n"}
+        )
+        result = run_extract(wheel, "wheel")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.DYNAMIC_EXPORTS
+
+
+def test_r_c_2_a_syntax_error_is_parse_error_from_the_subprocess() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(Path(tmp), {"pkg/__init__.py": "def (\n"})
+        result = run_extract(wheel, "wheel")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.PARSE_ERROR
+
+
+def test_r_c_2_too_many_names_from_the_subprocess_is_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runner_module, "MAX_CONTRACT_NAMES", 1)
+    with tempfile.TemporaryDirectory() as tmp:
+        wheel = _record_wheel(
+            Path(tmp), {"pkg/__init__.py": "def a():\n    pass\ndef b():\n    pass\n"}
+        )
+        result = run_extract(wheel, "wheel")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.LIMIT
+
+
+def test_r_c_2_extraction_of_an_npm_kind_is_refused_here() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        artifact = Path(tmp) / "pkg.tgz"
+        artifact.write_bytes(b"placeholder")
+        result = run_extract(artifact, "npm")
+        assert isinstance(result, ContractUnknown)
+        assert result.reason is UnknownReason.PARSE_ERROR

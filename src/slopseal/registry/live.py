@@ -36,6 +36,7 @@ from slopseal.contract.digest import (
     published_from_pypi,
 )
 from slopseal.contract.pipeline import fetch_artifact, obtain_contract
+from slopseal.contract.runner import run_extract
 from slopseal.contract.types import (
     ContractComplete,
     ContractResult,
@@ -131,8 +132,10 @@ def _time(text: object) -> datetime:
     return parsed
 
 
-def _extract_stub(artifact: Path, kind: str, root: str) -> ContractUnknown:
-    """The extraction step of R-C-8. Replaced by the R-C-2 and R-C-3 extractors."""
+def _extract(artifact: Path, kind: str, root: str) -> ContractComplete | ContractUnknown:
+    """The extraction step of R-C-8: the wheel extractor (R-C-2), or the npm stub until R-C-3."""
+    if kind == "wheel":
+        return run_extract(artifact, kind)
     return ContractUnknown(UnknownReason.PARSE_ERROR, "extractor not implemented")
 
 
@@ -297,7 +300,7 @@ class LiveSource:
             published,
             kind=kind,
             cache_root=self._cache_root,
-            extract=_extract_stub,
+            extract=_extract,
             fetch=self._artifact_fetch,
         )
 

@@ -1,12 +1,14 @@
-"""Run the archive worker in a subprocess with resource limits (R-C-4). POSIX only.
+"""Run the worker in a subprocess with resource limits (R-C-2, R-C-4). POSIX only.
 
 The worker gets an empty environment, no stdin, the artifact's private directory as its working
-directory, and its own process group. It is killed after the wall-time limit. Any limit gives
-ContractUnknown with reason limit. Malformed output or a non-zero exit gives parse_error.
+directory, and its own process group. It is killed after the wall-time limit. A worker killed by a
+signal (wall time, CPU, memory, or file size) gives ContractUnknown with reason limit. A non-zero
+exit without a limit kill, or output that is not the expected JSON, gives parse_error. The parent
+re-validates the worker's root before it trusts it (R-C-4).
 
 Windows is out of scope for this phase (design 2.5).
 
-Requirements: R-C-4. Layer 1 (adapter). Standard library only.
+Requirements: R-C-2, R-C-4. Layer 1 (adapter). Standard library only.
 """
 
 from __future__ import annotations
@@ -18,10 +20,12 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from slopseal.contract.limits import (
     DETAIL_MAX_CHARS,
     MAX_COMPRESSED_BYTES,
+    MAX_CONTRACT_NAMES,
     MAX_EXPANDED_BYTES,
     MAX_MEMBERS,
     SOURCE_FILE_MAX_BYTES,
@@ -30,7 +34,7 @@ from slopseal.contract.limits import (
     WORKER_OUTPUT_MAX_BYTES,
     WORKER_WALL_SECONDS,
 )
-from slopseal.contract.types import ContractUnknown, UnknownReason
+from slopseal.contract.types import ContractComplete, ContractUnknown, UnknownReason
 
 WORKER = Path(__file__).with_name("worker.py")
 KINDS = frozenset({"wheel", "npm"})
@@ -67,28 +71,9 @@ def _root_inside(root: str, private_dir: Path) -> bool:
     return target == base or base in target.parents
 
 
-def run_archive_check(
-    artifact: Path, kind: str, *, timeout: float = WORKER_WALL_SECONDS
-) -> ArchiveOk | ContractUnknown:
-    if os.name != "posix":
-        return ContractUnknown(UnknownReason.LIMIT, "archive checks need POSIX resource limits")
-    if kind not in KINDS:
-        raise ValueError("unknown artifact kind")
-    if artifact.stat().st_size > MAX_COMPRESSED_BYTES:
-        return ContractUnknown(UnknownReason.LIMIT, "artifact is larger than the compressed limit")
-    argv = [
-        sys.executable,
-        "-I",
-        str(WORKER),
-        kind,
-        str(artifact),
-        str(MAX_EXPANDED_BYTES),
-        str(MAX_MEMBERS),
-        str(SOURCE_FILE_MAX_BYTES),
-        str(int(WORKER_WALL_SECONDS)),
-        str(WORKER_ADDRESS_SPACE_BYTES),
-        str(WORKER_OPEN_FILES),
-    ]
+def _invoke(tail: list[str], artifact: Path, timeout: float, what: str) -> bytes | ContractUnknown:
+    """Run the worker with `tail` as its arguments. Returns its stdout, or the typed unknown."""
+    argv = [sys.executable, "-I", str(WORKER), *tail]
     process = subprocess.Popen(  # noqa: S603 - argv is built here from constants and our path; no shell
         argv,
         stdin=subprocess.DEVNULL,
@@ -104,19 +89,60 @@ def run_archive_check(
     except subprocess.TimeoutExpired:
         _kill_group(process)
         process.communicate()
-        return ContractUnknown(UnknownReason.LIMIT, "archive check exceeded its wall time")
+        return ContractUnknown(UnknownReason.LIMIT, f"{what} exceeded its wall time")
     if len(output) > WORKER_OUTPUT_MAX_BYTES:
-        return ContractUnknown(UnknownReason.LIMIT, "archive check output is larger than the limit")
+        return ContractUnknown(UnknownReason.LIMIT, f"{what} output is larger than the limit")
     if process.returncode < 0:
-        return ContractUnknown(UnknownReason.LIMIT, "archive check was stopped by a limit")
+        return ContractUnknown(UnknownReason.LIMIT, f"{what} was stopped by a limit")
     if process.returncode != 0:
-        return ContractUnknown(UnknownReason.PARSE_ERROR, "archive check failed")
+        return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} failed")
+    return output
+
+
+def _message(output: bytes, what: str) -> dict[str, Any] | ContractUnknown:
+    """The worker's JSON object, or a parse_error. An unknown status is returned as its reason."""
     try:
         message = json.loads(output)
     except ValueError:
-        return ContractUnknown(UnknownReason.PARSE_ERROR, "archive check output is malformed")
+        return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} output is malformed")
     if not isinstance(message, dict):
-        return ContractUnknown(UnknownReason.PARSE_ERROR, "archive check output is malformed")
+        return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} output is malformed")
+    if message.get("status") == "unknown":
+        try:
+            reason = UnknownReason(message.get("reason"))
+        except ValueError:
+            return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} gave an unknown reason")
+        detail = message.get("detail")
+        return ContractUnknown(reason, _short(detail if isinstance(detail, str) else ""))
+    return message
+
+
+def run_archive_check(
+    artifact: Path, kind: str, *, timeout: float = WORKER_WALL_SECONDS
+) -> ArchiveOk | ContractUnknown:
+    if os.name != "posix":
+        return ContractUnknown(UnknownReason.LIMIT, "archive checks need POSIX resource limits")
+    if kind not in KINDS:
+        raise ValueError("unknown artifact kind")
+    if artifact.stat().st_size > MAX_COMPRESSED_BYTES:
+        return ContractUnknown(UnknownReason.LIMIT, "artifact is larger than the compressed limit")
+    tail = [
+        kind,
+        str(artifact),
+        str(MAX_EXPANDED_BYTES),
+        str(MAX_MEMBERS),
+        str(SOURCE_FILE_MAX_BYTES),
+        str(int(WORKER_WALL_SECONDS)),
+        str(WORKER_ADDRESS_SPACE_BYTES),
+        str(WORKER_OPEN_FILES),
+    ]
+    what = "archive check"
+    output = _invoke(tail, artifact, timeout, what)
+    if isinstance(output, ContractUnknown):
+        return output
+    message = _message(output, what)
+    if isinstance(message, ContractUnknown):
+        return message
     if message.get("status") == "ok" and isinstance(message.get("root"), str):
         root = message["root"]
         if not _root_inside(root, artifact.parent):
@@ -124,13 +150,38 @@ def run_archive_check(
                 UnknownReason.PARSE_ERROR, "archive root is outside the artifact directory"
             )
         return ArchiveOk(root)
-    if message.get("status") == "unknown":
+    return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} output is malformed")
+
+
+def run_extract(
+    artifact: Path, kind: str, *, timeout: float = WORKER_WALL_SECONDS
+) -> ContractComplete | ContractUnknown:
+    """The export names of a wheel, from the worker's extract mode (R-C-2). Wheels only."""
+    if os.name != "posix":
+        return ContractUnknown(UnknownReason.LIMIT, "extraction needs POSIX resource limits")
+    if kind != "wheel":
+        return ContractUnknown(UnknownReason.PARSE_ERROR, "extraction is implemented for wheels")
+    tail = [
+        "extract",
+        kind,
+        str(artifact),
+        str(SOURCE_FILE_MAX_BYTES),
+        str(MAX_CONTRACT_NAMES),
+        str(int(WORKER_WALL_SECONDS)),
+        str(WORKER_ADDRESS_SPACE_BYTES),
+        str(WORKER_OPEN_FILES),
+    ]
+    what = "extraction"
+    output = _invoke(tail, artifact, timeout, what)
+    if isinstance(output, ContractUnknown):
+        return output
+    message = _message(output, what)
+    if isinstance(message, ContractUnknown):
+        return message
+    exports = message.get("exports")
+    if message.get("status") == "complete" and isinstance(exports, list):
         try:
-            reason = UnknownReason(message.get("reason"))
-        except ValueError:
-            return ContractUnknown(
-                UnknownReason.PARSE_ERROR, "archive check gave an unknown reason"
-            )
-        detail = message.get("detail")
-        return ContractUnknown(reason, _short(detail if isinstance(detail, str) else ""))
-    return ContractUnknown(UnknownReason.PARSE_ERROR, "archive check output is malformed")
+            return ContractComplete(tuple(exports))
+        except (TypeError, ValueError):
+            return ContractUnknown(UnknownReason.PARSE_ERROR, "extraction gave invalid names")
+    return ContractUnknown(UnknownReason.PARSE_ERROR, f"{what} output is malformed")
