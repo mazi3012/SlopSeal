@@ -516,9 +516,6 @@ def test_r_4_7_corrupt_state_blocks(tmp_path: Path, body: str) -> None:
     assert not RateLimiter(tmp_path, 10).attempt().allowed
 
 
-@pytest.mark.xfail(
-    strict=True, reason="F-07: rate limiting tells the agent to pick another package"
-)
 def test_f07_rate_limited_hook_message_is_not_a_package_rejection(state: Path) -> None:
     for _ in range(10):
         _hook("pip install csv-parser==1.2.0")
