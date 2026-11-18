@@ -16,8 +16,13 @@ import pytest
 
 from slopseal.audit.log import AuditLog
 from slopseal.audit.seal import load_or_create_key
-from slopseal.contract.types import ContractResult, ContractUnknown, UnknownReason
-from slopseal.core.types import Ecosystem
+from slopseal.contract.types import (
+    ContractComplete,
+    ContractResult,
+    ContractUnknown,
+    UnknownReason,
+)
+from slopseal.core.types import Ecosystem, Level
 from slopseal.fixtures.loader import load_snapshot
 from slopseal.policy.invariants import enforce_floors
 from slopseal.policy.known_exports import reviewed_symbols
@@ -268,3 +273,76 @@ def test_r_cw_2_verify_install_allows_recorded_export_and_blocks_other_package(
     assert blocked.violation is not None
     assert blocked.violation.check == "api_surface"
     assert "(reason: dynamic_exports)" in blocked.violation.reason
+
+
+# ---- R-CW-3 (#53): an override ALLOW leaves a trace, a normal ALLOW does not -----------------
+
+OVERRIDE_TEXT = (
+    "reviewed export override applied (ed25519.Ed25519PublicKey, reviewer owner, date 2026-11-17)"
+)
+
+
+class _FixedContractSource(LiveSource):
+    """A LiveSource whose contract answer is set per test (R-CW-3)."""
+
+    result: ContractResult
+
+    def contract(self, eco: Ecosystem, name: str, version: str) -> ContractResult:
+        return self.result
+
+
+def _cryptography_allow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, contract: ContractResult
+) -> tuple[Any, str]:
+    monkeypatch.setattr(live, "host_platform", lambda: "linux-x86_64")
+    top_n = {
+        Ecosystem.PYPI: load_snapshot(REPO_ROOT / "src" / "slopseal" / "fixtures").top_n(
+            Ecosystem.PYPI
+        )
+    }
+    source = _FixedContractSource(
+        fetch=_fetch_from(_fake_registry()),
+        artifact_fetch=lambda url, eco: ContractUnknown(UnknownReason.NETWORK, "not used"),
+        top_n=top_n,
+        compiled_wheels=REVIEWED_POLICY.compiled_wheels,
+    )
+    source.result = contract
+    decision = verify_install(
+        InstallRequest(
+            ecosystem=Ecosystem.PYPI,
+            package="cryptography",
+            version="50.0.2",
+            intent=Intent(purpose="receipt signing", expected_api=ED25519),
+        ),
+        _verdict_context(tmp_path, source),
+    )
+    audit_text = (tmp_path / "audit.jsonl").read_text(encoding="utf-8")
+    return decision, audit_text
+
+
+def test_r_cw_3_override_allow_carries_api_surface_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    decision, audit_text = _cryptography_allow(
+        monkeypatch, tmp_path, ContractUnknown(UnknownReason.DYNAMIC_EXPORTS, "stubbed")
+    )
+
+    assert decision.outcome is Outcome.ALLOW
+    traces = [
+        w for w in decision.warnings if w.check == "api_surface" and w.reason == OVERRIDE_TEXT
+    ]
+    assert len(traces) == 1
+    assert traces[0].level is Level.WARN
+    assert OVERRIDE_TEXT in audit_text
+
+
+def test_r_cw_3_normal_allow_has_no_override_warning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    decision, audit_text = _cryptography_allow(
+        monkeypatch, tmp_path, ContractComplete(exports=(ED25519,))
+    )
+
+    assert decision.outcome is Outcome.ALLOW
+    assert not [w for w in decision.warnings if "reviewed export override" in w.reason]
+    assert "reviewed export override" not in audit_text

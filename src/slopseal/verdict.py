@@ -43,7 +43,7 @@ from slopseal.core.new_package import check_new_package
 from slopseal.core.signatures import Signature, check_slopsquat
 from slopseal.core.types import CheckResult, Ecosystem, Level
 from slopseal.core.typosquat import check_typosquat
-from slopseal.policy.known_exports import reviewed_symbols
+from slopseal.policy.known_exports import reviewed_record, reviewed_symbols
 from slopseal.policy.loader import Policy
 from slopseal.quarantine.api_surface import (
     ApiSurface,
@@ -284,8 +284,9 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
         if isinstance(contract_result, ContractDigestMismatch):
             results.append(mismatch_block(contract_result))
             return _verdict_block(request, ctx, version, results, snapshot_id, retry)
-        surface = check_contract(contract_result, api)
-        surface = apply_reviewed_exports(surface, reviewed_symbols(ctx.policy, name, version))
+        raw_surface = check_contract(contract_result, api)
+        surface = apply_reviewed_exports(raw_surface, reviewed_symbols(ctx.policy, name, version))
+        warnings = warnings + _override_warning(raw_surface, surface, ctx.policy, name, version)
         if surface.outcome is ApiSurface.UNKNOWN:
             results.append(unknown_block(surface))
             return _verdict_block(
@@ -315,6 +316,32 @@ def _verify(request: InstallRequest, ctx: Context) -> Decision:
         reason="all checks passed",
         quarantine_id=retry.quarantine_id if retry else None,
     )
+
+
+def _override_warning(
+    raw: ApiSurfaceResult,
+    applied: ApiSurfaceResult,
+    policy: Policy,
+    name: str,
+    version: str,
+) -> tuple[CheckResult, ...]:
+    """A WARN that names the reviewed export used for an ALLOW (R-CW-3, #53).
+
+    Only a reviewed export that turned an UNKNOWN into PRESENT produces it. A normal PRESENT
+    gives nothing.
+    """
+    if raw.outcome is not ApiSurface.UNKNOWN or applied.outcome is not ApiSurface.PRESENT:
+        return ()
+    record = reviewed_record(policy, name, version, applied.declared_api)
+    if record is None:
+        # apply_reviewed_exports only applies a recorded symbol. A missing record is an
+        # internal error: raise, so the fail-closed wrapper blocks it instead of a silent ALLOW.
+        raise RuntimeError("reviewed export applied without a matching record")
+    text = (
+        f"reviewed export override applied "
+        f"({record.symbol}, reviewer {record.reviewer}, date {record.date})"
+    )
+    return (CheckResult("api_surface", Level.WARN, text),)
 
 
 def _run_l1(request: InstallRequest, ctx: Context, version: str) -> list[CheckResult]:
